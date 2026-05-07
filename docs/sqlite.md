@@ -1,0 +1,77 @@
+# SQLite Storage
+
+SQLite is the default local persistence engine for the MVP.
+
+Use EF Core SQLite for the persistence implementation. Keep EF Core details
+inside `Aeges.Storage.Sqlite`; storage abstractions must not expose EF-specific
+types.
+
+It stores durable runtime state and metadata:
+
+- projects
+- tasks
+- task iterations
+- artifact metadata
+- approval requests
+- locks
+- runtime events
+- runner executions
+- machines
+
+Large artifact contents should live on disk. SQLite stores artifact identifiers,
+relative paths, size, checksum, type, and timestamps.
+
+## Runtime Database
+
+Default database path:
+
+```text
+~/.aeges/aeges.db
+```
+
+Recommended pragmas:
+
+```sql
+PRAGMA journal_mode = WAL;
+PRAGMA foreign_keys = ON;
+PRAGMA busy_timeout = 5000;
+```
+
+Schema definitions and migrations belong to `Aeges.Storage.Sqlite`.
+
+The current EF Core foundation includes:
+
+- `AegesDbContext`
+- internal persistence records for MVP tables
+- explicit entity configuration
+- `AegesDbContextFactory` for `dotnet ef`
+- an initial `InitialCreate` migration
+- SQLite pragma application for WAL, foreign keys, and busy timeout
+- SQLite project, machine, task, iteration, artifact, approval, and lock
+  repositories backed by temporary-file tests
+- SQLite unit-of-work transaction tests for commit and rollback behavior
+
+## Migrations
+
+Use EF Core migrations rather than a custom SQL migration runner.
+
+Migration files should live under:
+
+```text
+src/Aeges.Storage.Sqlite/Migrations/
+```
+
+Create migrations with:
+
+```text
+dotnet ef migrations add <Name> --project src/Aeges.Storage.Sqlite --startup-project src/Aeges.Cli
+```
+
+Apply migrations with:
+
+```text
+dotnet ef database update --project src/Aeges.Storage.Sqlite --startup-project src/Aeges.Cli
+```
+
+Runtime code may call EF Core migration APIs during local agent startup when
+configured to manage the local SQLite database automatically.
