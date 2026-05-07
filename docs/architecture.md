@@ -43,8 +43,10 @@ to `Aeges.Storage.Sqlite`.
 
 `Aeges.Application` exposes use-case services for project registration, machine
 registration and heartbeat reporting, durable task creation and lookup, and
-explicit task lifecycle transitions. Expected failures, such as missing
-projects, machines, tasks, invalid transitions, or iteration limit violations,
+explicit task lifecycle transitions. It also coordinates approval gates:
+requesting approval pauses the task, approval resumes it, rejection fails it,
+and cancellation cancels it. Expected failures, such as missing projects,
+machines, tasks, approvals, invalid transitions, or iteration limit violations,
 are returned as structured application results instead of being hidden in
 transport-specific responses. The application layer coordinates repositories
 through `IUnitOfWork`; it does not depend on SQLite or any runner

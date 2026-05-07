@@ -111,4 +111,14 @@ cancelled
 Only pending approvals can be resolved. Approved, rejected, and cancelled
 approvals are terminal.
 
+The application layer treats approval as a workflow gate, not only an approval
+record. Requesting approval pauses the owning task in `waiting_approval`.
+Resolving approval applies a deterministic task outcome:
+
+```text
+approved  -> task resumes running
+rejected  -> task fails with a recorded reason
+cancelled -> task is cancelled
+```
+
 Conversation history is not the source of truth. Durable artifacts are.

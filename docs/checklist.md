@@ -63,6 +63,7 @@ review, test, and document independently.
 - [x] Add application tests with in-memory storage fakes.
 - [x] Add task status transition application use cases.
 - [x] Add task cancellation application use case.
+- [x] Add approval request and resolution application use cases.
 
 ## Current Focus
 
@@ -104,7 +105,7 @@ review, test, and document independently.
 - [x] Add task query use cases.
 - [x] Add task status transition use cases.
 - [x] Add task cancellation use case.
-- [ ] Add approval request and resolution use cases.
+- [x] Add approval request and resolution use cases.
 - [ ] Add artifact registration use cases.
 - [ ] Add governance checks before runner dispatch.
 - [x] Add structured result models for expected runtime failures.

@@ -151,14 +151,31 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
 
     private sealed class IterationRepository : IIterationRepository
     {
-        public Task AddAsync(TaskIteration iteration, CancellationToken cancellationToken) => Task.CompletedTask;
+        private readonly Dictionary<IterationId, TaskIteration> iterations = [];
 
-        public Task<TaskIteration?> GetByIdAsync(IterationId id, CancellationToken cancellationToken) => Task.FromResult<TaskIteration?>(null);
+        public Task AddAsync(TaskIteration iteration, CancellationToken cancellationToken)
+        {
+            iterations.Add(iteration.Id, iteration);
+
+            return Task.CompletedTask;
+        }
+
+        public Task<TaskIteration?> GetByIdAsync(IterationId id, CancellationToken cancellationToken) =>
+            Task.FromResult(iterations.GetValueOrDefault(id));
 
         public Task<IReadOnlyList<TaskIteration>> ListByTaskAsync(TaskId taskId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<TaskIteration>>([]);
+            Task.FromResult<IReadOnlyList<TaskIteration>>(
+                iterations.Values
+                    .Where(iteration => iteration.TaskId == taskId)
+                    .OrderBy(iteration => iteration.IterationNumber)
+                    .ToArray());
 
-        public Task UpdateAsync(TaskIteration iteration, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task UpdateAsync(TaskIteration iteration, CancellationToken cancellationToken)
+        {
+            iterations[iteration.Id] = iteration;
+
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class ArtifactRepository : IArtifactRepository
@@ -179,18 +196,39 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
 
     private sealed class ApprovalRepository : IApprovalRepository
     {
-        public Task AddAsync(ApprovalRequest approval, CancellationToken cancellationToken) => Task.CompletedTask;
+        private readonly Dictionary<ApprovalId, ApprovalRequest> approvals = [];
+
+        public Task AddAsync(ApprovalRequest approval, CancellationToken cancellationToken)
+        {
+            approvals.Add(approval.Id, approval);
+
+            return Task.CompletedTask;
+        }
 
         public Task<ApprovalRequest?> GetByIdAsync(ApprovalId id, CancellationToken cancellationToken) =>
-            Task.FromResult<ApprovalRequest?>(null);
+            Task.FromResult(approvals.GetValueOrDefault(id));
 
         public Task<IReadOnlyList<ApprovalRequest>> ListByTaskAsync(TaskId taskId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ApprovalRequest>>([]);
+            Task.FromResult<IReadOnlyList<ApprovalRequest>>(
+                approvals.Values
+                    .Where(approval => approval.TaskId == taskId)
+                    .OrderBy(approval => approval.CreatedAt)
+                    .ToArray());
 
         public Task<IReadOnlyList<ApprovalRequest>> ListPendingAsync(int limit, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ApprovalRequest>>([]);
+            Task.FromResult<IReadOnlyList<ApprovalRequest>>(
+                approvals.Values
+                    .Where(approval => approval.Status == ApprovalStatus.Pending)
+                    .OrderBy(approval => approval.CreatedAt)
+                    .Take(limit)
+                    .ToArray());
 
-        public Task UpdateAsync(ApprovalRequest approval, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task UpdateAsync(ApprovalRequest approval, CancellationToken cancellationToken)
+        {
+            approvals[approval.Id] = approval;
+
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class LockRepository : ILockRepository
