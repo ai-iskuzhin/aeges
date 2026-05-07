@@ -73,5 +73,17 @@ Apply migrations with:
 dotnet ef database update --project src/Aeges.Storage.Sqlite --startup-project src/Aeges.Cli
 ```
 
+The CLI also exposes:
+
+```text
+aeges db status
+aeges db migrate
+```
+
+Both commands use the configured SQLite connection string when present, or the
+default runtime database at `~/.aeges/aeges.db` otherwise. `db status` reports
+applied and pending EF Core migrations. `db migrate` applies pending migrations
+and then reports the resulting status.
+
 Runtime code may call EF Core migration APIs during local agent startup when
 configured to manage the local SQLite database automatically.

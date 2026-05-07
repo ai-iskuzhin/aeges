@@ -75,6 +75,8 @@ review, test, and document independently.
 - [x] Add worktree path generation and validation.
 - [x] Add runtime directory model for `~/.aeges`.
 - [x] Add config loading model.
+- [x] Add `aeges db status`.
+- [x] Add `aeges db migrate`.
 
 ## Current Focus
 
@@ -140,8 +142,8 @@ review, test, and document independently.
 
 - [x] Add runtime directory model for `~/.aeges`.
 - [x] Add config loading model.
-- [ ] Add `aeges db status`.
-- [ ] Add `aeges db migrate`.
+- [x] Add `aeges db status`.
+- [x] Add `aeges db migrate`.
 - [ ] Add `aeges task create`.
 - [ ] Add `aeges task status`.
 - [ ] Add `aeges agent run` host shell.
