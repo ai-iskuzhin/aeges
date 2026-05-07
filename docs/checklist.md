@@ -71,6 +71,8 @@ review, test, and document independently.
 - [x] Add mock runner for tests.
 - [x] Add Codex runner project contracts without launching Codex yet.
 - [x] Add cancellation and timeout contract coverage.
+- [x] Add Git repository, worktree, status, diff, and base commit contracts.
+- [x] Add worktree path generation and validation.
 
 ## Current Focus
 
@@ -125,12 +127,12 @@ review, test, and document independently.
 
 ## Git Foundation
 
-- [ ] Add repository detection contract.
-- [ ] Add worktree creation contract.
-- [ ] Add git status and diff contracts.
-- [ ] Add base commit recording model.
-- [ ] Add path safety checks for worktree paths.
-- [ ] Test worktree path generation and validation.
+- [x] Add repository detection contract.
+- [x] Add worktree creation contract.
+- [x] Add git status and diff contracts.
+- [x] Add base commit recording model.
+- [x] Add path safety checks for worktree paths.
+- [x] Test worktree path generation and validation.
 
 ## Runtime And CLI
 

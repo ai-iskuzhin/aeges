@@ -16,7 +16,7 @@ persistence, and bounded execution.
 - `Aeges.Storage.Sqlite` implements local SQLite persistence.
 - `Aeges.Runners` defines runner abstractions and shared utilities.
 - `Aeges.Runners.Codex` implements the Codex CLI runner.
-- `Aeges.Git` owns repository and worktree integration.
+- `Aeges.Git` owns repository and worktree integration contracts.
 - `Aeges.Agent`, `Aeges.Cli`, and `Aeges.Telegram` are hosts or transports.
 
 ## Core Runtime Concepts
@@ -32,6 +32,14 @@ services.
 `Aeges.Runners` defines replaceable worker contracts in terms of core runtime
 identifiers. Runner implementations report execution results and artifacts; they
 do not own task lifecycle transitions or orchestration decisions.
+
+## Git Boundary
+
+`Aeges.Git` defines provider-neutral contracts and models for repository
+detection, worktree creation, status capture, diff capture, and base commit
+recording. It also builds deterministic worktree paths under the configured
+runtime worktree root. Actual Git command execution is left to later
+infrastructure slices.
 
 ## Storage Boundary
 

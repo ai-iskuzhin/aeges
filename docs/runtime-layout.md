@@ -24,7 +24,13 @@ Git worktrees should be isolated per task or iteration:
 ~/.aeges/worktrees/
   <project-id>/
     <task-id>/
+      <iteration-id>/
 ```
 
-The runtime should validate paths, preserve artifacts, and avoid modifying files
-outside approved project roots.
+The Git foundation includes deterministic worktree path generation under the
+configured worktree root. Identifier values are converted into safe path
+segments, generated worktree paths are kept inside the root, and candidate
+worktree paths can be validated before use.
+
+The runtime should preserve artifacts and avoid modifying files outside
+approved project roots.
