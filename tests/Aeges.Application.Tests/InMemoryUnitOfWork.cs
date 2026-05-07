@@ -248,17 +248,37 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
 
     private sealed class LockRepository : ILockRepository
     {
-        public Task AddAsync(RuntimeLock runtimeLock, CancellationToken cancellationToken) => Task.CompletedTask;
+        private readonly Dictionary<LockId, RuntimeLock> locks = [];
+
+        public Task AddAsync(RuntimeLock runtimeLock, CancellationToken cancellationToken)
+        {
+            locks.Add(runtimeLock.Id, runtimeLock);
+
+            return Task.CompletedTask;
+        }
 
         public Task<RuntimeLock?> GetByIdAsync(LockId id, CancellationToken cancellationToken) =>
-            Task.FromResult<RuntimeLock?>(null);
+            Task.FromResult(locks.GetValueOrDefault(id));
 
         public Task<IReadOnlyList<RuntimeLock>> ListActiveByProjectAsync(ProjectId projectId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<RuntimeLock>>([]);
+            Task.FromResult<IReadOnlyList<RuntimeLock>>(
+                locks.Values
+                    .Where(runtimeLock => runtimeLock.ProjectId == projectId && runtimeLock.IsActive)
+                    .OrderBy(runtimeLock => runtimeLock.CreatedAt)
+                    .ToArray());
 
         public Task<IReadOnlyList<RuntimeLock>> ListActiveByTaskAsync(TaskId taskId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<RuntimeLock>>([]);
+            Task.FromResult<IReadOnlyList<RuntimeLock>>(
+                locks.Values
+                    .Where(runtimeLock => runtimeLock.TaskId == taskId && runtimeLock.IsActive)
+                    .OrderBy(runtimeLock => runtimeLock.CreatedAt)
+                    .ToArray());
 
-        public Task UpdateAsync(RuntimeLock runtimeLock, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task UpdateAsync(RuntimeLock runtimeLock, CancellationToken cancellationToken)
+        {
+            locks[runtimeLock.Id] = runtimeLock;
+
+            return Task.CompletedTask;
+        }
     }
 }

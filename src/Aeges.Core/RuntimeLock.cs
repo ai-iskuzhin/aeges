@@ -110,6 +110,29 @@ public sealed class RuntimeLock
 
         ReleasedAt = now;
     }
+
+    /// <summary>
+    /// Determines whether this lock protects a relative path.
+    /// </summary>
+    /// <param name="relativePath">The relative path to check.</param>
+    /// <returns><see langword="true"/> when the lock pattern protects the path; otherwise <see langword="false"/>.</returns>
+    public bool ProtectsPath(string relativePath) =>
+        LockPathPattern.Matches(PathPattern, relativePath);
+
+    /// <summary>
+    /// Determines whether this lock conflicts with another active lock.
+    /// </summary>
+    /// <param name="other">The other lock to compare.</param>
+    /// <returns><see langword="true"/> when the locks conflict; otherwise <see langword="false"/>.</returns>
+    public bool ConflictsWith(RuntimeLock other)
+    {
+        if (ProjectId != other.ProjectId || TaskId == other.TaskId || !IsActive || !other.IsActive)
+        {
+            return false;
+        }
+
+        return LockPathPattern.Overlaps(PathPattern, other.PathPattern);
+    }
 }
 
 internal static class LockPathPattern
@@ -133,7 +156,61 @@ internal static class LockPathPattern
             throw new ArgumentException("Lock path pattern must not contain current or parent directory segments.", nameof(value));
         }
 
-        return value;
+        return Normalize(value);
+    }
+
+    public static bool Matches(string pattern, string relativePath) =>
+        System.Text.RegularExpressions.Regex.IsMatch(
+            Require(relativePath),
+            ToRegexPattern(Require(pattern)),
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    public static bool Overlaps(string leftPattern, string rightPattern)
+    {
+        var normalizedLeft = Normalize(leftPattern);
+        var normalizedRight = Normalize(rightPattern);
+
+        return normalizedLeft == normalizedRight
+            || Matches(normalizedLeft, CreateRepresentativePath(normalizedRight))
+            || Matches(normalizedRight, CreateRepresentativePath(normalizedLeft));
+    }
+
+    private static string Normalize(string value)
+    {
+        var normalized = value.Replace('\\', '/');
+
+        while (normalized.StartsWith("./", StringComparison.Ordinal))
+        {
+            normalized = normalized[2..];
+        }
+
+        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        return string.Join("/", segments);
+    }
+
+    private static string ToRegexPattern(string pattern)
+    {
+        var escaped = System.Text.RegularExpressions.Regex.Escape(pattern)
+            .Replace("\\*\\*", ".*", StringComparison.Ordinal)
+            .Replace("\\*", "[^/]*", StringComparison.Ordinal);
+
+        return "^" + escaped + "$";
+    }
+
+    private static string CreateRepresentativePath(string pattern)
+    {
+        var segments = pattern
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Select(segment => segment switch
+            {
+                "**" => "sample/deep",
+                "*" => "sample",
+                _ => segment.Replace("**", "sample/deep", StringComparison.Ordinal)
+                    .Replace("*", "sample", StringComparison.Ordinal),
+            });
+
+        return string.Join("/", segments);
     }
 
     private static bool HasWindowsRoot(string value) =>

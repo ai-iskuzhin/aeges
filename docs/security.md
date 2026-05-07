@@ -46,3 +46,10 @@ MVP locking is path-based and relative to a registered project root. Lock
 patterns must not be absolute and must not contain parent-directory traversal.
 This keeps early scheduling deterministic without introducing semantic
 code-region locking before the runtime needs it.
+
+The application layer now acquires locks through a governed use case. Before a
+lock is persisted, active locks for the project are checked for path overlap.
+Overlapping active locks held by another task are rejected as `lock_conflict`;
+overlapping locks held by the same task are allowed so one task can reserve a
+broader area and a specific file inside it. Released locks no longer participate
+in conflict detection.

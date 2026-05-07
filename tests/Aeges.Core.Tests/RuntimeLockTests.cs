@@ -54,6 +54,47 @@ public sealed class RuntimeLockTests
     }
 
     [Theory]
+    [InlineData("src/Auth/*", "src/Auth/Login.cs", true)]
+    [InlineData("src/Auth/*", "src/Payments/Checkout.cs", false)]
+    [InlineData("src/**", "src/Auth/Login.cs", true)]
+    [InlineData("package.json", "package.json", true)]
+    public void ProtectsPath_matches_relative_paths(string pattern, string path, bool expected)
+    {
+        var runtimeLock = CreateLock(pattern);
+
+        Assert.Equal(expected, runtimeLock.ProtectsPath(path));
+    }
+
+    [Fact]
+    public void ConflictsWith_detects_overlapping_active_locks_for_different_tasks()
+    {
+        var left = CreateLock("src/Auth/*");
+        var right = RuntimeLock.Acquire(
+            new LockId("lock-002"),
+            new TaskId("task-002"),
+            new ProjectId("project-001"),
+            "src/Auth/Login.cs",
+            CreatedAt);
+
+        Assert.True(left.ConflictsWith(right));
+        Assert.True(right.ConflictsWith(left));
+    }
+
+    [Fact]
+    public void ConflictsWith_ignores_same_task_different_project_and_released_locks()
+    {
+        var left = CreateLock("src/Auth/*");
+        var sameTask = RuntimeLock.Acquire(new LockId("lock-002"), new TaskId("task-001"), new ProjectId("project-001"), "src/Auth/Login.cs", CreatedAt);
+        var differentProject = RuntimeLock.Acquire(new LockId("lock-003"), new TaskId("task-002"), new ProjectId("project-002"), "src/Auth/Login.cs", CreatedAt);
+        var released = RuntimeLock.Acquire(new LockId("lock-004"), new TaskId("task-002"), new ProjectId("project-001"), "src/Auth/Login.cs", CreatedAt);
+        released.Release(CreatedAt.AddMinutes(1));
+
+        Assert.False(left.ConflictsWith(sameTask));
+        Assert.False(left.ConflictsWith(differentProject));
+        Assert.False(left.ConflictsWith(released));
+    }
+
+    [Theory]
     [InlineData("/absolute/path")]
     [InlineData("C:\\absolute\\path")]
     [InlineData("\\\\server\\share\\path")]

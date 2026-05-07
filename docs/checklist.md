@@ -67,6 +67,7 @@ review, test, and document independently.
 - [x] Add artifact registration application use cases.
 - [x] Add governance policy model.
 - [x] Add governance checks before runner dispatch.
+- [x] Add lock conflict detection.
 
 ## Current Focus
 
@@ -147,7 +148,7 @@ review, test, and document independently.
 - [x] Add approval-required decisions for destructive git operations.
 - [x] Add allowed and denied path policy checks.
 - [x] Add max iteration and timeout policy checks.
-- [ ] Add lock conflict detection.
+- [x] Add lock conflict detection.
 
 ## Documentation
 
