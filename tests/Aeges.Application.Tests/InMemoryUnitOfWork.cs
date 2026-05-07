@@ -180,18 +180,33 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
 
     private sealed class ArtifactRepository : IArtifactRepository
     {
-        public Task AddAsync(RuntimeArtifact artifact, CancellationToken cancellationToken) => Task.CompletedTask;
+        private readonly Dictionary<ArtifactId, RuntimeArtifact> artifacts = [];
+
+        public Task AddAsync(RuntimeArtifact artifact, CancellationToken cancellationToken)
+        {
+            artifacts.Add(artifact.Id, artifact);
+
+            return Task.CompletedTask;
+        }
 
         public Task<RuntimeArtifact?> GetByIdAsync(ArtifactId id, CancellationToken cancellationToken) =>
-            Task.FromResult<RuntimeArtifact?>(null);
+            Task.FromResult(artifacts.GetValueOrDefault(id));
 
         public Task<IReadOnlyList<RuntimeArtifact>> ListByTaskAsync(TaskId taskId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<RuntimeArtifact>>([]);
+            Task.FromResult<IReadOnlyList<RuntimeArtifact>>(
+                artifacts.Values
+                    .Where(artifact => artifact.TaskId == taskId)
+                    .OrderBy(artifact => artifact.CreatedAt)
+                    .ToArray());
 
         public Task<IReadOnlyList<RuntimeArtifact>> ListByIterationAsync(
             IterationId iterationId,
             CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<RuntimeArtifact>>([]);
+            Task.FromResult<IReadOnlyList<RuntimeArtifact>>(
+                artifacts.Values
+                    .Where(artifact => artifact.IterationId == iterationId)
+                    .OrderBy(artifact => artifact.CreatedAt)
+                    .ToArray());
     }
 
     private sealed class ApprovalRepository : IApprovalRepository

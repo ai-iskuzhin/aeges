@@ -45,11 +45,13 @@ to `Aeges.Storage.Sqlite`.
 registration and heartbeat reporting, durable task creation and lookup, and
 explicit task lifecycle transitions. It also coordinates approval gates:
 requesting approval pauses the task, approval resumes it, rejection fails it,
-and cancellation cancels it. Expected failures, such as missing projects,
-machines, tasks, approvals, invalid transitions, or iteration limit violations,
-are returned as structured application results instead of being hidden in
-transport-specific responses. The application layer coordinates repositories
-through `IUnitOfWork`; it does not depend on SQLite or any runner
+and cancellation cancels it. Artifact registration records durable metadata and
+links prompt, result, and diff artifacts back to their owning iterations.
+Expected failures, such as missing projects, machines, tasks, iterations,
+approvals, invalid transitions, unsafe artifact paths, or iteration limit
+violations, are returned as structured application results instead of being
+hidden in transport-specific responses. The application layer coordinates
+repositories through `IUnitOfWork`; it does not depend on SQLite or any runner
 implementation.
 
 ## Dependency Direction

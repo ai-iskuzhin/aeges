@@ -94,6 +94,11 @@ metadata
 Artifact paths must be relative to the configured artifact root and must not use
 absolute paths or parent-directory traversal.
 
+The application layer validates task and iteration ownership before artifact
+metadata is registered. Prompt, result, and diff artifacts registered against an
+iteration are also attached to that iteration so later orchestration can locate
+the execution inputs and outputs deterministically.
+
 ## Approvals
 
 Approvals are durable governance gates attached to a task and optionally to an
