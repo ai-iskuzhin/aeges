@@ -23,6 +23,14 @@ Runner results include status, exit code, stdout/stderr paths, result artifact
 path, produced artifact paths, and an error summary when execution does not
 succeed.
 
+## Dispatch Governance
+
+Before a runner is dispatched, the application layer evaluates the dispatch
+against the active governance policy. The MVP policy can allow dispatch, require
+an approval checkpoint, or reject dispatch when hard limits are exceeded. Runner
+implementations receive policy hints, but they do not own the governance
+decision.
+
 ## Statuses
 
 Initial runner statuses:

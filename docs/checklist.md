@@ -65,6 +65,8 @@ review, test, and document independently.
 - [x] Add task cancellation application use case.
 - [x] Add approval request and resolution application use cases.
 - [x] Add artifact registration application use cases.
+- [x] Add governance policy model.
+- [x] Add governance checks before runner dispatch.
 
 ## Current Focus
 
@@ -108,7 +110,7 @@ review, test, and document independently.
 - [x] Add task cancellation use case.
 - [x] Add approval request and resolution use cases.
 - [x] Add artifact registration use cases.
-- [ ] Add governance checks before runner dispatch.
+- [x] Add governance checks before runner dispatch.
 - [x] Add structured result models for expected runtime failures.
 
 ## Runner Contracts
@@ -139,12 +141,12 @@ review, test, and document independently.
 
 ## Governance
 
-- [ ] Add governance policy model.
-- [ ] Add approval-required decisions for dependency changes.
-- [ ] Add approval-required decisions for migrations.
-- [ ] Add approval-required decisions for destructive git operations.
-- [ ] Add allowed and denied path policy checks.
-- [ ] Add max iteration and timeout policy checks.
+- [x] Add governance policy model.
+- [x] Add approval-required decisions for dependency changes.
+- [x] Add approval-required decisions for migrations.
+- [x] Add approval-required decisions for destructive git operations.
+- [x] Add allowed and denied path policy checks.
+- [x] Add max iteration and timeout policy checks.
 - [ ] Add lock conflict detection.
 
 ## Documentation

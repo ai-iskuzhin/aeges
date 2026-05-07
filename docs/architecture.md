@@ -47,6 +47,8 @@ explicit task lifecycle transitions. It also coordinates approval gates:
 requesting approval pauses the task, approval resumes it, rejection fails it,
 and cancellation cancels it. Artifact registration records durable metadata and
 links prompt, result, and diff artifacts back to their owning iterations.
+Governance preflight evaluates runner dispatch against runtime-owned policy
+before execution is allowed to proceed.
 Expected failures, such as missing projects, machines, tasks, iterations,
 approvals, invalid transitions, unsafe artifact paths, or iteration limit
 violations, are returned as structured application results instead of being
