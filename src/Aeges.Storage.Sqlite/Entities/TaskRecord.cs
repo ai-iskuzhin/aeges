@@ -1,3 +1,5 @@
+using Aeges.Core;
+
 namespace Aeges.Storage.Sqlite.Entities;
 
 internal sealed class TaskRecord
@@ -12,7 +14,7 @@ internal sealed class TaskRecord
 
     public string Goal { get; set; } = string.Empty;
 
-    public string Status { get; set; } = string.Empty;
+    public RuntimeTaskStatus Status { get; set; }
 
     public int Priority { get; set; }
 

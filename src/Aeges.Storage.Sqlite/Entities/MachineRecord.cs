@@ -1,3 +1,5 @@
+using Aeges.Core;
+
 namespace Aeges.Storage.Sqlite.Entities;
 
 internal sealed class MachineRecord
@@ -8,7 +10,7 @@ internal sealed class MachineRecord
 
     public string Platform { get; set; } = string.Empty;
 
-    public string Status { get; set; } = string.Empty;
+    public MachineStatus Status { get; set; }
 
     public DateTimeOffset? LastSeenAt { get; set; }
 

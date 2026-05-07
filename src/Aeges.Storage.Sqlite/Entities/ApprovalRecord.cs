@@ -1,3 +1,5 @@
+using Aeges.Core;
+
 namespace Aeges.Storage.Sqlite.Entities;
 
 internal sealed class ApprovalRecord
@@ -8,7 +10,7 @@ internal sealed class ApprovalRecord
 
     public string? IterationId { get; set; }
 
-    public string Status { get; set; } = string.Empty;
+    public ApprovalStatus Status { get; set; }
 
     public string Reason { get; set; } = string.Empty;
 

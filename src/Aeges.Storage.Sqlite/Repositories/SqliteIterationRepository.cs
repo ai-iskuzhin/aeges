@@ -57,7 +57,7 @@ public sealed class SqliteIterationRepository : IIterationRepository
             .SingleOrDefaultAsync(existingIteration => existingIteration.Id == iteration.Id.Value, cancellationToken)
             ?? throw new KeyNotFoundException($"Iteration '{iteration.Id}' was not found.");
 
-        record.Status = iteration.Status.ToStorageValue();
+        record.Status = iteration.Status;
         record.WorktreePath = iteration.WorktreePath;
         record.PromptArtifactId = iteration.PromptArtifactId?.Value;
         record.ResultArtifactId = iteration.ResultArtifactId?.Value;
@@ -74,7 +74,7 @@ public sealed class SqliteIterationRepository : IIterationRepository
             Id = iteration.Id.Value,
             TaskId = iteration.TaskId.Value,
             IterationNumber = iteration.IterationNumber,
-            Status = iteration.Status.ToStorageValue(),
+            Status = iteration.Status,
             RunnerId = iteration.RunnerId.Value,
             WorktreePath = iteration.WorktreePath,
             PromptArtifactId = iteration.PromptArtifactId?.Value,
@@ -92,7 +92,7 @@ public sealed class SqliteIterationRepository : IIterationRepository
             new IterationId(record.Id),
             new TaskId(record.TaskId),
             record.IterationNumber,
-            TaskIterationStatusExtensions.FromStorageValue(record.Status),
+            record.Status,
             new RunnerId(record.RunnerId),
             record.WorktreePath,
             record.PromptArtifactId is null ? null : new ArtifactId(record.PromptArtifactId),

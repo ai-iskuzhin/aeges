@@ -1,5 +1,8 @@
+using Aeges.Core;
 using Aeges.Storage.Sqlite;
+using Aeges.Storage.Sqlite.Repositories;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace Aeges.Storage.Sqlite.Tests;
 
@@ -74,6 +77,77 @@ public sealed class AegesDbContextTests
         Assert.True(expectedTableNames.SetEquals(tableNames));
     }
 
+    [Fact]
+    public async Task Enum_catalog_values_are_stored_as_stable_text()
+    {
+        await using var database = await TemporarySqliteDatabase.CreateAsync();
+        await using var context = database.CreateContext();
+        await SqliteRepositorySeed.SeedProjectMachineAndTaskAsync(context);
+
+        var iterations = new SqliteIterationRepository(context);
+        var artifacts = new SqliteArtifactRepository(context);
+        var approvals = new SqliteApprovalRepository(context);
+        var machines = new SqliteMachineRepository(context);
+        var now = SqliteRepositorySeed.CreatedAt.AddMinutes(1);
+
+        await iterations.AddAsync(
+            TaskIteration.Create(
+                new IterationId("iteration-001"),
+                new TaskId("task-001"),
+                1,
+                new RunnerId("codex"),
+                now),
+            CancellationToken.None);
+        await artifacts.AddAsync(
+            new RuntimeArtifact(
+                new ArtifactId("artifact-001"),
+                new TaskId("task-001"),
+                new IterationId("iteration-001"),
+                ArtifactType.StdoutLog,
+                "tasks/task-001/stdout.log",
+                now),
+            CancellationToken.None);
+        await approvals.AddAsync(
+            ApprovalRequest.Create(
+                new ApprovalId("approval-001"),
+                new TaskId("task-001"),
+                new IterationId("iteration-001"),
+                "Dependency change requires approval.",
+                "Modify package catalog.",
+                now),
+            CancellationToken.None);
+
+        var machine = await machines.GetByIdAsync(new MachineId("machine-001"), CancellationToken.None);
+        machine!.MarkBusy(now);
+        await machines.UpdateAsync(machine, CancellationToken.None);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        Assert.Equal(
+            "queued",
+            await ExecuteScalarTextAsync(context, "SELECT status FROM tasks WHERE id = 'task-001';", CancellationToken.None));
+        Assert.Equal(
+            "created",
+            await ExecuteScalarTextAsync(
+                context,
+                "SELECT status FROM task_iterations WHERE id = 'iteration-001';",
+                CancellationToken.None));
+        Assert.Equal(
+            "stdout_log",
+            await ExecuteScalarTextAsync(
+                context,
+                "SELECT type FROM artifacts WHERE id = 'artifact-001';",
+                CancellationToken.None));
+        Assert.Equal(
+            "pending",
+            await ExecuteScalarTextAsync(
+                context,
+                "SELECT status FROM approvals WHERE id = 'approval-001';",
+                CancellationToken.None));
+        Assert.Equal(
+            "busy",
+            await ExecuteScalarTextAsync(context, "SELECT status FROM machines WHERE id = 'machine-001';", CancellationToken.None));
+    }
+
     private static async Task<HashSet<string>> ReadTableNamesAsync(
         AegesDbContext context,
         CancellationToken cancellationToken)
@@ -97,6 +171,11 @@ public sealed class AegesDbContextTests
         string commandText,
         CancellationToken cancellationToken)
     {
+        if (context.Database.GetDbConnection().State != ConnectionState.Open)
+        {
+            await context.Database.OpenConnectionAsync(cancellationToken);
+        }
+
         await using var command = context.Database.GetDbConnection().CreateCommand();
         command.CommandText = commandText;
 

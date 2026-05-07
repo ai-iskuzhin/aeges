@@ -1,3 +1,5 @@
+using Aeges.Core;
+
 namespace Aeges.Storage.Sqlite.Entities;
 
 internal sealed class TaskIterationRecord
@@ -8,7 +10,7 @@ internal sealed class TaskIterationRecord
 
     public int IterationNumber { get; set; }
 
-    public string Status { get; set; } = string.Empty;
+    public TaskIterationStatus Status { get; set; }
 
     public string RunnerId { get; set; } = string.Empty;
 

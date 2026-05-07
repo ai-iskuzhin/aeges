@@ -16,7 +16,10 @@ internal sealed class TaskRecordConfiguration : IEntityTypeConfiguration<TaskRec
         builder.Property(task => task.MachineId).HasColumnName("machine_id").IsRequired();
         builder.Property(task => task.Title).HasColumnName("title").IsRequired();
         builder.Property(task => task.Goal).HasColumnName("goal").IsRequired();
-        builder.Property(task => task.Status).HasColumnName("status").IsRequired();
+        builder.Property(task => task.Status)
+            .HasColumnName("status")
+            .HasConversion(new RuntimeTaskStatusStorageConverter())
+            .IsRequired();
         builder.Property(task => task.Priority).HasColumnName("priority").HasDefaultValue(0);
         builder.Property(task => task.MaxIterations).HasColumnName("max_iterations").HasDefaultValue(3);
         builder.Property(task => task.CurrentIteration).HasColumnName("current_iteration").HasDefaultValue(0);

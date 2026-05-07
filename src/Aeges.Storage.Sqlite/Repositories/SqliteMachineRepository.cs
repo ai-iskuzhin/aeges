@@ -56,7 +56,7 @@ public sealed class SqliteMachineRepository : IMachineRepository
 
         record.Name = machine.Name;
         record.Platform = machine.Platform;
-        record.Status = machine.Status.ToStorageValue();
+        record.Status = machine.Status;
         record.LastSeenAt = machine.LastSeenAt;
         record.UpdatedAt = machine.UpdatedAt;
     }
@@ -67,7 +67,7 @@ public sealed class SqliteMachineRepository : IMachineRepository
             Id = machine.Id.Value,
             Name = machine.Name,
             Platform = machine.Platform,
-            Status = machine.Status.ToStorageValue(),
+            Status = machine.Status,
             LastSeenAt = machine.LastSeenAt,
             CreatedAt = machine.CreatedAt,
             UpdatedAt = machine.UpdatedAt,
@@ -78,7 +78,7 @@ public sealed class SqliteMachineRepository : IMachineRepository
             new MachineId(record.Id),
             record.Name,
             record.Platform,
-            MachineStatusExtensions.FromStorageValue(record.Status),
+            record.Status,
             record.LastSeenAt,
             record.CreatedAt,
             record.UpdatedAt);

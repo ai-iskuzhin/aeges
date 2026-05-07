@@ -1,3 +1,5 @@
+using Aeges.Core;
+
 namespace Aeges.Storage.Sqlite.Entities;
 
 internal sealed class ArtifactRecord
@@ -8,7 +10,7 @@ internal sealed class ArtifactRecord
 
     public string? IterationId { get; set; }
 
-    public string Type { get; set; } = string.Empty;
+    public ArtifactType Type { get; set; }
 
     public string RelativePath { get; set; } = string.Empty;
 

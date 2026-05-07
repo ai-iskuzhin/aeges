@@ -14,7 +14,10 @@ internal sealed class ApprovalRecordConfiguration : IEntityTypeConfiguration<App
         builder.Property(approval => approval.Id).HasColumnName("id");
         builder.Property(approval => approval.TaskId).HasColumnName("task_id").IsRequired();
         builder.Property(approval => approval.IterationId).HasColumnName("iteration_id");
-        builder.Property(approval => approval.Status).HasColumnName("status").IsRequired();
+        builder.Property(approval => approval.Status)
+            .HasColumnName("status")
+            .HasConversion(new ApprovalStatusStorageConverter())
+            .IsRequired();
         builder.Property(approval => approval.Reason).HasColumnName("reason").IsRequired();
         builder.Property(approval => approval.RequestedAction).HasColumnName("requested_action").IsRequired();
         builder.Property(approval => approval.CreatedAt).HasColumnName("created_at").IsRequired();

@@ -65,11 +65,9 @@ public sealed class SqliteTaskRepository : ITaskRepository
             throw new ArgumentOutOfRangeException(nameof(limit), limit, "Limit must be greater than zero.");
         }
 
-        var statusValue = status.ToStorageValue();
-
         var records = await context.Tasks
             .AsNoTracking()
-            .Where(task => task.Status == statusValue)
+            .Where(task => task.Status == status)
             .ToListAsync(cancellationToken);
 
         return records
@@ -88,7 +86,7 @@ public sealed class SqliteTaskRepository : ITaskRepository
             .SingleOrDefaultAsync(existingTask => existingTask.Id == task.Id.Value, cancellationToken)
             ?? throw new KeyNotFoundException($"Task '{task.Id}' was not found.");
 
-        record.Status = task.Status.ToStorageValue();
+        record.Status = task.Status;
         record.CurrentIteration = task.CurrentIteration;
         record.UpdatedAt = task.UpdatedAt;
         record.StartedAt = task.StartedAt;
@@ -105,7 +103,7 @@ public sealed class SqliteTaskRepository : ITaskRepository
             MachineId = task.MachineId.Value,
             Title = task.Title,
             Goal = task.Goal,
-            Status = task.Status.ToStorageValue(),
+            Status = task.Status,
             Priority = task.Priority,
             MaxIterations = task.MaxIterations,
             CurrentIteration = task.CurrentIteration,
@@ -124,7 +122,7 @@ public sealed class SqliteTaskRepository : ITaskRepository
             new MachineId(record.MachineId),
             record.Title,
             record.Goal,
-            RuntimeTaskStatusExtensions.FromStorageValue(record.Status),
+            record.Status,
             record.Priority,
             record.MaxIterations,
             record.CurrentIteration,

@@ -14,7 +14,10 @@ internal sealed class TaskIterationRecordConfiguration : IEntityTypeConfiguratio
         builder.Property(iteration => iteration.Id).HasColumnName("id");
         builder.Property(iteration => iteration.TaskId).HasColumnName("task_id").IsRequired();
         builder.Property(iteration => iteration.IterationNumber).HasColumnName("iteration_number").IsRequired();
-        builder.Property(iteration => iteration.Status).HasColumnName("status").IsRequired();
+        builder.Property(iteration => iteration.Status)
+            .HasColumnName("status")
+            .HasConversion(new TaskIterationStatusStorageConverter())
+            .IsRequired();
         builder.Property(iteration => iteration.RunnerId).HasColumnName("runner_id").IsRequired();
         builder.Property(iteration => iteration.WorktreePath).HasColumnName("worktree_path");
         builder.Property(iteration => iteration.PromptArtifactId).HasColumnName("prompt_artifact_id");

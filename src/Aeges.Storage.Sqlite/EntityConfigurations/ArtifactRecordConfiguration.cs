@@ -14,7 +14,10 @@ internal sealed class ArtifactRecordConfiguration : IEntityTypeConfiguration<Art
         builder.Property(artifact => artifact.Id).HasColumnName("id");
         builder.Property(artifact => artifact.TaskId).HasColumnName("task_id").IsRequired();
         builder.Property(artifact => artifact.IterationId).HasColumnName("iteration_id");
-        builder.Property(artifact => artifact.Type).HasColumnName("type").IsRequired();
+        builder.Property(artifact => artifact.Type)
+            .HasColumnName("type")
+            .HasConversion(new ArtifactTypeStorageConverter())
+            .IsRequired();
         builder.Property(artifact => artifact.RelativePath).HasColumnName("relative_path").IsRequired();
         builder.Property(artifact => artifact.SizeBytes).HasColumnName("size_bytes");
         builder.Property(artifact => artifact.Sha256).HasColumnName("sha256");

@@ -63,10 +63,9 @@ public sealed class SqliteApprovalRepository : IApprovalRepository
             throw new ArgumentOutOfRangeException(nameof(limit), limit, "Limit must be greater than zero.");
         }
 
-        var pendingStatus = ApprovalStatus.Pending.ToStorageValue();
         var records = await context.Approvals
             .AsNoTracking()
-            .Where(approval => approval.Status == pendingStatus)
+            .Where(approval => approval.Status == ApprovalStatus.Pending)
             .ToListAsync(cancellationToken);
 
         return records
@@ -84,7 +83,7 @@ public sealed class SqliteApprovalRepository : IApprovalRepository
             .SingleOrDefaultAsync(existingApproval => existingApproval.Id == approval.Id.Value, cancellationToken)
             ?? throw new KeyNotFoundException($"Approval request '{approval.Id}' was not found.");
 
-        record.Status = approval.Status.ToStorageValue();
+        record.Status = approval.Status;
         record.ResolvedAt = approval.ResolvedAt;
         record.ResolvedBy = approval.ResolvedBy;
     }
@@ -95,7 +94,7 @@ public sealed class SqliteApprovalRepository : IApprovalRepository
             Id = approval.Id.Value,
             TaskId = approval.TaskId.Value,
             IterationId = approval.IterationId?.Value,
-            Status = approval.Status.ToStorageValue(),
+            Status = approval.Status,
             Reason = approval.Reason,
             RequestedAction = approval.RequestedAction,
             CreatedAt = approval.CreatedAt,
@@ -108,7 +107,7 @@ public sealed class SqliteApprovalRepository : IApprovalRepository
             new ApprovalId(record.Id),
             new TaskId(record.TaskId),
             record.IterationId is null ? null : new IterationId(record.IterationId),
-            ApprovalStatusExtensions.FromStorageValue(record.Status),
+            record.Status,
             record.Reason,
             record.RequestedAction,
             record.CreatedAt,

@@ -14,7 +14,10 @@ internal sealed class MachineRecordConfiguration : IEntityTypeConfiguration<Mach
         builder.Property(machine => machine.Id).HasColumnName("id");
         builder.Property(machine => machine.Name).HasColumnName("name").IsRequired();
         builder.Property(machine => machine.Platform).HasColumnName("platform").IsRequired();
-        builder.Property(machine => machine.Status).HasColumnName("status").IsRequired();
+        builder.Property(machine => machine.Status)
+            .HasColumnName("status")
+            .HasConversion(new MachineStatusStorageConverter())
+            .IsRequired();
         builder.Property(machine => machine.LastSeenAt).HasColumnName("last_seen_at");
         builder.Property(machine => machine.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(machine => machine.UpdatedAt).HasColumnName("updated_at").IsRequired();
