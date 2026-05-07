@@ -1,0 +1,89 @@
+using Aeges.Runners;
+
+namespace Aeges.Runners.Codex;
+
+/// <summary>
+/// Builds Codex CLI command descriptions from governed runner requests.
+/// </summary>
+public sealed class CodexRunnerCommandBuilder
+{
+    private readonly CodexRunnerOptions options;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CodexRunnerCommandBuilder"/> class.
+    /// </summary>
+    /// <param name="options">The Codex runner options.</param>
+    public CodexRunnerCommandBuilder(CodexRunnerOptions? options = null)
+    {
+        this.options = Validate(options ?? new CodexRunnerOptions());
+    }
+
+    /// <summary>
+    /// Builds a Codex CLI command description without launching Codex.
+    /// </summary>
+    /// <param name="request">The governed runner request.</param>
+    /// <returns>The command description.</returns>
+    public CodexRunnerCommand Build(RunnerRequest request)
+    {
+        var arguments = new List<string>();
+        arguments.AddRange(options.BaseArguments ?? ["exec"]);
+        arguments.Add(request.PromptPath);
+
+        var environment = new Dictionary<string, string>(request.EnvironmentVariables);
+
+        foreach (var pair in options.EnvironmentVariables ?? new Dictionary<string, string>())
+        {
+            environment[pair.Key] = pair.Value;
+        }
+
+        environment["AEGES_TASK_ID"] = request.TaskId.Value;
+        environment["AEGES_ITERATION_ID"] = request.IterationId.Value;
+        environment["AEGES_PROJECT_ID"] = request.ProjectId.Value;
+        environment["AEGES_ARTIFACT_OUTPUT_DIRECTORY"] = request.ArtifactOutputDirectory;
+
+        foreach (var policyHint in request.PolicyHints)
+        {
+            environment[$"AEGES_POLICY_{NormalizeEnvironmentKey(policyHint.Key)}"] = policyHint.Value;
+        }
+
+        return new CodexRunnerCommand(
+            options.Executable,
+            arguments,
+            request.WorktreePath,
+            request.Timeout,
+            environment);
+    }
+
+    private static CodexRunnerOptions Validate(CodexRunnerOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(options.Executable))
+        {
+            throw new ArgumentException("Executable must not be empty.", nameof(options));
+        }
+
+        if (options.BaseArguments?.Any(string.IsNullOrWhiteSpace) == true)
+        {
+            throw new ArgumentException("Base arguments must not be empty.", nameof(options));
+        }
+
+        if (options.EnvironmentVariables?.Any(pair => string.IsNullOrWhiteSpace(pair.Key)) == true)
+        {
+            throw new ArgumentException("Environment variable names must not be empty.", nameof(options));
+        }
+
+        return options;
+    }
+
+    private static string NormalizeEnvironmentKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            throw new ArgumentException("Policy hint key must not be empty.", nameof(key));
+        }
+
+        return string.Concat(
+            key.Select(character => char.IsAsciiLetterOrDigit(character)
+                ? char.ToUpperInvariant(character)
+                : '_'));
+    }
+}

@@ -31,6 +31,20 @@ an approval checkpoint, or reject dispatch when hard limits are exceeded. Runner
 implementations receive policy hints, but they do not own the governance
 decision.
 
+## Mock Runner
+
+`Aeges.Runners` includes a deterministic mock runner for tests and local dry
+runs. It can report success, failure, timeout, cancellation, or approval
+required without contacting a real AI backend.
+
+## Codex Contract
+
+`Aeges.Runners.Codex` currently builds Codex CLI command descriptions from
+governed runner requests. It records the executable, arguments, working
+directory, timeout, and environment variables but does not launch Codex yet.
+Process execution, stdout/stderr capture, timeout enforcement, and artifact
+writing are intentionally left for a later implementation slice.
+
 ## Statuses
 
 Initial runner statuses:

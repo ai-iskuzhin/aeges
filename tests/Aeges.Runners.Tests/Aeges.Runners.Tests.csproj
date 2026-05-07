@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Aeges.Runners.Codex\Aeges.Runners.Codex.csproj" />
     <ProjectReference Include="..\..\src\Aeges.Runners\Aeges.Runners.csproj" />
   </ItemGroup>
 

@@ -68,6 +68,9 @@ review, test, and document independently.
 - [x] Add governance policy model.
 - [x] Add governance checks before runner dispatch.
 - [x] Add lock conflict detection.
+- [x] Add mock runner for tests.
+- [x] Add Codex runner project contracts without launching Codex yet.
+- [x] Add cancellation and timeout contract coverage.
 
 ## Current Focus
 
@@ -116,9 +119,9 @@ review, test, and document independently.
 
 ## Runner Contracts
 
-- [ ] Add mock runner for tests.
-- [ ] Add Codex runner project contracts without launching Codex yet.
-- [ ] Add cancellation and timeout contract coverage.
+- [x] Add mock runner for tests.
+- [x] Add Codex runner project contracts without launching Codex yet.
+- [x] Add cancellation and timeout contract coverage.
 
 ## Git Foundation
 
