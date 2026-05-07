@@ -18,6 +18,11 @@ Recommended layout:
 └── config.json
 ```
 
+`Aeges.Application` exposes this as a runtime directory layout model. The model
+normalizes the root path, requires it to be absolute, exposes the database,
+logs, runs, worktrees, artifacts, and config paths, and lists the directories
+that `aeges init` should create.
+
 Git worktrees should be isolated per task or iteration:
 
 ```text
