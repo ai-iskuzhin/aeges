@@ -15,6 +15,10 @@ Never commit:
 Secrets should come from environment variables, local untracked configuration,
 or a future OS secret store integration.
 
+The local runtime configuration model stores secret references, not secret
+values. For example, Telegram configuration stores the environment variable name
+that contains the bot token.
+
 Approval should be required for destructive git commands, dependency changes,
 database migrations, file deletion, deployment changes, CI/CD modifications, and
 force push operations.

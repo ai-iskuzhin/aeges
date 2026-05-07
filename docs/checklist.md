@@ -74,6 +74,7 @@ review, test, and document independently.
 - [x] Add Git repository, worktree, status, diff, and base commit contracts.
 - [x] Add worktree path generation and validation.
 - [x] Add runtime directory model for `~/.aeges`.
+- [x] Add config loading model.
 
 ## Current Focus
 
@@ -138,7 +139,7 @@ review, test, and document independently.
 ## Runtime And CLI
 
 - [x] Add runtime directory model for `~/.aeges`.
-- [ ] Add config loading model.
+- [x] Add config loading model.
 - [ ] Add `aeges db status`.
 - [ ] Add `aeges db migrate`.
 - [ ] Add `aeges task create`.

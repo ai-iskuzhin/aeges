@@ -23,6 +23,11 @@ normalizes the root path, requires it to be absolute, exposes the database,
 logs, runs, worktrees, artifacts, and config paths, and lists the directories
 that `aeges init` should create.
 
+Local configuration is loaded from the runtime `config.json`, environment
+variables with the `AEGES_` prefix, and command-line arguments. Later sources
+override earlier sources. Config stores references to secrets, such as the
+Telegram bot token environment variable name, rather than storing secret values.
+
 Git worktrees should be isolated per task or iteration:
 
 ```text
