@@ -46,10 +46,9 @@ metadata, and the iteration stores the prompt artifact id plus planned worktree
 path.
 
 The local agent can execute a prepared request when explicitly requested. The
-MVP path currently supports the deterministic mock runner in the default host so
-runner execution records and lifecycle transitions can be tested without real AI
-credentials. Codex execution remains a separate step because it needs real Git
-worktree creation before launch.
+deterministic mock runner lets runner execution records and lifecycle
+transitions be tested without real AI credentials. Codex execution is available
+as an explicit opt-in path and is gated behind Git worktree creation.
 
 Git worktree creation is now available through the Git runtime layer. The agent
 can use `--create-worktree` before runner execution so the worker starts from an

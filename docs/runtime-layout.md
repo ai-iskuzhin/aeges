@@ -43,9 +43,8 @@ worktree path on the iteration. Use `--once` for a single deterministic pass,
 and `--no-claim` when only a heartbeat and queue preview are needed.
 
 Runner execution is explicit. Use `--execute-runner` to execute the prepared
-runner request. The default host path currently supports the deterministic mock
-runner; production Codex execution will be enabled after Git worktree creation
-is wired into the agent:
+runner request. The deterministic mock runner is useful for local dry runs and
+tests because it does not require real AI credentials:
 
 ```text
 aeges agent run --once --runner-id mock --execute-runner

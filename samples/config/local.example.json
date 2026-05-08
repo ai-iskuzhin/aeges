@@ -1,0 +1,21 @@
+{
+  "machineId": "local",
+  "storage": {
+    "provider": "sqlite",
+    "connectionString": null
+  },
+  "telegram": {
+    "botTokenEnvironmentVariable": "AEGES_TELEGRAM_BOT_TOKEN",
+    "allowedChatIds": []
+  },
+  "runners": {
+    "default": "mock",
+    "codex": {
+      "executable": "codex",
+      "model": null,
+      "reasoningEffort": null,
+      "timeoutSeconds": 1800
+    }
+  },
+  "projects": []
+}

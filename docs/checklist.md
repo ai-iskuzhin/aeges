@@ -100,6 +100,7 @@ review, test, and document independently.
 - [x] Add CLI host command for Telegram long polling.
 - [x] Add Telegram approval list and resolution buttons.
 - [x] Add CLI and Telegram task cancellation.
+- [x] Add first-user README and safe sample local configuration.
 
 ## Current Focus
 
@@ -215,6 +216,7 @@ review, test, and document independently.
 
 ## Documentation
 
+- [x] Add first-user README with local CLI, agent, runner, and Telegram setup.
 - [ ] Keep public docs aligned with implemented behavior.
 - [ ] Update `docs/task-model.md` as task, iteration, approval, and artifact
       models evolve.
