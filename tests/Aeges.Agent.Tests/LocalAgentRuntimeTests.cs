@@ -322,6 +322,22 @@ public sealed class LocalAgentRuntimeTests
         }
     }
 
+    [Fact]
+    public async Task RunOnce_rejects_codex_execution_without_worktree_creation()
+    {
+        var runtime = new LocalAgentRuntime(new FixedClock(new DateTimeOffset(2026, 05, 08, 08, 00, 00, TimeSpan.Zero)));
+        var options = new AgentRunOptions(
+            "Data Source=/tmp/aeges-agent-validation.db",
+            "machine-001",
+            "local-test",
+            "test-platform",
+            ExecuteRunner: true);
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => runtime.RunOnceAsync(options, CancellationToken.None));
+
+        Assert.Contains("Codex runner execution requires worktree creation", exception.Message);
+    }
 
     private static void DeleteIfExists(string path)
     {

@@ -177,6 +177,7 @@ review, test, and document independently.
       iterations.
 - [x] Add opt-in local agent Git worktree creation for claimed iterations.
 - [x] Add opt-in mock runner execution from the local agent.
+- [x] Add opt-in Codex runner resolution gated by worktree creation.
 - [x] Keep CLI usable without Telegram or a control plane.
 
 ## Governance

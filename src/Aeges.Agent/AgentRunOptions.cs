@@ -14,6 +14,9 @@ namespace Aeges.Agent;
 /// <param name="ClaimQueuedTask">A value indicating whether one queued task should be claimed during this run.</param>
 /// <param name="ExecuteRunner">A value indicating whether the prepared runner request should be executed.</param>
 /// <param name="CreateWorktree">A value indicating whether a Git worktree should be created for the claimed iteration.</param>
+/// <param name="CodexExecutable">The Codex CLI executable name or path.</param>
+/// <param name="CodexModel">The Codex model override, when configured.</param>
+/// <param name="CodexReasoningEffort">The Codex reasoning effort override, when configured.</param>
 public sealed record AgentRunOptions(
     string ConnectionString,
     string MachineId,
@@ -25,4 +28,7 @@ public sealed record AgentRunOptions(
     TimeSpan? RunnerTimeout = null,
     bool ClaimQueuedTask = true,
     bool ExecuteRunner = false,
-    bool CreateWorktree = false);
+    bool CreateWorktree = false,
+    string CodexExecutable = "codex",
+    string? CodexModel = null,
+    string? CodexReasoningEffort = null);

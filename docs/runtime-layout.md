@@ -57,6 +57,13 @@ Git worktree creation is also explicit:
 aeges agent run --once --create-worktree
 ```
 
+Codex execution is available only when worktree creation is enabled, so Codex is
+not launched against the source checkout:
+
+```text
+aeges agent run --once --runner-id codex --create-worktree --execute-runner
+```
+
 The runner id for newly created iterations defaults to configured
 `runners.default` and can be overridden with:
 

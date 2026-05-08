@@ -408,7 +408,10 @@ internal static class AegesCli
             TimeSpan.FromSeconds(configuration.Runners.Codex.TimeoutSeconds),
             options.ClaimQueuedTask,
             options.ExecuteRunner,
-            options.CreateWorktree);
+            options.CreateWorktree,
+            configuration.Runners.Codex.Executable,
+            configuration.Runners.Codex.Model,
+            configuration.Runners.Codex.ReasoningEffort);
     }
 
     private static async Task WriteStatusAsync(

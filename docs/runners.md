@@ -53,7 +53,8 @@ worktree creation before launch.
 
 Git worktree creation is now available through the Git runtime layer. The agent
 can use `--create-worktree` before runner execution so the worker starts from an
-isolated checkout rather than the source project directory.
+isolated checkout rather than the source project directory. Codex execution is
+explicitly gated behind worktree creation.
 
 ## Dispatch Governance
 

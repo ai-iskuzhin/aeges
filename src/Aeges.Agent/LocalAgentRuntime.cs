@@ -10,6 +10,7 @@ using Aeges.Application.Tasks;
 using Aeges.Core;
 using Aeges.Git;
 using Aeges.Runners;
+using Aeges.Runners.Codex;
 using Aeges.Storage.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -334,8 +335,17 @@ public sealed class LocalAgentRuntime
             return new MockAegesRunner(new MockRunnerOptions(new RunnerId(options.RunnerId)));
         }
 
+        if (options.RunnerId.Equals("codex", StringComparison.OrdinalIgnoreCase))
+        {
+            return new CodexRunner(
+                new CodexRunnerOptions(
+                    options.CodexExecutable,
+                    Model: NormalizeOptional(options.CodexModel),
+                    ReasoningEffort: NormalizeOptional(options.CodexReasoningEffort)));
+        }
+
         throw new InvalidOperationException(
-            "Runner execution is currently available for the mock runner unless a runner is provided by the host.");
+            $"Runner '{options.RunnerId}' is not available unless a runner is provided by the host.");
     }
 
     private static async Task CompleteRunnerExecutionAsync(
@@ -459,9 +469,31 @@ public sealed class LocalAgentRuntime
             throw new ArgumentException("Runner execution requires task claiming to be enabled.", nameof(options));
         }
 
+        if (options.ExecuteRunner
+            && options.RunnerId.Equals("codex", StringComparison.OrdinalIgnoreCase)
+            && !options.CreateWorktree)
+        {
+            throw new ArgumentException("Codex runner execution requires worktree creation to be enabled.", nameof(options));
+        }
+
         if (options.CreateWorktree && !options.ClaimQueuedTask)
         {
             throw new ArgumentException("Worktree creation requires task claiming to be enabled.", nameof(options));
+        }
+
+        if (string.IsNullOrWhiteSpace(options.CodexExecutable))
+        {
+            throw new ArgumentException("Codex executable must not be empty.", nameof(options));
+        }
+
+        if (options.CodexModel is not null && string.IsNullOrWhiteSpace(options.CodexModel))
+        {
+            throw new ArgumentException("Codex model must not be empty when configured.", nameof(options));
+        }
+
+        if (options.CodexReasoningEffort is not null && string.IsNullOrWhiteSpace(options.CodexReasoningEffort))
+        {
+            throw new ArgumentException("Codex reasoning effort must not be empty when configured.", nameof(options));
         }
     }
 
@@ -503,6 +535,13 @@ public sealed class LocalAgentRuntime
 
     private static string CreateBranchName(TaskId taskId, IterationId iterationId) =>
         $"aeges/{taskId.Value}/{iterationId.Value}";
+
+    private static string? NormalizeOptional(string? value)
+    {
+        var normalized = value?.Trim();
+
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
 
     private sealed record PreparedRunnerBundle(
         string PromptArtifactId,
