@@ -20,6 +20,14 @@ The Telegram handler delegates data access and workflow actions through an
 application facade. This keeps Telegram-specific code replaceable and prevents
 button callbacks from becoming hidden orchestration logic.
 
+The live transport uses long polling for the local-first MVP. The polling loop
+fetches message and callback-query updates, acknowledges callback queries, then
+sends the handler response as a Telegram message with inline keyboard markup.
+
 Allowed chat IDs are enforced before application services are called. An empty
 allowed-chat list is treated as open local MVP mode; configured chat IDs restrict
 the bot to those chats.
+
+The bot token is read from the environment variable named by
+`telegram.botTokenEnvironmentVariable`; the token value itself must not be
+stored in committed config.
