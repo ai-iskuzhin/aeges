@@ -14,11 +14,18 @@ Machines      -> aeges:machines:list
 Queued tasks  -> aeges:tasks:queued
 Back          -> aeges:menu
 Task details  -> aeges:task:<task-id>
+Approvals     -> ae:ap
+Approval      -> ae:a:<approval-id>
+Approve       -> ae:a:y:<approval-id>
+Reject        -> ae:a:n:<approval-id>
 ```
 
 The Telegram handler delegates data access and workflow actions through an
 application facade. This keeps Telegram-specific code replaceable and prevents
 button callbacks from becoming hidden orchestration logic.
+
+Approval buttons resolve through the application approval service. The Telegram
+chat ID is recorded as the resolver in the form `telegram:<chat-id>`.
 
 The live transport uses long polling for the local-first MVP. The polling loop
 fetches message and callback-query updates, acknowledges callback queries, then

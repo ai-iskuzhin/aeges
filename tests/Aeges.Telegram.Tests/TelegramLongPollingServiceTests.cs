@@ -117,11 +117,39 @@ public sealed class TelegramLongPollingServiceTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RuntimeTask>>([]);
 
+        public Task<IReadOnlyList<ApprovalRequest>> ListPendingApprovalsAsync(
+            int limit,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ApprovalRequest>>([]);
+
         public Task<Aeges.Application.ApplicationResult<RuntimeTask>> GetTaskAsync(
             TaskId taskId,
             CancellationToken cancellationToken) =>
             Task.FromResult(Aeges.Application.ApplicationResult<RuntimeTask>.Failure(
                 "task_not_found",
                 $"Task '{taskId}' was not found."));
+
+        public Task<Aeges.Application.ApplicationResult<ApprovalRequest>> GetApprovalAsync(
+            ApprovalId approvalId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<ApprovalRequest>.Failure(
+                "approval_not_found",
+                $"Approval request '{approvalId}' was not found."));
+
+        public Task<Aeges.Application.ApplicationResult<ApprovalRequest>> ApproveApprovalAsync(
+            ApprovalId approvalId,
+            string resolvedBy,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<ApprovalRequest>.Failure(
+                "approval_not_found",
+                $"Approval request '{approvalId}' was not found."));
+
+        public Task<Aeges.Application.ApplicationResult<ApprovalRequest>> RejectApprovalAsync(
+            ApprovalId approvalId,
+            string resolvedBy,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<ApprovalRequest>.Failure(
+                "approval_not_found",
+                $"Approval request '{approvalId}' was not found."));
     }
 }

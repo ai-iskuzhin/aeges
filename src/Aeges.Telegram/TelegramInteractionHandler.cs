@@ -9,6 +9,7 @@ namespace Aeges.Telegram;
 public sealed class TelegramInteractionHandler
 {
     private const int DefaultTaskLimit = 10;
+    private const int DefaultApprovalLimit = 10;
     private readonly ITelegramApplicationFacade application;
     private readonly HashSet<long> allowedChatIds;
 
@@ -50,8 +51,15 @@ public sealed class TelegramInteractionHandler
             TelegramCallbackData.ListProjects => await ListProjectsAsync(cancellationToken),
             TelegramCallbackData.ListMachines => await ListMachinesAsync(cancellationToken),
             TelegramCallbackData.ListQueuedTasks => await ListQueuedTasksAsync(cancellationToken),
+            TelegramCallbackData.ListPendingApprovals => await ListPendingApprovalsAsync(cancellationToken),
             _ when TelegramCallbackData.TryParseViewTask(callbackData, out var taskId) =>
                 await ViewTaskAsync(taskId, cancellationToken),
+            _ when TelegramCallbackData.TryParseApproveApproval(callbackData, out var approvalId) =>
+                await ResolveApprovalAsync(approvalId, approved: true, update.ChatId, cancellationToken),
+            _ when TelegramCallbackData.TryParseRejectApproval(callbackData, out var approvalId) =>
+                await ResolveApprovalAsync(approvalId, approved: false, update.ChatId, cancellationToken),
+            _ when TelegramCallbackData.TryParseViewApproval(callbackData, out var approvalId) =>
+                await ViewApprovalAsync(approvalId, cancellationToken),
             _ => UnknownAction(),
         };
     }
@@ -64,7 +72,7 @@ public sealed class TelegramInteractionHandler
             "Aeges control",
             Buttons(
                 Row(Button("Projects", TelegramCallbackData.ListProjects), Button("Machines", TelegramCallbackData.ListMachines)),
-                Row(Button("Queued tasks", TelegramCallbackData.ListQueuedTasks))));
+                Row(Button("Queued tasks", TelegramCallbackData.ListQueuedTasks), Button("Approvals", TelegramCallbackData.ListPendingApprovals))));
 
     private async Task<TelegramResponse> ListProjectsAsync(CancellationToken cancellationToken)
     {
@@ -107,6 +115,27 @@ public sealed class TelegramInteractionHandler
             Buttons(buttons));
     }
 
+    private async Task<TelegramResponse> ListPendingApprovalsAsync(CancellationToken cancellationToken)
+    {
+        var approvals = await application.ListPendingApprovalsAsync(DefaultApprovalLimit, cancellationToken);
+
+        if (approvals.Count == 0)
+        {
+            return new TelegramResponse("No pending approvals.", BackButtons());
+        }
+
+        var buttons = approvals
+            .Select(approval => Row(Button(approval.Id.Value, TelegramCallbackData.ViewApproval(approval.Id))))
+            .Append(Row(Button("Back", TelegramCallbackData.MainMenu)))
+            .ToArray();
+
+        return new TelegramResponse(
+            "Pending approvals:\n" + string.Join(
+                '\n',
+                approvals.Select(approval => $"- {approval.Id}: {approval.RequestedAction}")),
+            Buttons(buttons));
+    }
+
     private async Task<TelegramResponse> ViewTaskAsync(
         TaskId taskId,
         CancellationToken cancellationToken)
@@ -128,6 +157,59 @@ public sealed class TelegramInteractionHandler
             Goal:
             {task.Value.Goal}
             """,
+            BackButtons());
+    }
+
+    private async Task<TelegramResponse> ViewApprovalAsync(
+        ApprovalId approvalId,
+        CancellationToken cancellationToken)
+    {
+        var approval = await application.GetApprovalAsync(approvalId, cancellationToken);
+
+        if (!approval.IsSuccess)
+        {
+            return new TelegramResponse($"{approval.Error!.Code}: {approval.Error.Message}", BackButtons());
+        }
+
+        var value = approval.Value!;
+
+        return new TelegramResponse(
+            $"""
+            Approval: {value.Id}
+            Task: {value.TaskId}
+            Status: {value.Status.ToStorageValue()}
+            Action: {value.RequestedAction}
+
+            Reason:
+            {value.Reason}
+            """,
+            Buttons(
+                Row(
+                    Button("Approve", TelegramCallbackData.ApproveApproval(value.Id)),
+                    Button("Reject", TelegramCallbackData.RejectApproval(value.Id))),
+                Row(Button("Back", TelegramCallbackData.ListPendingApprovals))));
+    }
+
+    private async Task<TelegramResponse> ResolveApprovalAsync(
+        ApprovalId approvalId,
+        bool approved,
+        long chatId,
+        CancellationToken cancellationToken)
+    {
+        var resolvedBy = $"telegram:{chatId}";
+        var result = approved
+            ? await application.ApproveApprovalAsync(approvalId, resolvedBy, cancellationToken)
+            : await application.RejectApprovalAsync(approvalId, resolvedBy, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+        }
+
+        var status = result.Value!.Status.ToStorageValue();
+
+        return new TelegramResponse(
+            $"Approval {status}: {result.Value.Id}",
             BackButtons());
     }
 

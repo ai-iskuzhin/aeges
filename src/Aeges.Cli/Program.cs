@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using Aeges.Agent;
 using Aeges.Application;
+using Aeges.Application.Approvals;
 using Aeges.Application.Configuration;
 using Aeges.Application.Machines;
 using Aeges.Application.Projects;
@@ -196,7 +197,8 @@ internal static class AegesCli
         var facade = new TelegramApplicationFacade(
             new ProjectService(unitOfWork, clock),
             new MachineService(unitOfWork, clock),
-            new TaskService(unitOfWork, clock));
+            new TaskService(unitOfWork, clock),
+            new ApprovalService(unitOfWork, clock));
         var handler = new TelegramInteractionHandler(facade, configuration.Telegram);
         var pollingOptions = new TelegramLongPollingOptions(options.Limit, options.TimeoutSeconds);
 

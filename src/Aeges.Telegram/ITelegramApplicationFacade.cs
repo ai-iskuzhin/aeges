@@ -31,10 +31,50 @@ public interface ITelegramApplicationFacade
     Task<IReadOnlyList<RuntimeTask>> ListQueuedTasksAsync(int limit, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Lists pending approval requests.
+    /// </summary>
+    /// <param name="limit">The maximum number of approvals to return.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The pending approvals.</returns>
+    Task<IReadOnlyList<ApprovalRequest>> ListPendingApprovalsAsync(int limit, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Gets a task by identifier.
     /// </summary>
     /// <param name="taskId">The task identifier.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The task lookup result.</returns>
     Task<ApplicationResult<RuntimeTask>> GetTaskAsync(TaskId taskId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Gets an approval request by identifier.
+    /// </summary>
+    /// <param name="approvalId">The approval request identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The approval lookup result.</returns>
+    Task<ApplicationResult<ApprovalRequest>> GetApprovalAsync(ApprovalId approvalId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Approves a pending approval request.
+    /// </summary>
+    /// <param name="approvalId">The approval request identifier.</param>
+    /// <param name="resolvedBy">The actor resolving the approval.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The approval resolution result.</returns>
+    Task<ApplicationResult<ApprovalRequest>> ApproveApprovalAsync(
+        ApprovalId approvalId,
+        string resolvedBy,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Rejects a pending approval request.
+    /// </summary>
+    /// <param name="approvalId">The approval request identifier.</param>
+    /// <param name="resolvedBy">The actor resolving the approval.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The approval resolution result.</returns>
+    Task<ApplicationResult<ApprovalRequest>> RejectApprovalAsync(
+        ApprovalId approvalId,
+        string resolvedBy,
+        CancellationToken cancellationToken);
 }
