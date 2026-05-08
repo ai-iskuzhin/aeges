@@ -62,6 +62,7 @@ review, test, and document independently.
 - [x] Add project registration application use case.
 - [x] Add machine registration and heartbeat application use cases.
 - [x] Add task creation and query application use cases.
+- [x] Add bounded task iteration creation application use case.
 - [x] Add structured application result model for expected use-case failures.
 - [x] Add application tests with in-memory storage fakes.
 - [x] Add task status transition application use cases.
@@ -127,6 +128,7 @@ review, test, and document independently.
 - [x] Add machine registration and heartbeat use cases.
 - [x] Add task creation use case.
 - [x] Add task query use cases.
+- [x] Add bounded task iteration creation use case.
 - [x] Add task status transition use cases.
 - [x] Add task cancellation use case.
 - [x] Add approval request and resolution use cases.

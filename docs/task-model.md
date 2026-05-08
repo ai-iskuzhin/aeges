@@ -22,6 +22,10 @@ value objects and exposes task lifecycle changes through named methods. Direct
 state mutation is intentionally avoided so invalid transitions can be rejected
 before persistence or runner dispatch.
 
+The application layer creates each next bounded iteration by incrementing the
+task iteration counter and inserting the iteration record inside one unit-of-work
+transaction. Terminal tasks cannot create new iterations.
+
 The application layer exposes these lifecycle changes as task use cases. It
 loads the task from storage, delegates transition validation to the core domain
 model, persists only accepted transitions, and returns structured expected
