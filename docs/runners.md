@@ -41,11 +41,12 @@ required without contacting a real AI backend.
 
 ## Codex Contract
 
-`Aeges.Runners.Codex` currently builds Codex CLI command descriptions from
-governed runner requests. It records the executable, arguments, working
-directory, timeout, and environment variables but does not launch Codex yet.
-Process execution, stdout/stderr capture, timeout enforcement, and artifact
-writing are intentionally left for a later implementation slice.
+`Aeges.Runners.Codex` builds Codex CLI command descriptions from governed
+runner requests and can execute them through a local process shell. It records
+the executable, arguments, working directory, timeout, and environment
+variables, captures stdout and stderr into artifact files, maps process exit
+codes into runner results, and reports timeout or cancellation without mutating
+task lifecycle state directly.
 
 Before building a command, the Codex runner preflights the configured executable
 name or path. If Codex is not available on the machine, Aeges fails before

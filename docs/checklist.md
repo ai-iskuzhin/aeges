@@ -70,6 +70,7 @@ review, test, and document independently.
 - [x] Add lock conflict detection.
 - [x] Add mock runner for tests.
 - [x] Add Codex runner project contracts without launching Codex yet.
+- [x] Add Codex CLI runner process shell.
 - [x] Add cancellation and timeout contract coverage.
 - [x] Add Git repository, worktree, status, diff, and base commit contracts.
 - [x] Add worktree path generation and validation.
@@ -131,6 +132,7 @@ review, test, and document independently.
 
 - [x] Add mock runner for tests.
 - [x] Add Codex runner project contracts without launching Codex yet.
+- [x] Add Codex CLI runner process shell.
 - [x] Add cancellation and timeout contract coverage.
 
 ## Git Foundation

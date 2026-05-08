@@ -11,7 +11,8 @@ public sealed class RunnerResultTests
             stdoutPath: "stdout.log",
             stderrPath: "stderr.log",
             resultArtifactPath: "result.md",
-            producedArtifactPaths: ["stdout.log", "stderr.log", "result.md"]);
+            producedArtifactPaths: ["stdout.log", "stderr.log", "result.md"],
+            externalSessionId: "thread-001");
 
         Assert.Equal(RunnerStatus.Succeeded, result.Status);
         Assert.Equal(0, result.ExitCode);
@@ -19,6 +20,7 @@ public sealed class RunnerResultTests
         Assert.Equal("stderr.log", result.StderrPath);
         Assert.Equal("result.md", result.ResultArtifactPath);
         Assert.Equal(["stdout.log", "stderr.log", "result.md"], result.ProducedArtifactPaths);
+        Assert.Equal("thread-001", result.ExternalSessionId);
         Assert.Null(result.ErrorSummary);
     }
 

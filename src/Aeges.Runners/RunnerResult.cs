@@ -15,6 +15,7 @@ public sealed class RunnerResult
     /// <param name="resultArtifactPath">The result artifact path, when produced.</param>
     /// <param name="producedArtifactPaths">Additional artifact paths produced by the runner.</param>
     /// <param name="errorSummary">A short error summary for failed executions.</param>
+    /// <param name="externalSessionId">The external runner session identifier produced or reused by the execution.</param>
     public RunnerResult(
         RunnerStatus status,
         int? exitCode = null,
@@ -22,7 +23,8 @@ public sealed class RunnerResult
         string? stderrPath = null,
         string? resultArtifactPath = null,
         IReadOnlyCollection<string>? producedArtifactPaths = null,
-        string? errorSummary = null)
+        string? errorSummary = null,
+        string? externalSessionId = null)
     {
         Status = status;
         ExitCode = exitCode;
@@ -31,6 +33,7 @@ public sealed class RunnerResult
         ResultArtifactPath = RequireOptionalPath(resultArtifactPath, nameof(resultArtifactPath));
         ProducedArtifactPaths = CopyPaths(producedArtifactPaths);
         ErrorSummary = RequireOptionalText(errorSummary, nameof(errorSummary));
+        ExternalSessionId = RequireOptionalText(externalSessionId, nameof(externalSessionId));
     }
 
     /// <summary>
@@ -69,6 +72,11 @@ public sealed class RunnerResult
     public string? ErrorSummary { get; }
 
     /// <summary>
+    /// Gets the external runner session identifier produced or reused by the execution.
+    /// </summary>
+    public string? ExternalSessionId { get; }
+
+    /// <summary>
     /// Creates a successful runner result.
     /// </summary>
     /// <param name="exitCode">The runner process exit code.</param>
@@ -82,14 +90,16 @@ public sealed class RunnerResult
         string? stdoutPath = null,
         string? stderrPath = null,
         string? resultArtifactPath = null,
-        IReadOnlyCollection<string>? producedArtifactPaths = null) =>
+        IReadOnlyCollection<string>? producedArtifactPaths = null,
+        string? externalSessionId = null) =>
         new(
             RunnerStatus.Succeeded,
             exitCode,
             stdoutPath,
             stderrPath,
             resultArtifactPath,
-            producedArtifactPaths);
+            producedArtifactPaths,
+            externalSessionId: externalSessionId);
 
     /// <summary>
     /// Creates a failed runner result.
@@ -103,24 +113,33 @@ public sealed class RunnerResult
         string errorSummary,
         int? exitCode = null,
         string? stdoutPath = null,
-        string? stderrPath = null) =>
-        new(RunnerStatus.Failed, exitCode, stdoutPath, stderrPath, errorSummary: errorSummary);
+        string? stderrPath = null,
+        string? externalSessionId = null) =>
+        new(RunnerStatus.Failed, exitCode, stdoutPath, stderrPath, errorSummary: errorSummary, externalSessionId: externalSessionId);
 
     /// <summary>
     /// Creates a timed-out runner result.
     /// </summary>
     /// <param name="errorSummary">A short timeout summary.</param>
     /// <returns>A timed-out runner result.</returns>
-    public static RunnerResult TimedOut(string errorSummary) =>
-        new(RunnerStatus.TimedOut, errorSummary: errorSummary);
+    public static RunnerResult TimedOut(
+        string errorSummary,
+        string? stdoutPath = null,
+        string? stderrPath = null,
+        string? externalSessionId = null) =>
+        new(RunnerStatus.TimedOut, stdoutPath: stdoutPath, stderrPath: stderrPath, errorSummary: errorSummary, externalSessionId: externalSessionId);
 
     /// <summary>
     /// Creates a cancelled runner result.
     /// </summary>
     /// <param name="errorSummary">A short cancellation summary.</param>
     /// <returns>A cancelled runner result.</returns>
-    public static RunnerResult Cancelled(string errorSummary) =>
-        new(RunnerStatus.Cancelled, errorSummary: errorSummary);
+    public static RunnerResult Cancelled(
+        string errorSummary,
+        string? stdoutPath = null,
+        string? stderrPath = null,
+        string? externalSessionId = null) =>
+        new(RunnerStatus.Cancelled, stdoutPath: stdoutPath, stderrPath: stderrPath, errorSummary: errorSummary, externalSessionId: externalSessionId);
 
     /// <summary>
     /// Creates a runner result indicating an approval gate is required.
