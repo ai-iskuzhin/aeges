@@ -25,6 +25,11 @@ Runner results include status, exit code, stdout/stderr paths, result artifact
 path, produced artifact paths, and an error summary when execution does not
 succeed.
 
+Aeges stores every launched worker process as a durable runner execution record.
+The record captures the owning task and iteration, runner id, command
+description, working directory, start and completion timestamps, exit code, and
+whether the runtime ended execution because of timeout or cancellation.
+
 ## Dispatch Governance
 
 Before a runner is dispatched, the application layer evaluates the dispatch

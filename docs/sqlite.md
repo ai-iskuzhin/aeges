@@ -49,6 +49,7 @@ The current EF Core foundation includes:
 - SQLite pragma application for WAL, foreign keys, and busy timeout
 - SQLite project, machine, task, iteration, artifact, approval, and lock
   repositories backed by temporary-file tests
+- SQLite runner execution repository for durable worker process launch records
 - SQLite unit-of-work transaction tests for commit and rollback behavior
 
 ## Migrations

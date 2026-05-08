@@ -204,6 +204,35 @@ public readonly record struct RunnerId
 }
 
 /// <summary>
+/// Identifies one durable runner process execution record.
+/// </summary>
+public readonly record struct RunnerExecutionId
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RunnerExecutionId"/> struct.
+    /// </summary>
+    /// <param name="value">The stable runner execution identifier value.</param>
+    public RunnerExecutionId(string value)
+    {
+        Value = IdValue.Require(value);
+    }
+
+    /// <summary>
+    /// Gets the stable identifier value.
+    /// </summary>
+    public string Value { get; }
+
+    /// <summary>
+    /// Creates a new runner execution identifier.
+    /// </summary>
+    /// <returns>A generated runner execution identifier.</returns>
+    public static RunnerExecutionId New() => new(IdValue.New("runner-execution"));
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+}
+
+/// <summary>
 /// Identifies a repository lock held for governed task execution.
 /// </summary>
 public readonly record struct LockId

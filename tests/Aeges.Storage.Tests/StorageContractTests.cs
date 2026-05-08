@@ -14,6 +14,7 @@ public sealed class StorageContractTests
         typeof(IProjectRepository),
         typeof(IMachineRepository),
         typeof(ILockRepository),
+        typeof(IRunnerExecutionRepository),
     ];
 
     [Fact]
@@ -68,6 +69,9 @@ public sealed class StorageContractTests
         Assert.Equal(typeof(IProjectRepository), typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.Projects))?.PropertyType);
         Assert.Equal(typeof(IMachineRepository), typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.Machines))?.PropertyType);
         Assert.Equal(typeof(ILockRepository), typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.Locks))?.PropertyType);
+        Assert.Equal(
+            typeof(IRunnerExecutionRepository),
+            typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.RunnerExecutions))?.PropertyType);
     }
 
     private static void AssertProviderNeutral(Type type)

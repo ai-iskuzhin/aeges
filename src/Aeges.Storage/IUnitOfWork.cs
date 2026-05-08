@@ -41,6 +41,11 @@ public interface IUnitOfWork
     ILockRepository Locks { get; }
 
     /// <summary>
+    /// Gets the runner execution repository.
+    /// </summary>
+    IRunnerExecutionRepository RunnerExecutions { get; }
+
+    /// <summary>
     /// Persists pending changes.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the operation.</param>

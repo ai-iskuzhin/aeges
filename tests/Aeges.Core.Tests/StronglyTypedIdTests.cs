@@ -29,6 +29,7 @@ public sealed class StronglyTypedIdTests
         Assert.StartsWith("artifact-", ArtifactId.New().Value);
         Assert.StartsWith("approval-", ApprovalId.New().Value);
         Assert.StartsWith("runner-", RunnerId.New().Value);
+        Assert.StartsWith("runner-execution-", RunnerExecutionId.New().Value);
         Assert.StartsWith("lock-", LockId.New().Value);
     }
 }

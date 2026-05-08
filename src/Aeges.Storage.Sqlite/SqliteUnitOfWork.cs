@@ -24,6 +24,7 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
         Projects = new SqliteProjectRepository(context);
         Machines = new SqliteMachineRepository(context);
         Locks = new SqliteLockRepository(context);
+        RunnerExecutions = new SqliteRunnerExecutionRepository(context);
     }
 
     /// <inheritdoc />
@@ -46,6 +47,9 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
 
     /// <inheritdoc />
     public ILockRepository Locks { get; }
+
+    /// <inheritdoc />
+    public IRunnerExecutionRepository RunnerExecutions { get; }
 
     /// <inheritdoc />
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken) =>

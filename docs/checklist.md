@@ -34,6 +34,7 @@ review, test, and document independently.
 - [x] Define `IProjectRepository`.
 - [x] Define `IMachineRepository`.
 - [x] Define `ILockRepository`.
+- [x] Define `IRunnerExecutionRepository`.
 - [x] Define `IUnitOfWork`.
 - [x] Ensure all repository APIs accept `CancellationToken`.
 - [x] Ensure storage abstractions do not expose SQLite-specific types.
@@ -50,11 +51,13 @@ review, test, and document independently.
 - [x] Add SQLite artifact repository implementation.
 - [x] Add SQLite approval repository implementation.
 - [x] Add SQLite lock repository implementation.
+- [x] Add SQLite runner execution repository implementation.
 - [x] Add SQLite unit-of-work transaction support.
 - [x] Add temporary-file SQLite tests for project and machine repositories.
 - [x] Add temporary-file SQLite tests for task repository.
 - [x] Add temporary-file SQLite tests for iteration, artifact, and approval repositories.
 - [x] Add temporary-file SQLite tests for lock repository and transaction rollback.
+- [x] Add temporary-file SQLite tests for runner execution repository.
 - [x] Add unit tests for current core lifecycle and value object rules.
 - [x] Add project registration application use case.
 - [x] Add machine registration and heartbeat application use cases.
@@ -98,6 +101,7 @@ review, test, and document independently.
 - [x] Define `IProjectRepository`.
 - [x] Define `IMachineRepository`.
 - [x] Define `ILockRepository`.
+- [x] Define `IRunnerExecutionRepository`.
 - [x] Define `IUnitOfWork`.
 - [x] Ensure all repository APIs accept `CancellationToken`.
 - [x] Ensure storage abstractions do not expose SQLite-specific types.
@@ -114,6 +118,7 @@ review, test, and document independently.
       databases for implemented repositories.
 - [x] Test EF Core can create the schema in a temporary SQLite database.
 - [x] Test transaction rollback behavior.
+- [x] Test runner execution persistence behavior.
 
 ## Application Orchestration
 

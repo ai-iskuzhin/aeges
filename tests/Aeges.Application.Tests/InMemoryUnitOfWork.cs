@@ -14,6 +14,7 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
         Projects = new ProjectRepository();
         Machines = new MachineRepository();
         Locks = new LockRepository();
+        RunnerExecutions = new RunnerExecutionRepository();
     }
 
     public ITaskRepository Tasks { get; }
@@ -29,6 +30,8 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
     public IMachineRepository Machines { get; }
 
     public ILockRepository Locks { get; }
+
+    public IRunnerExecutionRepository RunnerExecutions { get; }
 
     public int SaveChangesCount { get; private set; }
 
@@ -277,6 +280,48 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
         public Task UpdateAsync(RuntimeLock runtimeLock, CancellationToken cancellationToken)
         {
             locks[runtimeLock.Id] = runtimeLock;
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RunnerExecutionRepository : IRunnerExecutionRepository
+    {
+        private readonly Dictionary<RunnerExecutionId, RuntimeRunnerExecution> executions = [];
+
+        public Task AddAsync(RuntimeRunnerExecution execution, CancellationToken cancellationToken)
+        {
+            executions.Add(execution.Id, execution);
+
+            return Task.CompletedTask;
+        }
+
+        public Task<RuntimeRunnerExecution?> GetByIdAsync(
+            RunnerExecutionId id,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(executions.GetValueOrDefault(id));
+
+        public Task<IReadOnlyList<RuntimeRunnerExecution>> ListByTaskAsync(
+            TaskId taskId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeRunnerExecution>>(
+                executions.Values
+                    .Where(execution => execution.TaskId == taskId)
+                    .OrderBy(execution => execution.StartedAt)
+                    .ToArray());
+
+        public Task<IReadOnlyList<RuntimeRunnerExecution>> ListByIterationAsync(
+            IterationId iterationId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeRunnerExecution>>(
+                executions.Values
+                    .Where(execution => execution.IterationId == iterationId)
+                    .OrderBy(execution => execution.StartedAt)
+                    .ToArray());
+
+        public Task UpdateAsync(RuntimeRunnerExecution execution, CancellationToken cancellationToken)
+        {
+            executions[execution.Id] = execution;
 
             return Task.CompletedTask;
         }
