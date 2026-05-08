@@ -160,6 +160,8 @@ review, test, and document independently.
 - [x] Add base commit recording model.
 - [x] Add path safety checks for worktree paths.
 - [x] Test worktree path generation and validation.
+- [x] Add process-backed Git runtime for repository detection, status, diff,
+      base commit capture, and worktree creation.
 
 ## Runtime And CLI
 

@@ -70,7 +70,9 @@ Git worktrees should be isolated per task or iteration:
 The Git foundation includes deterministic worktree path generation under the
 configured worktree root. Identifier values are converted into safe path
 segments, generated worktree paths are kept inside the root, and candidate
-worktree paths can be validated before use.
+worktree paths can be validated before use. A process-backed Git runtime can
+detect repositories, capture status and diffs, record base commits, and create
+isolated worktrees with `git worktree add`.
 
 The runtime should preserve artifacts and avoid modifying files outside
 approved project roots.

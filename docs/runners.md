@@ -51,6 +51,10 @@ runner execution records and lifecycle transitions can be tested without real AI
 credentials. Codex execution remains a separate step because it needs real Git
 worktree creation before launch.
 
+Git worktree creation is now available through the Git runtime layer. The agent
+can use it before enabling Codex execution so the worker starts from an isolated
+checkout rather than the source project directory.
+
 ## Dispatch Governance
 
 Before a runner is dispatched, the application layer evaluates the dispatch
