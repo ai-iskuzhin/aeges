@@ -80,6 +80,7 @@ review, test, and document independently.
 - [x] Add `aeges task create`.
 - [x] Add `aeges task status`.
 - [x] Add `aeges agent run` host shell.
+- [x] Keep CLI usable without Telegram or a control plane.
 
 ## Current Focus
 
@@ -150,7 +151,7 @@ review, test, and document independently.
 - [x] Add `aeges task create`.
 - [x] Add `aeges task status`.
 - [x] Add `aeges agent run` host shell.
-- [ ] Keep CLI usable without Telegram or a control plane.
+- [x] Keep CLI usable without Telegram or a control plane.
 
 ## Governance
 

@@ -3,6 +3,8 @@ using System.Text.Json;
 using Aeges.Agent;
 using Aeges.Application;
 using Aeges.Application.Configuration;
+using Aeges.Application.Machines;
+using Aeges.Application.Projects;
 using Aeges.Application.Runtime;
 using Aeges.Application.Tasks;
 using Aeges.Core;
@@ -42,6 +44,26 @@ internal static class AegesCli
         if (args is ["task", "create", .. var createArgs])
         {
             return await RunTaskCreateAsync(createArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["project", "add", .. var projectAddArgs])
+        {
+            return await RunProjectAddAsync(projectAddArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["project", "list", .. var projectListArgs])
+        {
+            return await RunProjectListAsync(projectListArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["machine", "add", .. var machineAddArgs])
+        {
+            return await RunMachineAddAsync(machineAddArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["machine", "list", .. var machineListArgs])
+        {
+            return await RunMachineListAsync(machineListArgs, output, error, cancellationToken);
         }
 
         if (args is ["task", "status", .. var taskStatusArgs])
@@ -181,6 +203,118 @@ internal static class AegesCli
         }
 
         await WriteTaskAsync(result.Value!, options.Json, output, "Created task");
+
+        return 0;
+    }
+
+    private static async Task<int> RunProjectAddAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = ProjectAddOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var service = new ProjectService(new SqliteUnitOfWork(context), new SystemClock());
+        var result = await service.RegisterAsync(
+            new RegisterProjectRequest(
+                options.Name!,
+                options.Path!,
+                options.ProjectId is null ? null : new ProjectId(options.ProjectId)),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            await WriteErrorAsync(result.Error!, options.Json, error);
+            return 1;
+        }
+
+        await WriteProjectAsync(result.Value!, options.Json, output, "Added project");
+
+        return 0;
+    }
+
+    private static async Task<int> RunProjectListAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = CliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var service = new ProjectService(new SqliteUnitOfWork(context), new SystemClock());
+        var projects = await service.ListAsync(cancellationToken);
+        await WriteProjectsAsync(projects, options.Json, output);
+
+        return 0;
+    }
+
+    private static async Task<int> RunMachineAddAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = MachineAddOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var service = new MachineService(new SqliteUnitOfWork(context), new SystemClock());
+        var result = await service.RegisterAsync(
+            new RegisterMachineRequest(
+                options.Name!,
+                options.Platform!,
+                options.MachineId is null ? null : new MachineId(options.MachineId)),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            await WriteErrorAsync(result.Error!, options.Json, error);
+            return 1;
+        }
+
+        await WriteMachineAsync(result.Value!, options.Json, output, "Added machine");
+
+        return 0;
+    }
+
+    private static async Task<int> RunMachineListAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = CliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var service = new MachineService(new SqliteUnitOfWork(context), new SystemClock());
+        var machines = await service.ListAsync(cancellationToken);
+        await WriteMachinesAsync(machines, options.Json, output);
 
         return 0;
     }
@@ -336,6 +470,110 @@ internal static class AegesCli
         }
     }
 
+    private static async Task WriteProjectAsync(
+        RuntimeProject project,
+        bool json,
+        TextWriter output,
+        string heading)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                ProjectOutput.From(project),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"{heading}: {project.Id}");
+        await output.WriteLineAsync($"Name: {project.Name}");
+        await output.WriteLineAsync($"Path: {project.Path}");
+        await output.WriteLineAsync($"Created: {project.CreatedAt:O}");
+        await output.WriteLineAsync($"Updated: {project.UpdatedAt:O}");
+    }
+
+    private static async Task WriteProjectsAsync(
+        IReadOnlyList<RuntimeProject> projects,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                projects.Select(ProjectOutput.From).ToArray(),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"Projects: {projects.Count}");
+
+        foreach (var project in projects)
+        {
+            await output.WriteLineAsync($"  - {project.Id} | {project.Name} | {project.Path}");
+        }
+    }
+
+    private static async Task WriteMachineAsync(
+        RuntimeMachine machine,
+        bool json,
+        TextWriter output,
+        string heading)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                MachineOutput.From(machine),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"{heading}: {machine.Id}");
+        await output.WriteLineAsync($"Name: {machine.Name}");
+        await output.WriteLineAsync($"Platform: {machine.Platform}");
+        await output.WriteLineAsync($"Status: {machine.Status.ToStorageValue()}");
+        await output.WriteLineAsync(
+            $"Last seen: {(machine.LastSeenAt is null ? "(never)" : machine.LastSeenAt.Value.ToString("O"))}");
+        await output.WriteLineAsync($"Created: {machine.CreatedAt:O}");
+        await output.WriteLineAsync($"Updated: {machine.UpdatedAt:O}");
+    }
+
+    private static async Task WriteMachinesAsync(
+        IReadOnlyList<RuntimeMachine> machines,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                machines.Select(MachineOutput.From).ToArray(),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"Machines: {machines.Count}");
+
+        foreach (var machine in machines)
+        {
+            await output.WriteLineAsync(
+                $"  - {machine.Id} | {machine.Name} | {machine.Platform} | {machine.Status.ToStorageValue()}");
+        }
+    }
+
     private static async Task WriteAgentSnapshotAsync(
         AgentRunSnapshot snapshot,
         bool json,
@@ -384,6 +622,10 @@ internal static class AegesCli
         await error.WriteLineAsync("Usage:");
         await error.WriteLineAsync("  aeges db status [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges db migrate [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges project add --name <name> --path <path> [--project-id <id>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges project list [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges machine add --name <name> --platform <text> [--machine-id <id>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges machine list [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task create --project-id <id> --machine-id <id> --title <title> --goal <goal> [--task-id <id>] [--priority <int>] [--max-iterations <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
@@ -596,6 +838,176 @@ internal static class AegesCli
         private static TaskCreateOptions ErrorResult(string error) => new() { Error = error };
     }
 
+    private sealed class ProjectAddOptions : CliOptions
+    {
+        public string? ProjectId { get; private init; }
+
+        public string? Name { get; private init; }
+
+        public string? Path { get; private init; }
+
+        public new static ProjectAddOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? projectId = null;
+            string? name = null;
+            string? path = null;
+            var json = false;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--project-id":
+                        if (!TryReadValue(args, ref index, out projectId))
+                        {
+                            return ErrorResult("--project-id requires a value.");
+                        }
+
+                        break;
+                    case "--name":
+                        if (!TryReadValue(args, ref index, out name))
+                        {
+                            return ErrorResult("--name requires a value.");
+                        }
+
+                        break;
+                    case "--path":
+                        if (!TryReadValue(args, ref index, out path))
+                        {
+                            return ErrorResult("--path requires a value.");
+                        }
+
+                        break;
+                    default:
+                        return ErrorResult($"Unknown option '{args[index]}'.");
+                }
+            }
+
+            return RequireText(name, "--name")
+                ?? RequireText(path, "--path")
+                ?? new ProjectAddOptions
+                {
+                    ConfigPath = configPath,
+                    ConnectionString = connectionString,
+                    Json = json,
+                    ProjectId = projectId,
+                    Name = name,
+                    Path = path,
+                };
+        }
+
+        private static ProjectAddOptions? RequireText(string? value, string optionName) =>
+            string.IsNullOrWhiteSpace(value)
+                ? ErrorResult($"{optionName} is required.")
+                : null;
+
+        private static ProjectAddOptions ErrorResult(string error) => new() { Error = error };
+    }
+
+    private sealed class MachineAddOptions : CliOptions
+    {
+        public string? MachineId { get; private init; }
+
+        public string? Name { get; private init; }
+
+        public string? Platform { get; private init; }
+
+        public new static MachineAddOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? machineId = null;
+            string? name = null;
+            string? platform = null;
+            var json = false;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--machine-id":
+                        if (!TryReadValue(args, ref index, out machineId))
+                        {
+                            return ErrorResult("--machine-id requires a value.");
+                        }
+
+                        break;
+                    case "--name":
+                        if (!TryReadValue(args, ref index, out name))
+                        {
+                            return ErrorResult("--name requires a value.");
+                        }
+
+                        break;
+                    case "--platform":
+                        if (!TryReadValue(args, ref index, out platform))
+                        {
+                            return ErrorResult("--platform requires a value.");
+                        }
+
+                        break;
+                    default:
+                        return ErrorResult($"Unknown option '{args[index]}'.");
+                }
+            }
+
+            return RequireText(name, "--name")
+                ?? RequireText(platform, "--platform")
+                ?? new MachineAddOptions
+                {
+                    ConfigPath = configPath,
+                    ConnectionString = connectionString,
+                    Json = json,
+                    MachineId = machineId,
+                    Name = name,
+                    Platform = platform,
+                };
+        }
+
+        private static MachineAddOptions? RequireText(string? value, string optionName) =>
+            string.IsNullOrWhiteSpace(value)
+                ? ErrorResult($"{optionName} is required.")
+                : null;
+
+        private static MachineAddOptions ErrorResult(string error) => new() { Error = error };
+    }
+
     private sealed class TaskStatusOptions : CliOptions
     {
         public string? TaskId { get; private init; }
@@ -785,6 +1197,42 @@ internal static class AegesCli
         }
 
         private static AgentRunCliOptions ErrorResult(string error) => new() { Error = error };
+    }
+
+    private sealed record ProjectOutput(
+        string Id,
+        string Name,
+        string Path,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset UpdatedAt)
+    {
+        public static ProjectOutput From(RuntimeProject project) =>
+            new(
+                project.Id.Value,
+                project.Name,
+                project.Path,
+                project.CreatedAt,
+                project.UpdatedAt);
+    }
+
+    private sealed record MachineOutput(
+        string Id,
+        string Name,
+        string Platform,
+        string Status,
+        DateTimeOffset? LastSeenAt,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset UpdatedAt)
+    {
+        public static MachineOutput From(RuntimeMachine machine) =>
+            new(
+                machine.Id.Value,
+                machine.Name,
+                machine.Platform,
+                machine.Status.ToStorageValue(),
+                machine.LastSeenAt,
+                machine.CreatedAt,
+                machine.UpdatedAt);
     }
 
     private sealed record TaskOutput(

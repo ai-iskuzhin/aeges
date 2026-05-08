@@ -53,4 +53,19 @@ public sealed class MachineServiceTests
         Assert.False(result.IsSuccess);
         Assert.Equal("machine_not_found", result.Error?.Code);
     }
+
+    [Fact]
+    public async Task ListAsync_returns_registered_machines()
+    {
+        var unitOfWork = new InMemoryUnitOfWork();
+        var service = new MachineService(unitOfWork, new FixedClock(Now));
+        await service.RegisterAsync(
+            new RegisterMachineRequest("home-laptop", "macOS arm64", new MachineId("machine-001")),
+            CancellationToken.None);
+
+        var machines = await service.ListAsync(CancellationToken.None);
+
+        Assert.Single(machines);
+        Assert.Equal(new MachineId("machine-001"), machines[0].Id);
+    }
 }

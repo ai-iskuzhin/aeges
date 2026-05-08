@@ -78,6 +78,10 @@ The CLI also exposes:
 ```text
 aeges db status
 aeges db migrate
+aeges project add
+aeges project list
+aeges machine add
+aeges machine list
 aeges task create
 aeges task status
 ```
@@ -91,6 +95,10 @@ Task commands initialize the local SQLite database before use, then delegate to
 the application task service. Creating a task requires an existing project and
 machine because the runtime stores tasks as durable work assigned inside known
 execution boundaries.
+
+Project and machine commands provide the local-only setup path for the task
+commands. A developer can migrate the database, add a project, add a machine,
+and create a queued task without Telegram or a future control plane.
 
 Runtime code may call EF Core migration APIs during local agent startup when
 configured to manage the local SQLite database automatically.

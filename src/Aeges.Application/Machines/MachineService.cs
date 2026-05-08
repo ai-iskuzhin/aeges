@@ -69,4 +69,12 @@ public sealed class MachineService
 
         return ApplicationResult<RuntimeMachine>.Success(machine);
     }
+
+    /// <summary>
+    /// Lists registered machines.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The registered machines.</returns>
+    public async Task<IReadOnlyList<RuntimeMachine>> ListAsync(CancellationToken cancellationToken) =>
+        await unitOfWork.Machines.ListAsync(cancellationToken);
 }
