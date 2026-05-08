@@ -29,4 +29,16 @@ public static class TelegramBotClientFactory
 
         return new TelegramBotClient(token, cancellationToken: cancellationToken);
     }
+
+    /// <summary>
+    /// Creates a Telegram gateway using the configured token environment variable.
+    /// </summary>
+    /// <param name="configuration">The Telegram configuration.</param>
+    /// <param name="cancellationToken">The global client cancellation token.</param>
+    /// <returns>A Telegram network gateway.</returns>
+    /// <exception cref="TelegramTransportException">Thrown when the token environment variable is not set.</exception>
+    public static ITelegramBotGateway CreateGateway(
+        AegesTelegramConfiguration configuration,
+        CancellationToken cancellationToken) =>
+        new TelegramBotApiGateway(Create(configuration, cancellationToken));
 }

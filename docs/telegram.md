@@ -31,3 +31,15 @@ the bot to those chats.
 The bot token is read from the environment variable named by
 `telegram.botTokenEnvironmentVariable`; the token value itself must not be
 stored in committed config.
+
+Run the local Telegram transport with:
+
+```text
+aeges telegram run
+```
+
+For a bounded poll useful during setup and diagnostics:
+
+```text
+aeges telegram run --once --timeout-seconds 5
+```

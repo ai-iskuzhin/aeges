@@ -97,6 +97,7 @@ review, test, and document independently.
 - [x] Add button-first Telegram interaction handler.
 - [x] Add Telegram application facade boundary.
 - [x] Add Telegram long-polling transport service.
+- [x] Add CLI host command for Telegram long polling.
 
 ## Current Focus
 
@@ -194,7 +195,7 @@ review, test, and document independently.
 - [x] Add tests for button navigation, authorization, and task-detail callbacks.
 - [x] Add live Telegram Bot API gateway around the button interaction handler.
 - [x] Add testable Telegram long-polling service.
-- [ ] Add CLI or agent host command for running Telegram long polling.
+- [x] Add CLI host command for running Telegram long polling.
 - [ ] Add approval-resolution buttons after approval workflow is exposed through
       the facade.
 

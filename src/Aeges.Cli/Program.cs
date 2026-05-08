@@ -9,6 +9,7 @@ using Aeges.Application.Runtime;
 using Aeges.Application.Tasks;
 using Aeges.Core;
 using Aeges.Storage.Sqlite;
+using Aeges.Telegram;
 using Microsoft.EntityFrameworkCore;
 
 using var cancellation = new CancellationTokenSource();
@@ -74,6 +75,11 @@ internal static class AegesCli
         if (args is ["agent", "run", .. var agentRunArgs])
         {
             return await RunAgentRunAsync(agentRunArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["telegram", "run", .. var telegramRunArgs])
+        {
+            return await RunTelegramRunAsync(telegramRunArgs, output, error, cancellationToken);
         }
 
         await WriteUsageAsync(error);
@@ -167,6 +173,62 @@ internal static class AegesCli
         await WriteStatusAsync(status, options.Json, output);
 
         return 0;
+    }
+
+    private static async Task<int> RunTelegramRunAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = TelegramRunCliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var configuration = LoadConfiguration(options);
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var unitOfWork = new SqliteUnitOfWork(context);
+        var clock = new SystemClock();
+        var facade = new TelegramApplicationFacade(
+            new ProjectService(unitOfWork, clock),
+            new MachineService(unitOfWork, clock),
+            new TaskService(unitOfWork, clock));
+        var handler = new TelegramInteractionHandler(facade, configuration.Telegram);
+        var pollingOptions = new TelegramLongPollingOptions(options.Limit, options.TimeoutSeconds);
+
+        try
+        {
+            var gateway = TelegramBotClientFactory.CreateGateway(configuration.Telegram, cancellationToken);
+            var service = new TelegramLongPollingService(gateway, handler);
+
+            if (options.Once)
+            {
+                var result = await service.PollOnceAsync(null, pollingOptions, cancellationToken);
+                await WriteTelegramPollingResultAsync(result, options.Json, output);
+                return 0;
+            }
+
+            await output.WriteLineAsync(
+                $"Telegram transport running with token from '{configuration.Telegram.BotTokenEnvironmentVariable}'. Press Ctrl+C to stop.");
+
+            await service.RunAsync(pollingOptions, cancellationToken);
+
+            return 0;
+        }
+        catch (TelegramTransportException exception)
+        {
+            await error.WriteLineAsync(exception.Message);
+            return 1;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await output.WriteLineAsync("Telegram transport stopped.");
+            return 0;
+        }
     }
 
     private static async Task<int> RunTaskCreateAsync(
@@ -620,6 +682,28 @@ internal static class AegesCli
         await output.WriteLineAsync($"Heartbeat: {snapshot.HeartbeatAt:O}");
     }
 
+    private static async Task WriteTelegramPollingResultAsync(
+        TelegramLongPollingResult result,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                result,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"Processed updates: {result.ProcessedUpdates}");
+        await output.WriteLineAsync(
+            $"Next offset: {(result.NextOffset is null ? "(none)" : result.NextOffset.Value.ToString())}");
+    }
+
     private static async Task WriteErrorAsync(
         ApplicationError errorValue,
         bool json,
@@ -652,6 +736,7 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges task create --project-id <id> --machine-id <id> --title <title> --goal <goal> [--task-id <id>] [--priority <int>] [--max-iterations <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--create-worktree] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges telegram run [--once] [--poll-limit <int>] [--timeout-seconds <int>] [--config <path>] [--connection-string <value>] [--json]");
     }
 
     private class CliOptions
@@ -1252,6 +1337,91 @@ internal static class AegesCli
         }
 
         private static AgentRunCliOptions ErrorResult(string error) => new() { Error = error };
+    }
+
+    private sealed class TelegramRunCliOptions : CliOptions
+    {
+        public bool Once { get; private init; }
+
+        public int Limit { get; private init; } = 50;
+
+        public int TimeoutSeconds { get; private init; } = 30;
+
+        public new static TelegramRunCliOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            var once = false;
+            var json = false;
+            var limit = 50;
+            var timeoutSeconds = 30;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--once":
+                        once = true;
+                        break;
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--poll-limit":
+                        if (!TryReadPositiveInt(args, ref index, out limit))
+                        {
+                            return ErrorResult("--poll-limit requires an integer value greater than zero.");
+                        }
+
+                        break;
+                    case "--timeout-seconds":
+                        if (!TryReadPositiveInt(args, ref index, out timeoutSeconds))
+                        {
+                            return ErrorResult("--timeout-seconds requires an integer value greater than zero.");
+                        }
+
+                        break;
+                    default:
+                        return ErrorResult($"Unknown option '{args[index]}'.");
+                }
+            }
+
+            return new TelegramRunCliOptions
+            {
+                ConfigPath = configPath,
+                ConnectionString = connectionString,
+                Json = json,
+                Once = once,
+                Limit = limit,
+                TimeoutSeconds = timeoutSeconds,
+            };
+        }
+
+        private static bool TryReadPositiveInt(string[] args, ref int index, out int value)
+        {
+            if (!TryReadValue(args, ref index, out var text) || !int.TryParse(text, out value))
+            {
+                value = 0;
+                return false;
+            }
+
+            return value > 0;
+        }
+
+        private static TelegramRunCliOptions ErrorResult(string error) => new() { Error = error };
     }
 
     private sealed record ProjectOutput(

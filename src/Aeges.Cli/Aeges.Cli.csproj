@@ -16,6 +16,7 @@
     <ProjectReference Include="..\Aeges.Runners\Aeges.Runners.csproj" />
     <ProjectReference Include="..\Aeges.Runners.Codex\Aeges.Runners.Codex.csproj" />
     <ProjectReference Include="..\Aeges.Git\Aeges.Git.csproj" />
+    <ProjectReference Include="..\Aeges.Telegram\Aeges.Telegram.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
