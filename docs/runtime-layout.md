@@ -51,6 +51,12 @@ is wired into the agent:
 aeges agent run --once --runner-id mock --execute-runner
 ```
 
+Git worktree creation is also explicit:
+
+```text
+aeges agent run --once --create-worktree
+```
+
 The runner id for newly created iterations defaults to configured
 `runners.default` and can be overridden with:
 

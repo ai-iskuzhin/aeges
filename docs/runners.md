@@ -52,8 +52,8 @@ credentials. Codex execution remains a separate step because it needs real Git
 worktree creation before launch.
 
 Git worktree creation is now available through the Git runtime layer. The agent
-can use it before enabling Codex execution so the worker starts from an isolated
-checkout rather than the source project directory.
+can use `--create-worktree` before runner execution so the worker starts from an
+isolated checkout rather than the source project directory.
 
 ## Dispatch Governance
 

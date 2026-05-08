@@ -8,6 +8,7 @@ using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
 using Aeges.Application.Tasks;
 using Aeges.Core;
+using Aeges.Git;
 using Aeges.Runners;
 using Aeges.Storage.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -21,16 +22,19 @@ public sealed class LocalAgentRuntime
 {
     private readonly IClock clock;
     private readonly IAegesRunner? runner;
+    private readonly IGitRuntime gitRuntime;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LocalAgentRuntime"/> class.
     /// </summary>
     /// <param name="clock">The deterministic runtime clock.</param>
     /// <param name="runner">The optional runner used for opt-in execution.</param>
-    public LocalAgentRuntime(IClock? clock = null, IAegesRunner? runner = null)
+    /// <param name="gitRuntime">The Git runtime used for opt-in worktree creation.</param>
+    public LocalAgentRuntime(IClock? clock = null, IAegesRunner? runner = null, IGitRuntime? gitRuntime = null)
     {
         this.clock = clock ?? new SystemClock();
         this.runner = runner;
+        this.gitRuntime = gitRuntime ?? new ProcessGitRuntime();
     }
 
     /// <summary>
@@ -78,6 +82,8 @@ public sealed class LocalAgentRuntime
         string? runnerStatus = null;
         int? runnerExitCode = null;
         string? runnerErrorSummary = null;
+        var worktreeCreated = false;
+        string? worktreeBaseCommit = null;
 
         if (options.ClaimQueuedTask)
         {
@@ -92,6 +98,8 @@ public sealed class LocalAgentRuntime
             runnerStatus = claim.RunnerStatus;
             runnerExitCode = claim.RunnerExitCode;
             runnerErrorSummary = claim.RunnerErrorSummary;
+            worktreeCreated = claim.WorktreeCreated;
+            worktreeBaseCommit = claim.WorktreeBaseCommit;
         }
 
         var queuedTasks = await unitOfWork.Tasks.ListByStatusAsync(
@@ -113,7 +121,9 @@ public sealed class LocalAgentRuntime
             runnerExecutionId,
             runnerStatus,
             runnerExitCode,
-            runnerErrorSummary);
+            runnerErrorSummary,
+            worktreeCreated,
+            worktreeBaseCommit);
     }
 
     private async Task<ClaimResult> ClaimNextQueuedTaskAsync(
@@ -152,6 +162,13 @@ public sealed class LocalAgentRuntime
         }
 
         var prepared = await PrepareRunnerBundleAsync(unitOfWork, task, iteration.Value!, options, cancellationToken);
+        GitWorktreeInfo? worktree = null;
+
+        if (options.CreateWorktree)
+        {
+            worktree = await CreateWorktreeAsync(task, prepared.Project, iteration.Value!, prepared.RunnerRequest, cancellationToken);
+        }
+
         RunnerRunSummary? runnerRun = null;
 
         if (options.ExecuteRunner)
@@ -175,7 +192,9 @@ public sealed class LocalAgentRuntime
             runnerRun?.RunnerExecutionId,
             runnerRun?.Status,
             runnerRun?.ExitCode,
-            runnerRun?.ErrorSummary);
+            runnerRun?.ErrorSummary,
+            worktree is not null,
+            worktree?.BaseCommit);
     }
 
     private async Task<PreparedRunnerBundle> PrepareRunnerBundleAsync(
@@ -232,7 +251,33 @@ public sealed class LocalAgentRuntime
             runnerRequest.Value.PromptPath,
             runnerRequest.Value.WorktreePath,
             runnerRequest.Value.ArtifactOutputDirectory,
-            runnerRequest.Value);
+            runnerRequest.Value,
+            project);
+    }
+
+    private async Task<GitWorktreeInfo> CreateWorktreeAsync(
+        RuntimeTask task,
+        RuntimeProject project,
+        TaskIteration iteration,
+        RunnerRequest runnerRequest,
+        CancellationToken cancellationToken)
+    {
+        var baseCommit = await gitRuntime.GetBaseCommitAsync(
+            project.Path,
+            project.Id,
+            task.Id,
+            iteration.Id,
+            cancellationToken);
+        var request = new GitWorktreeRequest(
+            project.Path,
+            Path.GetFullPath(Path.Combine(runnerRequest.WorktreePath, "..", "..", "..")),
+            project.Id,
+            task.Id,
+            iteration.Id,
+            CreateBranchName(task.Id, iteration.Id),
+            baseCommit.CommitSha);
+
+        return await gitRuntime.CreateWorktreeAsync(request, cancellationToken);
     }
 
     private async Task<RunnerRunSummary> ExecuteRunnerAsync(
@@ -413,6 +458,11 @@ public sealed class LocalAgentRuntime
         {
             throw new ArgumentException("Runner execution requires task claiming to be enabled.", nameof(options));
         }
+
+        if (options.CreateWorktree && !options.ClaimQueuedTask)
+        {
+            throw new ArgumentException("Worktree creation requires task claiming to be enabled.", nameof(options));
+        }
     }
 
     private static RuntimeDirectoryLayout CreateRuntimeLayout(AgentRunOptions options) =>
@@ -451,12 +501,16 @@ public sealed class LocalAgentRuntime
             .Replace(Path.AltDirectorySeparatorChar, '/');
     }
 
+    private static string CreateBranchName(TaskId taskId, IterationId iterationId) =>
+        $"aeges/{taskId.Value}/{iterationId.Value}";
+
     private sealed record PreparedRunnerBundle(
         string PromptArtifactId,
         string PromptPath,
         string WorktreePath,
         string ArtifactOutputDirectory,
-        RunnerRequest RunnerRequest);
+        RunnerRequest RunnerRequest,
+        RuntimeProject Project);
 
     private sealed record RunnerRunSummary(
         string RunnerExecutionId,
@@ -474,8 +528,10 @@ public sealed class LocalAgentRuntime
         string? RunnerExecutionId,
         string? RunnerStatus,
         int? RunnerExitCode,
-        string? RunnerErrorSummary)
+        string? RunnerErrorSummary,
+        bool WorktreeCreated,
+        string? WorktreeBaseCommit)
     {
-        public static ClaimResult Empty { get; } = new(null, null, null, null, null, null, null, null, null, null);
+        public static ClaimResult Empty { get; } = new(null, null, null, null, null, null, null, null, null, null, false, null);
     }
 }

@@ -175,6 +175,7 @@ review, test, and document independently.
 - [x] Make local agent claim one queued task assigned to its machine.
 - [x] Make local agent write and register prompt artifacts for claimed
       iterations.
+- [x] Add opt-in local agent Git worktree creation for claimed iterations.
 - [x] Add opt-in mock runner execution from the local agent.
 - [x] Keep CLI usable without Telegram or a control plane.
 

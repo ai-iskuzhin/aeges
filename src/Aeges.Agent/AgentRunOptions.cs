@@ -13,6 +13,7 @@ namespace Aeges.Agent;
 /// <param name="RunnerTimeout">The maximum allowed runner execution time.</param>
 /// <param name="ClaimQueuedTask">A value indicating whether one queued task should be claimed during this run.</param>
 /// <param name="ExecuteRunner">A value indicating whether the prepared runner request should be executed.</param>
+/// <param name="CreateWorktree">A value indicating whether a Git worktree should be created for the claimed iteration.</param>
 public sealed record AgentRunOptions(
     string ConnectionString,
     string MachineId,
@@ -23,4 +24,5 @@ public sealed record AgentRunOptions(
     string? RuntimeRootPath = null,
     TimeSpan? RunnerTimeout = null,
     bool ClaimQueuedTask = true,
-    bool ExecuteRunner = false);
+    bool ExecuteRunner = false,
+    bool CreateWorktree = false);

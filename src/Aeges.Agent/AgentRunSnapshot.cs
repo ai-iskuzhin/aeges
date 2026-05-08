@@ -17,6 +17,8 @@ namespace Aeges.Agent;
 /// <param name="RunnerStatus">The runner result status, when execution was requested.</param>
 /// <param name="RunnerExitCode">The runner process exit code, when available.</param>
 /// <param name="RunnerErrorSummary">The runner error summary, when execution did not succeed.</param>
+/// <param name="WorktreeCreated">A value indicating whether a Git worktree was created for the iteration.</param>
+/// <param name="WorktreeBaseCommit">The base commit used for the created worktree, when known.</param>
 public sealed record AgentRunSnapshot(
     string MachineId,
     string? DatabasePath,
@@ -31,4 +33,6 @@ public sealed record AgentRunSnapshot(
     string? RunnerExecutionId = null,
     string? RunnerStatus = null,
     int? RunnerExitCode = null,
-    string? RunnerErrorSummary = null);
+    string? RunnerErrorSummary = null,
+    bool WorktreeCreated = false,
+    string? WorktreeBaseCommit = null);

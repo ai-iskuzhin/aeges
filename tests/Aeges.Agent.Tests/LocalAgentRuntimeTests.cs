@@ -279,6 +279,50 @@ public sealed class LocalAgentRuntimeTests
         }
     }
 
+    [Fact]
+    public async Task RunOnce_can_create_git_worktree_for_claimed_iteration()
+    {
+        using var repository = await TemporaryGitRepository.CreateAsync();
+        var clock = new FixedClock(new DateTimeOffset(2026, 05, 08, 08, 00, 00, TimeSpan.Zero));
+        var runtime = new LocalAgentRuntime(clock);
+        var databasePath = Path.Combine(Path.GetTempPath(), $"aeges-agent-{Guid.NewGuid():N}.db");
+        var connectionString = $"Data Source={databasePath}";
+        var runtimeRoot = Path.Combine(repository.RootPath, "runtime");
+
+        try
+        {
+            await SeedProjectMachineAndTaskAsync(
+                connectionString,
+                clock.Now,
+                new MachineId("machine-001"),
+                repository.Path);
+
+            var snapshot = await runtime.RunOnceAsync(
+                new AgentRunOptions(
+                    connectionString,
+                    "machine-001",
+                    "local-test",
+                    "test-platform",
+                    RunnerId: "mock",
+                    RuntimeRootPath: runtimeRoot,
+                    CreateWorktree: true),
+                CancellationToken.None);
+
+            Assert.True(snapshot.WorktreeCreated);
+            Assert.Equal(repository.HeadCommit, snapshot.WorktreeBaseCommit);
+            Assert.NotNull(snapshot.WorktreePath);
+            Assert.True(Directory.Exists(snapshot.WorktreePath));
+            Assert.True(File.Exists(Path.Combine(snapshot.WorktreePath, "file.txt")));
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+            DeleteIfExists($"{databasePath}-shm");
+            DeleteIfExists($"{databasePath}-wal");
+        }
+    }
+
+
     private static void DeleteIfExists(string path)
     {
         if (File.Exists(path))
@@ -298,7 +342,8 @@ public sealed class LocalAgentRuntimeTests
     private static async Task SeedProjectMachineAndTaskAsync(
         string connectionString,
         DateTimeOffset now,
-        MachineId taskMachineId)
+        MachineId taskMachineId,
+        string projectPath = "/work/aeges")
     {
         await using var context = new AegesDbContext(AegesDbContextOptions.Create(connectionString));
         await SqlitePragmas.ApplyAsync(context, CancellationToken.None);
@@ -306,7 +351,7 @@ public sealed class LocalAgentRuntimeTests
         var unitOfWork = new SqliteUnitOfWork(context);
 
         await unitOfWork.Projects.AddAsync(
-            RuntimeProject.Create(new ProjectId("project-001"), "Aeges", "/work/aeges", now),
+            RuntimeProject.Create(new ProjectId("project-001"), "Aeges", projectPath, now),
             CancellationToken.None);
         await unitOfWork.Machines.AddAsync(
             RuntimeMachine.Create(taskMachineId, $"machine-{taskMachineId.Value}", "test-platform", now),
@@ -321,5 +366,72 @@ public sealed class LocalAgentRuntimeTests
                 now),
             CancellationToken.None);
         await unitOfWork.SaveChangesAsync(CancellationToken.None);
+    }
+
+    private sealed class TemporaryGitRepository : IDisposable
+    {
+        private TemporaryGitRepository(string rootPath, string repositoryPath, string headCommit)
+        {
+            RootPath = rootPath;
+            Path = repositoryPath;
+            HeadCommit = headCommit;
+        }
+
+        public string RootPath { get; }
+
+        public string Path { get; }
+
+        public string HeadCommit { get; }
+
+        public static async Task<TemporaryGitRepository> CreateAsync()
+        {
+            var rootPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"aeges-agent-git-{Guid.NewGuid():N}");
+            var repositoryPath = System.IO.Path.Combine(rootPath, "repo");
+            Directory.CreateDirectory(repositoryPath);
+
+            await RunGitAsync(repositoryPath, ["init", "-b", "main"]);
+            await RunGitAsync(repositoryPath, ["config", "user.email", "aeges@example.test"]);
+            await RunGitAsync(repositoryPath, ["config", "user.name", "Aeges Tests"]);
+            await File.WriteAllTextAsync(System.IO.Path.Combine(repositoryPath, "file.txt"), "initial\n");
+            await RunGitAsync(repositoryPath, ["add", "file.txt"]);
+            await RunGitAsync(repositoryPath, ["commit", "-m", "Initial commit"]);
+            var headCommit = (await RunGitAsync(repositoryPath, ["rev-parse", "HEAD"])).Trim();
+
+            return new TemporaryGitRepository(rootPath, repositoryPath, headCommit);
+        }
+
+        public void Dispose()
+        {
+            DeleteDirectoryIfExists(RootPath);
+        }
+
+        private static async Task<string> RunGitAsync(string workingDirectory, IReadOnlyList<string> arguments)
+        {
+            var startInfo = new System.Diagnostics.ProcessStartInfo("git")
+            {
+                WorkingDirectory = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+
+            foreach (var argument in arguments)
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
+
+            using var process = System.Diagnostics.Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Git process failed to start.");
+            var stdout = await process.StandardOutput.ReadToEndAsync();
+            var stderr = await process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException($"Git failed with exit code {process.ExitCode}: {stderr}");
+            }
+
+            return stdout;
+        }
     }
 }

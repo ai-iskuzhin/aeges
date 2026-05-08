@@ -407,7 +407,8 @@ internal static class AegesCli
             layout.RootPath,
             TimeSpan.FromSeconds(configuration.Runners.Codex.TimeoutSeconds),
             options.ClaimQueuedTask,
-            options.ExecuteRunner);
+            options.ExecuteRunner,
+            options.CreateWorktree);
     }
 
     private static async Task WriteStatusAsync(
@@ -611,6 +612,8 @@ internal static class AegesCli
         await output.WriteLineAsync(
             $"Runner exit code: {(snapshot.RunnerExitCode is null ? "(none)" : snapshot.RunnerExitCode.Value.ToString())}");
         await output.WriteLineAsync($"Runner error: {snapshot.RunnerErrorSummary ?? "(none)"}");
+        await output.WriteLineAsync($"Worktree created: {snapshot.WorktreeCreated}");
+        await output.WriteLineAsync($"Worktree base commit: {snapshot.WorktreeBaseCommit ?? "(none)"}");
         await output.WriteLineAsync($"Heartbeat: {snapshot.HeartbeatAt:O}");
     }
 
@@ -645,7 +648,7 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges machine list [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task create --project-id <id> --machine-id <id> --title <title> --goal <goal> [--task-id <id>] [--priority <int>] [--max-iterations <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
-        await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--create-worktree] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
     }
 
     private class CliOptions
@@ -1117,6 +1120,8 @@ internal static class AegesCli
 
         public bool ExecuteRunner { get; private init; }
 
+        public bool CreateWorktree { get; private init; }
+
         public new static AgentRunCliOptions Parse(string[] args)
         {
             string? configPath = null;
@@ -1131,6 +1136,7 @@ internal static class AegesCli
             var queuePreviewLimit = 100;
             var claimQueuedTask = true;
             var executeRunner = false;
+            var createWorktree = false;
 
             for (var index = 0; index < args.Length; index++)
             {
@@ -1147,6 +1153,9 @@ internal static class AegesCli
                         break;
                     case "--execute-runner":
                         executeRunner = true;
+                        break;
+                    case "--create-worktree":
+                        createWorktree = true;
                         break;
                     case "--config":
                         if (!TryReadValue(args, ref index, out configPath))
@@ -1224,6 +1233,7 @@ internal static class AegesCli
                 RunnerId = runnerId,
                 ClaimQueuedTask = claimQueuedTask,
                 ExecuteRunner = executeRunner,
+                CreateWorktree = createWorktree,
             };
         }
 
@@ -1327,7 +1337,9 @@ internal static class AegesCli
         string? RunnerExecutionId,
         string? RunnerStatus,
         int? RunnerExitCode,
-        string? RunnerErrorSummary)
+        string? RunnerErrorSummary,
+        bool WorktreeCreated,
+        string? WorktreeBaseCommit)
     {
         public static AgentSnapshotOutput From(AgentRunSnapshot snapshot) =>
             new(
@@ -1344,6 +1356,8 @@ internal static class AegesCli
                 snapshot.RunnerExecutionId,
                 snapshot.RunnerStatus,
                 snapshot.RunnerExitCode,
-                snapshot.RunnerErrorSummary);
+                snapshot.RunnerErrorSummary,
+                snapshot.WorktreeCreated,
+                snapshot.WorktreeBaseCommit);
     }
 }
