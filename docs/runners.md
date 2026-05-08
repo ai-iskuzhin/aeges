@@ -30,6 +30,10 @@ The record captures the owning task and iteration, runner id, command
 description, working directory, start and completion timestamps, exit code, and
 whether the runtime ended execution because of timeout or cancellation.
 
+The application layer owns the use case for starting and completing these
+records. Agents and transports should call that use case instead of writing
+runner execution rows directly.
+
 ## Dispatch Governance
 
 Before a runner is dispatched, the application layer evaluates the dispatch

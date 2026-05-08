@@ -70,6 +70,7 @@ review, test, and document independently.
 - [x] Add artifact registration application use cases.
 - [x] Add governance policy model.
 - [x] Add governance checks before runner dispatch.
+- [x] Add application use case for durable runner execution tracking.
 - [x] Add lock conflict detection.
 - [x] Add mock runner for tests.
 - [x] Add Codex runner project contracts without launching Codex yet.
@@ -131,6 +132,7 @@ review, test, and document independently.
 - [x] Add approval request and resolution use cases.
 - [x] Add artifact registration use cases.
 - [x] Add governance checks before runner dispatch.
+- [x] Add durable runner execution tracking use case.
 - [x] Add structured result models for expected runtime failures.
 
 ## Runner Contracts
