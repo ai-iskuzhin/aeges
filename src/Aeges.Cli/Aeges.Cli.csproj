@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Aeges.Core\Aeges.Core.csproj" />
     <ProjectReference Include="..\Aeges.Application\Aeges.Application.csproj" />
+    <ProjectReference Include="..\Aeges.Agent\Aeges.Agent.csproj" />
     <ProjectReference Include="..\Aeges.Storage\Aeges.Storage.csproj" />
     <ProjectReference Include="..\Aeges.Storage.Sqlite\Aeges.Storage.Sqlite.csproj" />
     <ProjectReference Include="..\Aeges.Runners\Aeges.Runners.csproj" />

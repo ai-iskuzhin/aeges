@@ -39,6 +39,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aeges.Git.Tests", "tests\Ae
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aeges.Storage.Tests", "tests\Aeges.Storage.Tests\Aeges.Storage.Tests.csproj", "{C5CEB139-ECE4-4BFD-9B1C-A57FE42BE37E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aeges.Agent.Tests", "tests\Aeges.Agent.Tests\Aeges.Agent.Tests.csproj", "{2FA09745-3D6B-44C2-AF07-9DAA14A3B377}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -241,6 +243,18 @@ Global
 		{C5CEB139-ECE4-4BFD-9B1C-A57FE42BE37E}.Release|x64.Build.0 = Release|Any CPU
 		{C5CEB139-ECE4-4BFD-9B1C-A57FE42BE37E}.Release|x86.ActiveCfg = Release|Any CPU
 		{C5CEB139-ECE4-4BFD-9B1C-A57FE42BE37E}.Release|x86.Build.0 = Release|Any CPU
+		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377}.Debug|x64.Build.0 = Debug|Any CPU
+		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377}.Debug|x86.Build.0 = Debug|Any CPU
+		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377}.Release|x64.ActiveCfg = Release|Any CPU
+		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377}.Release|x64.Build.0 = Release|Any CPU
+		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377}.Release|x86.ActiveCfg = Release|Any CPU
+		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -262,5 +276,6 @@ Global
 		{F9138FE5-92ED-4B8B-895B-40F5D30AFD77} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{D66526FA-6C55-4035-A5B8-402C6B42D77B} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{C5CEB139-ECE4-4BFD-9B1C-A57FE42BE37E} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

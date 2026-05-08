@@ -79,6 +79,7 @@ review, test, and document independently.
 - [x] Add `aeges db migrate`.
 - [x] Add `aeges task create`.
 - [x] Add `aeges task status`.
+- [x] Add `aeges agent run` host shell.
 
 ## Current Focus
 
@@ -148,7 +149,7 @@ review, test, and document independently.
 - [x] Add `aeges db migrate`.
 - [x] Add `aeges task create`.
 - [x] Add `aeges task status`.
-- [ ] Add `aeges agent run` host shell.
+- [x] Add `aeges agent run` host shell.
 - [ ] Keep CLI usable without Telegram or a control plane.
 
 ## Governance

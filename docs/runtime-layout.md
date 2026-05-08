@@ -28,6 +28,17 @@ variables with the `AEGES_` prefix, and command-line arguments. Later sources
 override earlier sources. Config stores references to secrets, such as the
 Telegram bot token environment variable name, rather than storing secret values.
 
+The CLI can start the local agent shell with:
+
+```text
+aeges agent run
+```
+
+The current shell initializes the local SQLite database, records a heartbeat for
+the configured machine, and reports a bounded queued-task snapshot. Use
+`--once` for a single deterministic heartbeat, which is useful for setup checks
+and scripts.
+
 Git worktrees should be isolated per task or iteration:
 
 ```text

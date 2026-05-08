@@ -1,4 +1,6 @@
+using System.Runtime.InteropServices;
 using System.Text.Json;
+using Aeges.Agent;
 using Aeges.Application;
 using Aeges.Application.Configuration;
 using Aeges.Application.Runtime;
@@ -7,7 +9,14 @@ using Aeges.Core;
 using Aeges.Storage.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
-return await AegesCli.RunAsync(args, Console.Out, Console.Error, CancellationToken.None);
+using var cancellation = new CancellationTokenSource();
+Console.CancelKeyPress += (_, eventArgs) =>
+{
+    eventArgs.Cancel = true;
+    cancellation.Cancel();
+};
+
+return await AegesCli.RunAsync(args, Console.Out, Console.Error, cancellation.Token);
 
 internal static class AegesCli
 {
@@ -37,6 +46,11 @@ internal static class AegesCli
             return await RunTaskStatusAsync(taskStatusArgs, output, error, cancellationToken);
         }
 
+        if (args is ["agent", "run", .. var agentRunArgs])
+        {
+            return await RunAgentRunAsync(agentRunArgs, output, error, cancellationToken);
+        }
+
         await WriteUsageAsync(error);
 
         return 2;
@@ -61,6 +75,50 @@ internal static class AegesCli
         await WriteStatusAsync(status, options.Json, output);
 
         return 0;
+    }
+
+    private static async Task<int> RunAgentRunAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = AgentRunCliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var runtime = new LocalAgentRuntime();
+        var agentOptions = CreateAgentRunOptions(options);
+
+        try
+        {
+            if (options.Once)
+            {
+                var snapshot = await runtime.RunOnceAsync(agentOptions, cancellationToken);
+                await WriteAgentSnapshotAsync(snapshot, options.Json, output);
+                return 0;
+            }
+
+            await output.WriteLineAsync($"Agent running for machine '{agentOptions.MachineId}'. Press Ctrl+C to stop.");
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var snapshot = await runtime.RunOnceAsync(agentOptions, cancellationToken);
+                await WriteAgentSnapshotAsync(snapshot, options.Json, output);
+                await Task.Delay(options.PollInterval, cancellationToken);
+            }
+
+            return 0;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await output.WriteLineAsync("Agent stopped.");
+            return 0;
+        }
     }
 
     private static async Task<int> RunDatabaseMigrateAsync(
@@ -175,8 +233,7 @@ internal static class AegesCli
         }
 
         var layout = RuntimeDirectoryLayout.CreateDefault();
-        var configuration = new AegesConfigurationLoader().Load(
-            new AegesConfigurationLoaderOptions(options.ConfigPath));
+        var configuration = LoadConfiguration(options);
 
         var connectionString = configuration.Storage.ConnectionString;
 
@@ -191,6 +248,21 @@ internal static class AegesCli
         }
 
         return connectionString;
+    }
+
+    private static AegesConfiguration LoadConfiguration(CliOptions options) =>
+        new AegesConfigurationLoader().Load(new AegesConfigurationLoaderOptions(options.ConfigPath));
+
+    private static AgentRunOptions CreateAgentRunOptions(AgentRunCliOptions options)
+    {
+        var configuration = LoadConfiguration(options);
+
+        return new AgentRunOptions(
+            ResolveConnectionString(options),
+            options.MachineId ?? configuration.MachineId,
+            options.MachineName ?? Environment.MachineName,
+            options.Platform ?? RuntimeInformation.OSDescription,
+            options.QueuePreviewLimit);
     }
 
     private static async Task WriteStatusAsync(
@@ -259,6 +331,29 @@ internal static class AegesCli
         }
     }
 
+    private static async Task WriteAgentSnapshotAsync(
+        AgentRunSnapshot snapshot,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                AgentSnapshotOutput.From(snapshot),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"Agent heartbeat: {snapshot.MachineId}");
+        await output.WriteLineAsync($"Database: {snapshot.DatabasePath ?? "(unknown)"}");
+        await output.WriteLineAsync($"Queued tasks: {snapshot.QueuedTaskCount}");
+        await output.WriteLineAsync($"Heartbeat: {snapshot.HeartbeatAt:O}");
+    }
+
     private static async Task WriteErrorAsync(
         ApplicationError errorValue,
         bool json,
@@ -286,6 +381,7 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges db migrate [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task create --project-id <id> --machine-id <id> --title <title> --goal <goal> [--task-id <id>] [--priority <int>] [--max-iterations <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
     }
 
     private class CliOptions
@@ -567,6 +663,125 @@ internal static class AegesCli
         private static TaskStatusOptions ErrorResult(string error) => new() { Error = error };
     }
 
+    private sealed class AgentRunCliOptions : CliOptions
+    {
+        public bool Once { get; private init; }
+
+        public string? MachineId { get; private init; }
+
+        public string? MachineName { get; private init; }
+
+        public string? Platform { get; private init; }
+
+        public TimeSpan PollInterval { get; private init; } = TimeSpan.FromSeconds(5);
+
+        public int QueuePreviewLimit { get; private init; } = 100;
+
+        public new static AgentRunCliOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? machineId = null;
+            string? machineName = null;
+            string? platform = null;
+            var once = false;
+            var json = false;
+            var pollInterval = TimeSpan.FromSeconds(5);
+            var queuePreviewLimit = 100;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--once":
+                        once = true;
+                        break;
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--machine-id":
+                        if (!TryReadValue(args, ref index, out machineId))
+                        {
+                            return ErrorResult("--machine-id requires a value.");
+                        }
+
+                        break;
+                    case "--machine-name":
+                        if (!TryReadValue(args, ref index, out machineName))
+                        {
+                            return ErrorResult("--machine-name requires a value.");
+                        }
+
+                        break;
+                    case "--platform":
+                        if (!TryReadValue(args, ref index, out platform))
+                        {
+                            return ErrorResult("--platform requires a value.");
+                        }
+
+                        break;
+                    case "--poll-interval-seconds":
+                        if (!TryReadPositiveInt(args, ref index, out var seconds))
+                        {
+                            return ErrorResult("--poll-interval-seconds requires an integer value greater than zero.");
+                        }
+
+                        pollInterval = TimeSpan.FromSeconds(seconds);
+                        break;
+                    case "--queue-preview-limit":
+                        if (!TryReadPositiveInt(args, ref index, out queuePreviewLimit))
+                        {
+                            return ErrorResult("--queue-preview-limit requires an integer value greater than zero.");
+                        }
+
+                        break;
+                    default:
+                        return ErrorResult($"Unknown option '{args[index]}'.");
+                }
+            }
+
+            return new AgentRunCliOptions
+            {
+                ConfigPath = configPath,
+                ConnectionString = connectionString,
+                Json = json,
+                Once = once,
+                MachineId = machineId,
+                MachineName = machineName,
+                Platform = platform,
+                PollInterval = pollInterval,
+                QueuePreviewLimit = queuePreviewLimit,
+            };
+        }
+
+        private static bool TryReadPositiveInt(string[] args, ref int index, out int value)
+        {
+            if (!TryReadValue(args, ref index, out var text) || !int.TryParse(text, out value))
+            {
+                value = 0;
+                return false;
+            }
+
+            return value > 0;
+        }
+
+        private static AgentRunCliOptions ErrorResult(string error) => new() { Error = error };
+    }
+
     private sealed record TaskOutput(
         string Id,
         string ProjectId,
@@ -601,5 +816,19 @@ internal static class AegesCli
                 task.CompletedAt,
                 task.CancelledAt,
                 task.FailureReason);
+    }
+
+    private sealed record AgentSnapshotOutput(
+        string MachineId,
+        string? DatabasePath,
+        DateTimeOffset HeartbeatAt,
+        int QueuedTaskCount)
+    {
+        public static AgentSnapshotOutput From(AgentRunSnapshot snapshot) =>
+            new(
+                snapshot.MachineId,
+                snapshot.DatabasePath,
+                snapshot.HeartbeatAt,
+                snapshot.QueuedTaskCount);
     }
 }
