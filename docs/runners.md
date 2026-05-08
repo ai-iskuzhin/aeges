@@ -34,6 +34,12 @@ The application layer owns the use case for starting and completing these
 records. Agents and transports should call that use case instead of writing
 runner execution rows directly.
 
+Runner request creation is deterministic. The application layer validates that
+the task, project, and iteration match, then derives the worktree path, artifact
+output directory, and prompt path from the configured runtime layout. This keeps
+runner implementations focused on worker execution rather than orchestration
+path decisions.
+
 ## Dispatch Governance
 
 Before a runner is dispatched, the application layer evaluates the dispatch
