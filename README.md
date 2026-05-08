@@ -54,18 +54,11 @@ For convenience while developing from source, define a shell function:
 aeges() { dotnet run --project src/Aeges.Cli -- "$@"; }
 ```
 
-Use a local throwaway database inside the ignored `.aeges/` directory:
-
-```bash
-mkdir -p .aeges
-export AEGES_DB="Data Source=$PWD/.aeges/aeges.db"
-```
-
 Create the schema and check migration status:
 
 ```bash
-aeges db migrate --connection-string "$AEGES_DB"
-aeges db status --connection-string "$AEGES_DB"
+aeges db migrate
+aeges db status
 ```
 
 Register this repository as a project and this machine as an executor:
@@ -74,14 +67,12 @@ Register this repository as a project and this machine as an executor:
 aeges project add \
   --project-id aeges \
   --name Aeges \
-  --path "$PWD" \
-  --connection-string "$AEGES_DB"
+  --path "$PWD"
 
 aeges machine add \
   --machine-id local \
   --name "$(hostname)" \
-  --platform "$(uname -s)" \
-  --connection-string "$AEGES_DB"
+  --platform "$(uname -s)"
 ```
 
 Create a governed task:
@@ -92,8 +83,7 @@ aeges task create \
   --machine-id local \
   --task-id first-task \
   --title "First governed task" \
-  --goal "Inspect the repository and report the current implementation status." \
-  --connection-string "$AEGES_DB"
+  --goal "Inspect the repository and report the current implementation status."
 ```
 
 Run one deterministic agent pass:
@@ -101,8 +91,7 @@ Run one deterministic agent pass:
 ```bash
 aeges agent run \
   --once \
-  --machine-id local \
-  --connection-string "$AEGES_DB"
+  --machine-id local
 ```
 
 That pass claims at most one queued task, moves it into planning, creates the
@@ -118,8 +107,7 @@ aeges agent run \
   --once \
   --machine-id local \
   --runner-id mock \
-  --execute-runner \
-  --connection-string "$AEGES_DB"
+  --execute-runner
 ```
 
 For Codex, install and authenticate Codex CLI first. Aeges checks that the
@@ -135,8 +123,7 @@ aeges agent run \
   --machine-id local \
   --runner-id codex \
   --create-worktree \
-  --execute-runner \
-  --connection-string "$AEGES_DB"
+  --execute-runner
 ```
 
 Codex model and reasoning effort can be configured in `~/.aeges/config.json`:
@@ -169,7 +156,7 @@ export AEGES_TELEGRAM_BOT_TOKEN="replace-with-your-token"
 Run the transport:
 
 ```bash
-aeges telegram run --connection-string "$AEGES_DB"
+aeges telegram run
 ```
 
 During local setup, an empty `allowedChatIds` list permits all chats. Before
@@ -223,6 +210,14 @@ The runtime layout is:
 A safe example config lives at
 [`samples/config/local.example.json`](samples/config/local.example.json). When
 passing `--config`, use an absolute path.
+
+Useful options:
+
+```text
+--config <absolute-path>          Load a specific config file.
+--connection-string <value>       Use a specific SQLite database for this command.
+--json                            Print deterministic JSON output when supported.
+```
 
 ## CLI Commands
 
