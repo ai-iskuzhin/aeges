@@ -147,15 +147,25 @@ Codex model and reasoning effort can be configured in `~/.aeges/config.json`:
 Telegram is a transport, not the workflow owner. It calls application services
 and uses inline buttons for normal interaction.
 
-Set a bot token in the environment:
+Run the setup wizard:
+
+```bash
+aeges telegram setup
+```
+
+The wizard writes safe Telegram settings to `~/.aeges/config.json`, can store
+the bot token in a local secret file under `~/.aeges/secrets/`, and asks for
+allowed chat IDs. The token is never written to committed config or logs.
+
+You can also provide the token through an environment variable:
 
 ```bash
 export AEGES_TELEGRAM_BOT_TOKEN="replace-with-your-token"
 ```
 
 If the token environment variable is missing, `aeges telegram run` prompts for
-the token and loads it for the current process only. It does not write the token
-to config or logs.
+the token and loads it for the current process only, unless the wizard already
+configured a local token file.
 
 Run the transport:
 
@@ -170,6 +180,7 @@ using a real bot, restrict access in `~/.aeges/config.json`:
 {
   "telegram": {
     "botTokenEnvironmentVariable": "AEGES_TELEGRAM_BOT_TOKEN",
+    "botTokenFilePath": "/home/user/.aeges/secrets/telegram-bot-token",
     "allowedChatIds": [123456789]
   }
 }
@@ -208,6 +219,7 @@ The runtime layout is:
 ├── runs/
 ├── worktrees/
 ├── artifacts/
+├── secrets/
 └── config.json
 ```
 
@@ -237,6 +249,7 @@ aeges task create --project-id <id> --machine-id <id> --title <title> --goal <go
 aeges task status <task-id> [...]
 aeges task cancel <task-id> [...]
 aeges agent run [--once] [--runner-id <id>] [--create-worktree] [--execute-runner] [...]
+aeges telegram setup [...]
 aeges telegram run [--once] [--no-interactive] [--poll-limit <int>] [--timeout-seconds <int>] [...]
 ```
 

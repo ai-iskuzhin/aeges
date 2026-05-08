@@ -17,7 +17,10 @@ or a future OS secret store integration.
 
 The local runtime configuration model stores secret references, not secret
 values. For example, Telegram configuration stores the environment variable name
-that contains the bot token.
+that contains the bot token or the local token file path. `aeges telegram setup`
+may store the bot token in a local secret file under `~/.aeges/secrets/`. This
+file is outside the repository, must not be committed, and is created with
+user-only permissions on Unix-like systems.
 
 Approval should be required for destructive git commands, dependency changes,
 database migrations, file deletion, deployment changes, CI/CD modifications, and

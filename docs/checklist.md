@@ -102,6 +102,7 @@ review, test, and document independently.
 - [x] Add CLI and Telegram task cancellation.
 - [x] Add first-user README and safe sample local configuration.
 - [x] Add interactive Telegram token setup for CLI runs.
+- [x] Add Telegram setup wizard with local secret-file support.
 
 ## Current Focus
 
@@ -205,6 +206,7 @@ review, test, and document independently.
       the facade.
 - [x] Add task cancellation buttons from Telegram task details.
 - [x] Add current-process Telegram token prompt for `aeges telegram run`.
+- [x] Add `aeges telegram setup` wizard for config, token source, and chat IDs.
 
 ## Governance
 

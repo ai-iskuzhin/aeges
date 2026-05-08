@@ -15,18 +15,20 @@ Recommended layout:
 ├── runs/
 ├── worktrees/
 ├── artifacts/
+├── secrets/
 └── config.json
 ```
 
 `Aeges.Application` exposes this as a runtime directory layout model. The model
 normalizes the root path, requires it to be absolute, exposes the database,
-logs, runs, worktrees, artifacts, and config paths, and lists the directories
-that `aeges init` should create.
+logs, runs, worktrees, artifacts, secrets, and config paths, and lists the
+directories that `aeges init` should create.
 
 Local configuration is loaded from the runtime `config.json`, environment
 variables with the `AEGES_` prefix, and command-line arguments. Later sources
 override earlier sources. Config stores references to secrets, such as the
-Telegram bot token environment variable name, rather than storing secret values.
+Telegram bot token environment variable name or local token file path, rather
+than storing secret values directly.
 
 The CLI can start the local agent shell with:
 

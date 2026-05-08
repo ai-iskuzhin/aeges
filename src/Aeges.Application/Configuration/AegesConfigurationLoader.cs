@@ -72,6 +72,9 @@ public sealed class AegesConfigurationLoader
         configuration.Telegram.BotTokenEnvironmentVariable = RequireText(
             configuration.Telegram.BotTokenEnvironmentVariable,
             nameof(configuration.Telegram.BotTokenEnvironmentVariable));
+        configuration.Telegram.BotTokenFilePath = NormalizeOptionalPath(
+            configuration.Telegram.BotTokenFilePath,
+            nameof(configuration.Telegram.BotTokenFilePath));
         configuration.Telegram.AllowedChatIds ??= [];
         configuration.Runners ??= new AegesRunnersConfiguration();
         configuration.Runners.Default = RequireText(configuration.Runners.Default, nameof(configuration.Runners.Default));
@@ -117,5 +120,17 @@ public sealed class AegesConfigurationLoader
         }
 
         return RequireText(value, parameterName);
+    }
+
+    private static string? NormalizeOptionalPath(string? value, string parameterName)
+    {
+        var path = NormalizeOptionalText(value, parameterName);
+
+        if (path is null)
+        {
+            return null;
+        }
+
+        return RequireFullyQualifiedPath(path);
     }
 }

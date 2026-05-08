@@ -11,6 +11,11 @@ public sealed class AegesTelegramConfiguration
     public string BotTokenEnvironmentVariable { get; set; } = "AEGES_TELEGRAM_BOT_TOKEN";
 
     /// <summary>
+    /// Gets or sets the optional local file path that contains the Telegram bot token.
+    /// </summary>
+    public string? BotTokenFilePath { get; set; }
+
+    /// <summary>
     /// Gets or sets the allowed Telegram chat identifiers.
     /// </summary>
     public List<long> AllowedChatIds { get; set; } = [];

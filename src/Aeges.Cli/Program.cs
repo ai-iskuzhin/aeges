@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Aeges.Agent;
 using Aeges.Application;
 using Aeges.Application.Approvals;
@@ -94,6 +95,11 @@ internal static class AegesCli
         if (args is ["telegram", "run", .. var telegramRunArgs])
         {
             return await RunTelegramRunAsync(telegramRunArgs, input, output, error, cancellationToken);
+        }
+
+        if (args is ["telegram", "setup", .. var telegramSetupArgs])
+        {
+            return await RunTelegramSetupAsync(telegramSetupArgs, input, output, error, cancellationToken);
         }
 
         await WriteUsageAsync(error);
@@ -255,6 +261,42 @@ internal static class AegesCli
             await output.WriteLineAsync("Telegram transport stopped.");
             return 0;
         }
+    }
+
+    private static async Task<int> RunTelegramSetupAsync(
+        string[] args,
+        TextReader input,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = CliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        if (options.Json)
+        {
+            await error.WriteLineAsync("telegram setup is interactive and does not support --json.");
+            return 2;
+        }
+
+        var configPath = ResolveConfigPath(options);
+        var configuration = LoadConfiguration(options);
+        await TelegramCliSetup.RunWizardAsync(
+            configuration,
+            configPath,
+            input,
+            output,
+            cancellationToken);
+
+        await SaveConfigurationAsync(configPath, configuration, cancellationToken);
+        await output.WriteLineAsync($"Run: aeges telegram run --config {configPath}");
+
+        return 0;
     }
 
     private static async Task<int> RunTaskCreateAsync(
@@ -508,6 +550,48 @@ internal static class AegesCli
 
     private static AegesConfiguration LoadConfiguration(CliOptions options) =>
         new AegesConfigurationLoader().Load(new AegesConfigurationLoaderOptions(options.ConfigPath));
+
+    private static string ResolveConfigPath(CliOptions options)
+    {
+        if (options.ConfigPath is null)
+        {
+            return RuntimeDirectoryLayout.CreateDefault().ConfigPath;
+        }
+
+        if (!Path.IsPathFullyQualified(options.ConfigPath))
+        {
+            throw new ArgumentException("Configuration path must be absolute.", nameof(options));
+        }
+
+        return Path.GetFullPath(options.ConfigPath);
+    }
+
+    private static async Task SaveConfigurationAsync(
+        string configPath,
+        AegesConfiguration configuration,
+        CancellationToken cancellationToken)
+    {
+        var directory = Path.GetDirectoryName(configPath);
+
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        await using var stream = File.Create(configPath);
+        await JsonSerializer.SerializeAsync(
+            stream,
+            configuration,
+            new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            },
+            cancellationToken);
+
+        await stream.WriteAsync("\n"u8.ToArray(), cancellationToken);
+    }
 
     private static AgentRunOptions CreateAgentRunOptions(AgentRunCliOptions options)
     {
@@ -793,6 +877,7 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges task cancel <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--create-worktree] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges telegram run [--once] [--no-interactive] [--poll-limit <int>] [--timeout-seconds <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges telegram setup [--config <path>]");
     }
 
     private class CliOptions

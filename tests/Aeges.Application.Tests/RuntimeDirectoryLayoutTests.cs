@@ -17,6 +17,7 @@ public sealed class RuntimeDirectoryLayoutTests
         Assert.Equal(Path.Combine(root, "runs"), layout.RunsPath);
         Assert.Equal(Path.Combine(root, "worktrees"), layout.WorktreesPath);
         Assert.Equal(Path.Combine(root, "artifacts"), layout.ArtifactsPath);
+        Assert.Equal(Path.Combine(root, "secrets"), layout.SecretsPath);
         Assert.Equal(Path.Combine(root, "config.json"), layout.ConfigPath);
         Assert.Equal(
             [
@@ -25,6 +26,7 @@ public sealed class RuntimeDirectoryLayoutTests
                 Path.Combine(root, "runs"),
                 Path.Combine(root, "worktrees"),
                 Path.Combine(root, "artifacts"),
+                Path.Combine(root, "secrets"),
             ],
             layout.RequiredDirectories);
     }

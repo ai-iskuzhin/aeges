@@ -6,6 +6,7 @@
   },
   "telegram": {
     "botTokenEnvironmentVariable": "AEGES_TELEGRAM_BOT_TOKEN",
+    "botTokenFilePath": null,
     "allowedChatIds": []
   },
   "runners": {

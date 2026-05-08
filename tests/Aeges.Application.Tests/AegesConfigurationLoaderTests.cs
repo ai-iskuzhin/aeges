@@ -35,6 +35,7 @@ public sealed class AegesConfigurationLoaderTests
               },
               "telegram": {
                 "botTokenEnvironmentVariable": "AEGES_TEST_TELEGRAM_TOKEN",
+                "botTokenFilePath": "/tmp/aeges-telegram-token",
                 "allowedChatIds": [1001, 1002]
               },
               "runners": {
@@ -63,6 +64,7 @@ public sealed class AegesConfigurationLoaderTests
         Assert.Equal("sqlite", configuration.Storage.Provider);
         Assert.Equal("Data Source=/tmp/aeges.db", configuration.Storage.ConnectionString);
         Assert.Equal("AEGES_TEST_TELEGRAM_TOKEN", configuration.Telegram.BotTokenEnvironmentVariable);
+        Assert.Equal("/tmp/aeges-telegram-token", configuration.Telegram.BotTokenFilePath);
         Assert.Equal([1001, 1002], configuration.Telegram.AllowedChatIds);
         Assert.Equal("codex-test", configuration.Runners.Codex.Executable);
         Assert.Equal("gpt-5.5", configuration.Runners.Codex.Model);
@@ -170,6 +172,22 @@ public sealed class AegesConfigurationLoaderTests
                 "codex": {
                   "model": " "
                 }
+              }
+            }
+            """);
+
+        Assert.Throws<ArgumentException>(
+            () => new AegesConfigurationLoader().Load(new AegesConfigurationLoaderOptions(path)));
+    }
+
+    [Fact]
+    public void Load_rejects_relative_telegram_token_file_path()
+    {
+        var path = CreateConfigFile(
+            """
+            {
+              "telegram": {
+                "botTokenFilePath": "relative/token"
               }
             }
             """);

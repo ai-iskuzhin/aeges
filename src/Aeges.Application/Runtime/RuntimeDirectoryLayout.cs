@@ -15,6 +15,7 @@ public sealed class RuntimeDirectoryLayout
         RunsPath = Path.Combine(RootPath, "runs");
         WorktreesPath = Path.Combine(RootPath, "worktrees");
         ArtifactsPath = Path.Combine(RootPath, "artifacts");
+        SecretsPath = Path.Combine(RootPath, "secrets");
         ConfigPath = Path.Combine(RootPath, "config.json");
         RequiredDirectories =
         [
@@ -23,6 +24,7 @@ public sealed class RuntimeDirectoryLayout
             RunsPath,
             WorktreesPath,
             ArtifactsPath,
+            SecretsPath,
         ];
     }
 
@@ -55,6 +57,11 @@ public sealed class RuntimeDirectoryLayout
     /// Gets the artifact root directory path.
     /// </summary>
     public string ArtifactsPath { get; }
+
+    /// <summary>
+    /// Gets the local secret file directory path.
+    /// </summary>
+    public string SecretsPath { get; }
 
     /// <summary>
     /// Gets the local runtime configuration file path.
