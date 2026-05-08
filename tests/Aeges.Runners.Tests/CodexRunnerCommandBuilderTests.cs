@@ -16,7 +16,8 @@ public sealed class CodexRunnerCommandBuilderTests
                 EnvironmentVariables: new Dictionary<string, string>
                 {
                     ["CODEX_HOME"] = "/tmp/codex",
-                }));
+                }),
+            new FakeCodexExecutableResolver("/usr/local/bin/codex-test"));
 
         var command = builder.Build(CreateRequest());
 
@@ -36,10 +37,38 @@ public sealed class CodexRunnerCommandBuilderTests
     [Fact]
     public void Build_uses_default_codex_exec_contract()
     {
-        var command = new CodexRunnerCommandBuilder().Build(CreateRequest());
+        var command = new CodexRunnerCommandBuilder(
+            executableResolver: new FakeCodexExecutableResolver("/usr/local/bin/codex")).Build(CreateRequest());
 
         Assert.Equal("codex", command.Executable);
         Assert.Equal(["exec", "/tmp/aeges/artifacts/task-001/prompt.md"], command.Arguments);
+    }
+
+    [Fact]
+    public void Build_rejects_missing_codex_executable_with_installation_link()
+    {
+        var builder = new CodexRunnerCommandBuilder(
+            executableResolver: new FakeCodexExecutableResolver(resolvedPath: null));
+
+        var exception = Assert.Throws<CodexRunnerUnavailableException>(() => builder.Build(CreateRequest()));
+
+        Assert.False(exception.Availability.IsAvailable);
+        Assert.Equal("codex", exception.Availability.Executable);
+        Assert.Contains("Codex CLI executable 'codex' was not found", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(CodexRunnerAvailability.CodexProjectUrl, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CheckAvailability_reports_resolved_codex_executable()
+    {
+        var builder = new CodexRunnerCommandBuilder(
+            executableResolver: new FakeCodexExecutableResolver("/usr/local/bin/codex"));
+
+        var availability = builder.CheckAvailability();
+
+        Assert.True(availability.IsAvailable);
+        Assert.Equal("codex", availability.Executable);
+        Assert.Equal("/usr/local/bin/codex", availability.ResolvedPath);
     }
 
     [Fact]
@@ -74,4 +103,16 @@ public sealed class CodexRunnerCommandBuilderTests
             {
                 ["allowed_paths"] = "src/*",
             });
+
+    private sealed class FakeCodexExecutableResolver : ICodexExecutableResolver
+    {
+        private readonly string? resolvedPath;
+
+        public FakeCodexExecutableResolver(string? resolvedPath)
+        {
+            this.resolvedPath = resolvedPath;
+        }
+
+        public string? Resolve(string executable) => resolvedPath;
+    }
 }

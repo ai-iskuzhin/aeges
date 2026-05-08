@@ -45,6 +45,14 @@ directory, timeout, and environment variables but does not launch Codex yet.
 Process execution, stdout/stderr capture, timeout enforcement, and artifact
 writing are intentionally left for a later implementation slice.
 
+Before building a command, the Codex runner preflights the configured executable
+name or path. If Codex is not available on the machine, Aeges fails before
+dispatch and reports the Codex project URL:
+
+```text
+https://github.com/openai/codex
+```
+
 ## Statuses
 
 Initial runner statuses:

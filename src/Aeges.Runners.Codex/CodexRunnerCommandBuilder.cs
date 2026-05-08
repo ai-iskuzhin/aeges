@@ -8,14 +8,32 @@ namespace Aeges.Runners.Codex;
 public sealed class CodexRunnerCommandBuilder
 {
     private readonly CodexRunnerOptions options;
+    private readonly ICodexExecutableResolver executableResolver;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CodexRunnerCommandBuilder"/> class.
     /// </summary>
     /// <param name="options">The Codex runner options.</param>
-    public CodexRunnerCommandBuilder(CodexRunnerOptions? options = null)
+    /// <param name="executableResolver">The resolver used to locate the Codex CLI executable.</param>
+    public CodexRunnerCommandBuilder(
+        CodexRunnerOptions? options = null,
+        ICodexExecutableResolver? executableResolver = null)
     {
         this.options = Validate(options ?? new CodexRunnerOptions());
+        this.executableResolver = executableResolver ?? new PathCodexExecutableResolver();
+    }
+
+    /// <summary>
+    /// Checks whether the configured Codex CLI executable exists on this machine.
+    /// </summary>
+    /// <returns>The Codex runner availability result.</returns>
+    public CodexRunnerAvailability CheckAvailability()
+    {
+        var resolvedPath = executableResolver.Resolve(options.Executable);
+
+        return resolvedPath is null
+            ? CodexRunnerAvailability.Missing(options.Executable)
+            : CodexRunnerAvailability.Available(options.Executable, resolvedPath);
     }
 
     /// <summary>
@@ -25,6 +43,13 @@ public sealed class CodexRunnerCommandBuilder
     /// <returns>The command description.</returns>
     public CodexRunnerCommand Build(RunnerRequest request)
     {
+        var availability = CheckAvailability();
+
+        if (!availability.IsAvailable)
+        {
+            throw new CodexRunnerUnavailableException(availability);
+        }
+
         var arguments = new List<string>();
         arguments.AddRange(options.BaseArguments ?? ["exec"]);
         arguments.Add(request.PromptPath);
