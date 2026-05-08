@@ -43,6 +43,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aeges.Agent.Tests", "tests\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aeges.Telegram.Tests", "tests\Aeges.Telegram.Tests\Aeges.Telegram.Tests.csproj", "{FD1B2AEF-665C-4445-89F3-B0134B329E5A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aeges.Cli.Tests", "tests\Aeges.Cli.Tests\Aeges.Cli.Tests.csproj", "{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -269,6 +271,18 @@ Global
 		{FD1B2AEF-665C-4445-89F3-B0134B329E5A}.Release|x64.Build.0 = Release|Any CPU
 		{FD1B2AEF-665C-4445-89F3-B0134B329E5A}.Release|x86.ActiveCfg = Release|Any CPU
 		{FD1B2AEF-665C-4445-89F3-B0134B329E5A}.Release|x86.Build.0 = Release|Any CPU
+		{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1}.Debug|x64.Build.0 = Debug|Any CPU
+		{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1}.Debug|x86.Build.0 = Debug|Any CPU
+		{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1}.Release|x64.ActiveCfg = Release|Any CPU
+		{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1}.Release|x64.Build.0 = Release|Any CPU
+		{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1}.Release|x86.ActiveCfg = Release|Any CPU
+		{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -292,5 +306,6 @@ Global
 		{C5CEB139-ECE4-4BFD-9B1C-A57FE42BE37E} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{2FA09745-3D6B-44C2-AF07-9DAA14A3B377} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{FD1B2AEF-665C-4445-89F3-B0134B329E5A} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{4863CB02-F8E0-4B95-82FB-89F7A6DEC3B1} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

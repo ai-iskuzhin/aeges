@@ -101,6 +101,7 @@ review, test, and document independently.
 - [x] Add Telegram approval list and resolution buttons.
 - [x] Add CLI and Telegram task cancellation.
 - [x] Add first-user README and safe sample local configuration.
+- [x] Add interactive Telegram token setup for CLI runs.
 
 ## Current Focus
 
@@ -203,6 +204,7 @@ review, test, and document independently.
 - [x] Add approval-resolution buttons after approval workflow is exposed through
       the facade.
 - [x] Add task cancellation buttons from Telegram task details.
+- [x] Add current-process Telegram token prompt for `aeges telegram run`.
 
 ## Governance
 

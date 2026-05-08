@@ -153,6 +153,10 @@ Set a bot token in the environment:
 export AEGES_TELEGRAM_BOT_TOKEN="replace-with-your-token"
 ```
 
+If the token environment variable is missing, `aeges telegram run` prompts for
+the token and loads it for the current process only. It does not write the token
+to config or logs.
+
 Run the transport:
 
 ```bash
@@ -217,6 +221,7 @@ Useful options:
 --config <absolute-path>          Load a specific config file.
 --connection-string <value>       Use a specific SQLite database for this command.
 --json                            Print deterministic JSON output when supported.
+--no-interactive                  Disable prompts for script/CI usage.
 ```
 
 ## CLI Commands
@@ -232,7 +237,7 @@ aeges task create --project-id <id> --machine-id <id> --title <title> --goal <go
 aeges task status <task-id> [...]
 aeges task cancel <task-id> [...]
 aeges agent run [--once] [--runner-id <id>] [--create-worktree] [--execute-runner] [...]
-aeges telegram run [--once] [--poll-limit <int>] [--timeout-seconds <int>] [...]
+aeges telegram run [--once] [--no-interactive] [--poll-limit <int>] [--timeout-seconds <int>] [...]
 ```
 
 Most commands support `--json` for deterministic machine-readable output.

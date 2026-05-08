@@ -23,12 +23,20 @@ Console.CancelKeyPress += (_, eventArgs) =>
     cancellation.Cancel();
 };
 
-return await AegesCli.RunAsync(args, Console.Out, Console.Error, cancellation.Token);
+return await AegesCli.RunAsync(args, Console.In, Console.Out, Console.Error, cancellation.Token);
 
 internal static class AegesCli
 {
     public static async Task<int> RunAsync(
         string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken) =>
+        await RunAsync(args, Console.In, output, error, cancellationToken);
+
+    public static async Task<int> RunAsync(
+        string[] args,
+        TextReader input,
         TextWriter output,
         TextWriter error,
         CancellationToken cancellationToken)
@@ -85,7 +93,7 @@ internal static class AegesCli
 
         if (args is ["telegram", "run", .. var telegramRunArgs])
         {
-            return await RunTelegramRunAsync(telegramRunArgs, output, error, cancellationToken);
+            return await RunTelegramRunAsync(telegramRunArgs, input, output, error, cancellationToken);
         }
 
         await WriteUsageAsync(error);
@@ -183,6 +191,7 @@ internal static class AegesCli
 
     private static async Task<int> RunTelegramRunAsync(
         string[] args,
+        TextReader input,
         TextWriter output,
         TextWriter error,
         CancellationToken cancellationToken)
@@ -196,6 +205,16 @@ internal static class AegesCli
         }
 
         var configuration = LoadConfiguration(options);
+        if (!await TelegramCliSetup.EnsureTokenAsync(
+            configuration.Telegram,
+            input,
+            error,
+            options.Interactive && !options.Json,
+            cancellationToken))
+        {
+            return 1;
+        }
+
         await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
         var unitOfWork = new SqliteUnitOfWork(context);
         var clock = new SystemClock();
@@ -773,7 +792,7 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task cancel <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--create-worktree] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
-        await error.WriteLineAsync("  aeges telegram run [--once] [--poll-limit <int>] [--timeout-seconds <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges telegram run [--once] [--no-interactive] [--poll-limit <int>] [--timeout-seconds <int>] [--config <path>] [--connection-string <value>] [--json]");
     }
 
     private class CliOptions
@@ -1384,6 +1403,8 @@ internal static class AegesCli
 
         public int TimeoutSeconds { get; private init; } = 30;
 
+        public bool Interactive { get; private init; } = true;
+
         public new static TelegramRunCliOptions Parse(string[] args)
         {
             string? configPath = null;
@@ -1392,6 +1413,7 @@ internal static class AegesCli
             var json = false;
             var limit = 50;
             var timeoutSeconds = 30;
+            var interactive = true;
 
             for (var index = 0; index < args.Length; index++)
             {
@@ -1399,6 +1421,9 @@ internal static class AegesCli
                 {
                     case "--once":
                         once = true;
+                        break;
+                    case "--no-interactive":
+                        interactive = false;
                         break;
                     case "--json":
                         json = true;
@@ -1444,6 +1469,7 @@ internal static class AegesCli
                 Once = once,
                 Limit = limit,
                 TimeoutSeconds = timeoutSeconds,
+                Interactive = interactive,
             };
         }
 

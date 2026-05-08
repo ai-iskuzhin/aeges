@@ -38,12 +38,21 @@ the bot to those chats.
 
 The bot token is read from the environment variable named by
 `telegram.botTokenEnvironmentVariable`; the token value itself must not be
-stored in committed config.
+stored in committed config. If the token environment variable is missing,
+`aeges telegram run` prompts for a token and loads it into the current process
+only. Prompted tokens are not written to config or logs.
 
 Run the local Telegram transport with:
 
 ```text
 aeges telegram run
+```
+
+For script and CI usage, disable prompts and fail deterministically when required
+setup is missing:
+
+```text
+aeges telegram run --no-interactive
 ```
 
 For a bounded poll useful during setup and diagnostics:
