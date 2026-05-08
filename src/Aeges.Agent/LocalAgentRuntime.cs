@@ -4,9 +4,11 @@ using Aeges.Application;
 using Aeges.Application.Artifacts;
 using Aeges.Application.Iterations;
 using Aeges.Application.RunnerDispatch;
+using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
 using Aeges.Application.Tasks;
 using Aeges.Core;
+using Aeges.Runners;
 using Aeges.Storage.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,14 +20,17 @@ namespace Aeges.Agent;
 public sealed class LocalAgentRuntime
 {
     private readonly IClock clock;
+    private readonly IAegesRunner? runner;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LocalAgentRuntime"/> class.
     /// </summary>
     /// <param name="clock">The deterministic runtime clock.</param>
-    public LocalAgentRuntime(IClock? clock = null)
+    /// <param name="runner">The optional runner used for opt-in execution.</param>
+    public LocalAgentRuntime(IClock? clock = null, IAegesRunner? runner = null)
     {
         this.clock = clock ?? new SystemClock();
+        this.runner = runner;
     }
 
     /// <summary>
@@ -69,6 +74,10 @@ public sealed class LocalAgentRuntime
         string? promptPath = null;
         string? worktreePath = null;
         string? artifactOutputDirectory = null;
+        string? runnerExecutionId = null;
+        string? runnerStatus = null;
+        int? runnerExitCode = null;
+        string? runnerErrorSummary = null;
 
         if (options.ClaimQueuedTask)
         {
@@ -79,6 +88,10 @@ public sealed class LocalAgentRuntime
             promptPath = claim.PromptPath;
             worktreePath = claim.WorktreePath;
             artifactOutputDirectory = claim.ArtifactOutputDirectory;
+            runnerExecutionId = claim.RunnerExecutionId;
+            runnerStatus = claim.RunnerStatus;
+            runnerExitCode = claim.RunnerExitCode;
+            runnerErrorSummary = claim.RunnerErrorSummary;
         }
 
         var queuedTasks = await unitOfWork.Tasks.ListByStatusAsync(
@@ -96,7 +109,11 @@ public sealed class LocalAgentRuntime
             promptArtifactId,
             promptPath,
             worktreePath,
-            artifactOutputDirectory);
+            artifactOutputDirectory,
+            runnerExecutionId,
+            runnerStatus,
+            runnerExitCode,
+            runnerErrorSummary);
     }
 
     private async Task<ClaimResult> ClaimNextQueuedTaskAsync(
@@ -135,6 +152,18 @@ public sealed class LocalAgentRuntime
         }
 
         var prepared = await PrepareRunnerBundleAsync(unitOfWork, task, iteration.Value!, options, cancellationToken);
+        RunnerRunSummary? runnerRun = null;
+
+        if (options.ExecuteRunner)
+        {
+            runnerRun = await ExecuteRunnerAsync(
+                unitOfWork,
+                task.Id,
+                iteration.Value!.Id,
+                prepared.RunnerRequest,
+                options,
+                cancellationToken);
+        }
 
         return new ClaimResult(
             task.Id.Value,
@@ -142,7 +171,11 @@ public sealed class LocalAgentRuntime
             prepared.PromptArtifactId,
             prepared.PromptPath,
             prepared.WorktreePath,
-            prepared.ArtifactOutputDirectory);
+            prepared.ArtifactOutputDirectory,
+            runnerRun?.RunnerExecutionId,
+            runnerRun?.Status,
+            runnerRun?.ExitCode,
+            runnerRun?.ErrorSummary);
     }
 
     private async Task<PreparedRunnerBundle> PrepareRunnerBundleAsync(
@@ -198,7 +231,132 @@ public sealed class LocalAgentRuntime
             promptArtifact.Value!.Id.Value,
             runnerRequest.Value.PromptPath,
             runnerRequest.Value.WorktreePath,
-            runnerRequest.Value.ArtifactOutputDirectory);
+            runnerRequest.Value.ArtifactOutputDirectory,
+            runnerRequest.Value);
+    }
+
+    private async Task<RunnerRunSummary> ExecuteRunnerAsync(
+        SqliteUnitOfWork unitOfWork,
+        TaskId taskId,
+        IterationId iterationId,
+        RunnerRequest runnerRequest,
+        AgentRunOptions options,
+        CancellationToken cancellationToken)
+    {
+        var resolvedRunner = ResolveRunner(options);
+        var taskService = new TaskService(unitOfWork, clock);
+        var iterationService = new TaskIterationService(unitOfWork, clock);
+        await RequireSuccessAsync(taskService.StartRunningAsync(taskId, cancellationToken));
+        await RequireSuccessAsync(iterationService.StartRunningAsync(iterationId, cancellationToken));
+
+        var executionService = new RunnerExecutionService(unitOfWork, clock);
+        var execution = await executionService.StartAsync(
+            new StartRunnerExecutionRequest(
+                taskId,
+                iterationId,
+                resolvedRunner.Id,
+                $"runner:{resolvedRunner.Id.Value}",
+                runnerRequest.WorktreePath),
+            cancellationToken);
+        await RequireSuccessAsync(execution);
+
+        var result = await resolvedRunner.RunAsync(runnerRequest, cancellationToken);
+        await CompleteRunnerExecutionAsync(executionService, execution.Value!.Id, result, cancellationToken);
+        await ApplyRunnerResultAsync(taskService, iterationService, taskId, iterationId, result, cancellationToken);
+
+        return new RunnerRunSummary(
+            execution.Value.Id.Value,
+            result.Status.ToStorageValue(),
+            result.ExitCode,
+            result.ErrorSummary);
+    }
+
+    private IAegesRunner ResolveRunner(AgentRunOptions options)
+    {
+        if (runner is not null)
+        {
+            if (runner.Id != new RunnerId(options.RunnerId))
+            {
+                throw new InvalidOperationException(
+                    $"Configured runner '{options.RunnerId}' does not match injected runner '{runner.Id}'.");
+            }
+
+            return runner;
+        }
+
+        if (options.RunnerId.Equals("mock", StringComparison.OrdinalIgnoreCase))
+        {
+            return new MockAegesRunner(new MockRunnerOptions(new RunnerId(options.RunnerId)));
+        }
+
+        throw new InvalidOperationException(
+            "Runner execution is currently available for the mock runner unless a runner is provided by the host.");
+    }
+
+    private static async Task CompleteRunnerExecutionAsync(
+        RunnerExecutionService executionService,
+        RunnerExecutionId executionId,
+        RunnerResult result,
+        CancellationToken cancellationToken)
+    {
+        var completion = result.Status switch
+        {
+            RunnerStatus.TimedOut => await executionService.RecordTimeoutAsync(executionId, cancellationToken),
+            RunnerStatus.Cancelled => await executionService.RecordCancellationAsync(executionId, cancellationToken),
+            _ => await executionService.RecordExitAsync(executionId, result.ExitCode ?? DefaultExitCode(result.Status), cancellationToken),
+        };
+
+        await RequireSuccessAsync(completion);
+    }
+
+    private static async Task ApplyRunnerResultAsync(
+        TaskService taskService,
+        TaskIterationService iterationService,
+        TaskId taskId,
+        IterationId iterationId,
+        RunnerResult result,
+        CancellationToken cancellationToken)
+    {
+        switch (result.Status)
+        {
+            case RunnerStatus.Succeeded:
+                await RequireSuccessAsync(iterationService.StartReviewAsync(iterationId, cancellationToken));
+                await RequireSuccessAsync(iterationService.CompleteAsync(iterationId, cancellationToken));
+                await RequireSuccessAsync(taskService.StartReviewAsync(taskId, cancellationToken));
+                break;
+            case RunnerStatus.ApprovalRequired:
+                await RequireSuccessAsync(iterationService.WaitForApprovalAsync(iterationId, cancellationToken));
+                await RequireSuccessAsync(taskService.WaitForApprovalAsync(taskId, cancellationToken));
+                break;
+            case RunnerStatus.Cancelled:
+                await RequireSuccessAsync(iterationService.CancelAsync(iterationId, cancellationToken));
+                await RequireSuccessAsync(taskService.CancelAsync(taskId, cancellationToken));
+                break;
+            case RunnerStatus.Failed:
+            case RunnerStatus.TimedOut:
+                var reason = result.ErrorSummary ?? $"Runner ended with status {result.Status.ToStorageValue()}.";
+                await RequireSuccessAsync(iterationService.FailAsync(iterationId, reason, cancellationToken));
+                await RequireSuccessAsync(taskService.FailAsync(taskId, reason, cancellationToken));
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(result), result.Status, "Unknown runner status.");
+        }
+    }
+
+    private static int DefaultExitCode(RunnerStatus status) =>
+        status is RunnerStatus.Succeeded or RunnerStatus.ApprovalRequired ? 0 : 1;
+
+    private static async Task RequireSuccessAsync<TValue>(Task<ApplicationResult<TValue>> resultTask) =>
+        await RequireSuccessAsync(await resultTask);
+
+    private static Task RequireSuccessAsync<TValue>(ApplicationResult<TValue> result)
+    {
+        if (!result.IsSuccess)
+        {
+            throw new InvalidOperationException(result.Error!.Message);
+        }
+
+        return Task.CompletedTask;
     }
 
     private static void Validate(AgentRunOptions options)
@@ -250,6 +408,11 @@ public sealed class LocalAgentRuntime
                 options.RunnerTimeout,
                 "Runner timeout must be greater than zero.");
         }
+
+        if (options.ExecuteRunner && !options.ClaimQueuedTask)
+        {
+            throw new ArgumentException("Runner execution requires task claiming to be enabled.", nameof(options));
+        }
     }
 
     private static RuntimeDirectoryLayout CreateRuntimeLayout(AgentRunOptions options) =>
@@ -292,7 +455,14 @@ public sealed class LocalAgentRuntime
         string PromptArtifactId,
         string PromptPath,
         string WorktreePath,
-        string ArtifactOutputDirectory);
+        string ArtifactOutputDirectory,
+        RunnerRequest RunnerRequest);
+
+    private sealed record RunnerRunSummary(
+        string RunnerExecutionId,
+        string Status,
+        int? ExitCode,
+        string? ErrorSummary);
 
     private sealed record ClaimResult(
         string? ClaimedTaskId,
@@ -300,8 +470,12 @@ public sealed class LocalAgentRuntime
         string? PromptArtifactId,
         string? PromptPath,
         string? WorktreePath,
-        string? ArtifactOutputDirectory)
+        string? ArtifactOutputDirectory,
+        string? RunnerExecutionId,
+        string? RunnerStatus,
+        int? RunnerExitCode,
+        string? RunnerErrorSummary)
     {
-        public static ClaimResult Empty { get; } = new(null, null, null, null, null, null);
+        public static ClaimResult Empty { get; } = new(null, null, null, null, null, null, null, null, null, null);
     }
 }

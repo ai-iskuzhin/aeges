@@ -42,6 +42,15 @@ planning, creates its next bounded iteration, writes a prompt file under
 worktree path on the iteration. Use `--once` for a single deterministic pass,
 and `--no-claim` when only a heartbeat and queue preview are needed.
 
+Runner execution is explicit. Use `--execute-runner` to execute the prepared
+runner request. The default host path currently supports the deterministic mock
+runner; production Codex execution will be enabled after Git worktree creation
+is wired into the agent:
+
+```text
+aeges agent run --once --runner-id mock --execute-runner
+```
+
 The runner id for newly created iterations defaults to configured
 `runners.default` and can be overridden with:
 

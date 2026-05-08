@@ -127,6 +127,43 @@ public sealed class TaskIterationServiceTests
         Assert.Equal(new IterationId("iteration-001"), loaded.Value?.Id);
     }
 
+    [Fact]
+    public async Task Transition_methods_update_iteration_lifecycle()
+    {
+        var unitOfWork = new InMemoryUnitOfWork();
+        var clock = new FixedClock(Now);
+        await SeedTaskAsync(unitOfWork, clock);
+        var service = new TaskIterationService(unitOfWork, clock);
+        await service.CreateNextAsync(
+            new CreateTaskIterationRequest(new TaskId("task-001"), new RunnerId("codex"), new IterationId("iteration-001")),
+            CancellationToken.None);
+
+        await service.StartRunningAsync(new IterationId("iteration-001"), CancellationToken.None);
+        await service.StartReviewAsync(new IterationId("iteration-001"), CancellationToken.None);
+        var result = await service.CompleteAsync(new IterationId("iteration-001"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(TaskIterationStatus.Completed, result.Value?.Status);
+        Assert.Equal(Now, result.Value?.CompletedAt);
+    }
+
+    [Fact]
+    public async Task Transition_methods_return_failure_for_invalid_transition()
+    {
+        var unitOfWork = new InMemoryUnitOfWork();
+        var clock = new FixedClock(Now);
+        await SeedTaskAsync(unitOfWork, clock);
+        var service = new TaskIterationService(unitOfWork, clock);
+        await service.CreateNextAsync(
+            new CreateTaskIterationRequest(new TaskId("task-001"), new RunnerId("codex"), new IterationId("iteration-001")),
+            CancellationToken.None);
+
+        var result = await service.CompleteAsync(new IterationId("iteration-001"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("invalid_iteration_status_transition", result.Error?.Code);
+    }
+
     private static async Task SeedTaskAsync(
         InMemoryUnitOfWork unitOfWork,
         FixedClock clock,

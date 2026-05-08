@@ -223,6 +223,62 @@ public sealed class LocalAgentRuntimeTests
         }
     }
 
+    [Fact]
+    public async Task RunOnce_can_execute_mock_runner_and_record_result()
+    {
+        var clock = new FixedClock(new DateTimeOffset(2026, 05, 08, 08, 00, 00, TimeSpan.Zero));
+        var runtime = new LocalAgentRuntime(clock);
+        var databasePath = Path.Combine(Path.GetTempPath(), $"aeges-agent-{Guid.NewGuid():N}.db");
+        var connectionString = $"Data Source={databasePath}";
+        var runtimeRoot = Path.Combine(Path.GetTempPath(), $"aeges-runtime-{Guid.NewGuid():N}");
+
+        try
+        {
+            await SeedProjectMachineAndTaskAsync(connectionString, clock.Now, new MachineId("machine-001"));
+
+            var snapshot = await runtime.RunOnceAsync(
+                new AgentRunOptions(
+                    connectionString,
+                    "machine-001",
+                    "local-test",
+                    "test-platform",
+                    RunnerId: "mock",
+                    RuntimeRootPath: runtimeRoot,
+                    ExecuteRunner: true),
+                CancellationToken.None);
+
+            await using var context = new AegesDbContext(AegesDbContextOptions.Create(connectionString));
+            var unitOfWork = new SqliteUnitOfWork(context);
+            var task = await unitOfWork.Tasks.GetByIdAsync(new TaskId("task-001"), CancellationToken.None);
+            var iteration = await unitOfWork.Iterations.GetByIdAsync(new IterationId(snapshot.CreatedIterationId!), CancellationToken.None);
+            var executions = await unitOfWork.RunnerExecutions.ListByIterationAsync(
+                new IterationId(snapshot.CreatedIterationId!),
+                CancellationToken.None);
+
+            Assert.NotNull(snapshot.RunnerExecutionId);
+            Assert.Equal("succeeded", snapshot.RunnerStatus);
+            Assert.Equal(0, snapshot.RunnerExitCode);
+            Assert.Null(snapshot.RunnerErrorSummary);
+            Assert.NotNull(task);
+            Assert.Equal(RuntimeTaskStatus.Reviewing, task.Status);
+            Assert.NotNull(iteration);
+            Assert.Equal(TaskIterationStatus.Completed, iteration.Status);
+            var execution = Assert.Single(executions);
+            Assert.Equal(new RunnerExecutionId(snapshot.RunnerExecutionId), execution.Id);
+            Assert.Equal(0, execution.ExitCode);
+            Assert.True(execution.IsCompleted);
+            Assert.False(execution.TimedOut);
+            Assert.False(execution.Cancelled);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+            DeleteIfExists($"{databasePath}-shm");
+            DeleteIfExists($"{databasePath}-wal");
+            DeleteDirectoryIfExists(runtimeRoot);
+        }
+    }
+
     private static void DeleteIfExists(string path)
     {
         if (File.Exists(path))

@@ -45,6 +45,12 @@ prompt file is stored under the runtime artifact root, SQLite stores only its
 metadata, and the iteration stores the prompt artifact id plus planned worktree
 path.
 
+The local agent can execute a prepared request when explicitly requested. The
+MVP path currently supports the deterministic mock runner in the default host so
+runner execution records and lifecycle transitions can be tested without real AI
+credentials. Codex execution remains a separate step because it needs real Git
+worktree creation before launch.
+
 ## Dispatch Governance
 
 Before a runner is dispatched, the application layer evaluates the dispatch

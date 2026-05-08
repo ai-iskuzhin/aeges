@@ -13,6 +13,10 @@ namespace Aeges.Agent;
 /// <param name="PromptPath">The prompt file path written for the created iteration, when prepared.</param>
 /// <param name="WorktreePath">The planned worktree path for the created iteration, when prepared.</param>
 /// <param name="ArtifactOutputDirectory">The artifact output directory for the created iteration, when prepared.</param>
+/// <param name="RunnerExecutionId">The runner execution record created by this run, when execution was requested.</param>
+/// <param name="RunnerStatus">The runner result status, when execution was requested.</param>
+/// <param name="RunnerExitCode">The runner process exit code, when available.</param>
+/// <param name="RunnerErrorSummary">The runner error summary, when execution did not succeed.</param>
 public sealed record AgentRunSnapshot(
     string MachineId,
     string? DatabasePath,
@@ -23,4 +27,8 @@ public sealed record AgentRunSnapshot(
     string? PromptArtifactId = null,
     string? PromptPath = null,
     string? WorktreePath = null,
-    string? ArtifactOutputDirectory = null);
+    string? ArtifactOutputDirectory = null,
+    string? RunnerExecutionId = null,
+    string? RunnerStatus = null,
+    int? RunnerExitCode = null,
+    string? RunnerErrorSummary = null);

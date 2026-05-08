@@ -406,7 +406,8 @@ internal static class AegesCli
             options.RunnerId ?? configuration.Runners.Default,
             layout.RootPath,
             TimeSpan.FromSeconds(configuration.Runners.Codex.TimeoutSeconds),
-            options.ClaimQueuedTask);
+            options.ClaimQueuedTask,
+            options.ExecuteRunner);
     }
 
     private static async Task WriteStatusAsync(
@@ -605,6 +606,11 @@ internal static class AegesCli
         await output.WriteLineAsync($"Prompt path: {snapshot.PromptPath ?? "(none)"}");
         await output.WriteLineAsync($"Worktree path: {snapshot.WorktreePath ?? "(none)"}");
         await output.WriteLineAsync($"Artifact output: {snapshot.ArtifactOutputDirectory ?? "(none)"}");
+        await output.WriteLineAsync($"Runner execution: {snapshot.RunnerExecutionId ?? "(none)"}");
+        await output.WriteLineAsync($"Runner status: {snapshot.RunnerStatus ?? "(none)"}");
+        await output.WriteLineAsync(
+            $"Runner exit code: {(snapshot.RunnerExitCode is null ? "(none)" : snapshot.RunnerExitCode.Value.ToString())}");
+        await output.WriteLineAsync($"Runner error: {snapshot.RunnerErrorSummary ?? "(none)"}");
         await output.WriteLineAsync($"Heartbeat: {snapshot.HeartbeatAt:O}");
     }
 
@@ -639,7 +645,7 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges machine list [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task create --project-id <id> --machine-id <id> --title <title> --goal <goal> [--task-id <id>] [--priority <int>] [--max-iterations <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
-        await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
     }
 
     private class CliOptions
@@ -1109,6 +1115,8 @@ internal static class AegesCli
 
         public bool ClaimQueuedTask { get; private init; } = true;
 
+        public bool ExecuteRunner { get; private init; }
+
         public new static AgentRunCliOptions Parse(string[] args)
         {
             string? configPath = null;
@@ -1122,6 +1130,7 @@ internal static class AegesCli
             var pollInterval = TimeSpan.FromSeconds(5);
             var queuePreviewLimit = 100;
             var claimQueuedTask = true;
+            var executeRunner = false;
 
             for (var index = 0; index < args.Length; index++)
             {
@@ -1135,6 +1144,9 @@ internal static class AegesCli
                         break;
                     case "--no-claim":
                         claimQueuedTask = false;
+                        break;
+                    case "--execute-runner":
+                        executeRunner = true;
                         break;
                     case "--config":
                         if (!TryReadValue(args, ref index, out configPath))
@@ -1211,6 +1223,7 @@ internal static class AegesCli
                 QueuePreviewLimit = queuePreviewLimit,
                 RunnerId = runnerId,
                 ClaimQueuedTask = claimQueuedTask,
+                ExecuteRunner = executeRunner,
             };
         }
 
@@ -1310,7 +1323,11 @@ internal static class AegesCli
         string? PromptArtifactId,
         string? PromptPath,
         string? WorktreePath,
-        string? ArtifactOutputDirectory)
+        string? ArtifactOutputDirectory,
+        string? RunnerExecutionId,
+        string? RunnerStatus,
+        int? RunnerExitCode,
+        string? RunnerErrorSummary)
     {
         public static AgentSnapshotOutput From(AgentRunSnapshot snapshot) =>
             new(
@@ -1323,6 +1340,10 @@ internal static class AegesCli
                 snapshot.PromptArtifactId,
                 snapshot.PromptPath,
                 snapshot.WorktreePath,
-                snapshot.ArtifactOutputDirectory);
+                snapshot.ArtifactOutputDirectory,
+                snapshot.RunnerExecutionId,
+                snapshot.RunnerStatus,
+                snapshot.RunnerExitCode,
+                snapshot.RunnerErrorSummary);
     }
 }
