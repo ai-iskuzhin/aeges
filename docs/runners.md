@@ -40,6 +40,11 @@ output directory, and prompt path from the configured runtime layout. This keeps
 runner implementations focused on worker execution rather than orchestration
 path decisions.
 
+The local agent prepares the first prompt artifact before runner launch. The
+prompt file is stored under the runtime artifact root, SQLite stores only its
+metadata, and the iteration stores the prompt artifact id plus planned worktree
+path.
+
 ## Dispatch Governance
 
 Before a runner is dispatched, the application layer evaluates the dispatch

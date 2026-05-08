@@ -86,6 +86,7 @@ public sealed class LocalAgentRuntimeTests
         var runtime = new LocalAgentRuntime(clock);
         var databasePath = Path.Combine(Path.GetTempPath(), $"aeges-agent-{Guid.NewGuid():N}.db");
         var connectionString = $"Data Source={databasePath}";
+        var runtimeRoot = Path.Combine(Path.GetTempPath(), $"aeges-runtime-{Guid.NewGuid():N}");
 
         try
         {
@@ -97,16 +98,22 @@ public sealed class LocalAgentRuntimeTests
                     "machine-001",
                     "local-test",
                     "test-platform",
-                    RunnerId: "mock"),
+                    RunnerId: "mock",
+                    RuntimeRootPath: runtimeRoot),
                 CancellationToken.None);
 
             await using var context = new AegesDbContext(AegesDbContextOptions.Create(connectionString));
             var unitOfWork = new SqliteUnitOfWork(context);
             var task = await unitOfWork.Tasks.GetByIdAsync(new TaskId("task-001"), CancellationToken.None);
             var iterations = await unitOfWork.Iterations.ListByTaskAsync(new TaskId("task-001"), CancellationToken.None);
+            var artifacts = await unitOfWork.Artifacts.ListByIterationAsync(new IterationId(snapshot.CreatedIterationId!), CancellationToken.None);
 
             Assert.Equal("task-001", snapshot.ClaimedTaskId);
             Assert.NotNull(snapshot.CreatedIterationId);
+            Assert.NotNull(snapshot.PromptArtifactId);
+            Assert.NotNull(snapshot.PromptPath);
+            Assert.NotNull(snapshot.WorktreePath);
+            Assert.NotNull(snapshot.ArtifactOutputDirectory);
             Assert.Equal(0, snapshot.QueuedTaskCount);
             Assert.NotNull(task);
             Assert.Equal(RuntimeTaskStatus.Planning, task.Status);
@@ -115,12 +122,31 @@ public sealed class LocalAgentRuntimeTests
             Assert.Equal(new RunnerId("mock"), iteration.RunnerId);
             Assert.Equal(1, iteration.IterationNumber);
             Assert.Equal(new IterationId(snapshot.CreatedIterationId), iteration.Id);
+            Assert.Equal(new ArtifactId(snapshot.PromptArtifactId), iteration.PromptArtifactId);
+            Assert.Equal(snapshot.WorktreePath, iteration.WorktreePath);
+            Assert.Equal(
+                Path.Combine(runtimeRoot, "worktrees", "project-001", "task-001", snapshot.CreatedIterationId),
+                snapshot.WorktreePath);
+            Assert.Equal(
+                Path.Combine(runtimeRoot, "artifacts", "project-001", "task-001", snapshot.CreatedIterationId),
+                snapshot.ArtifactOutputDirectory);
+            Assert.Equal(Path.Combine(snapshot.ArtifactOutputDirectory!, "prompt.md"), snapshot.PromptPath);
+            Assert.True(File.Exists(snapshot.PromptPath));
+            Assert.Contains("Goal:", await File.ReadAllTextAsync(snapshot.PromptPath));
+
+            var promptArtifact = Assert.Single(artifacts);
+            Assert.Equal(new ArtifactId(snapshot.PromptArtifactId), promptArtifact.Id);
+            Assert.Equal(ArtifactType.Prompt, promptArtifact.Type);
+            Assert.Equal($"project-001/task-001/{snapshot.CreatedIterationId}/prompt.md", promptArtifact.RelativePath);
+            Assert.True(promptArtifact.SizeBytes > 0);
+            Assert.NotNull(promptArtifact.Sha256);
         }
         finally
         {
             DeleteIfExists(databasePath);
             DeleteIfExists($"{databasePath}-shm");
             DeleteIfExists($"{databasePath}-wal");
+            DeleteDirectoryIfExists(runtimeRoot);
         }
     }
 
@@ -202,6 +228,14 @@ public sealed class LocalAgentRuntimeTests
         if (File.Exists(path))
         {
             File.Delete(path);
+        }
+    }
+
+    private static void DeleteDirectoryIfExists(string path)
+    {
+        if (Directory.Exists(path))
+        {
+            Directory.Delete(path, recursive: true);
         }
     }
 

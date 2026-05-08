@@ -395,6 +395,7 @@ internal static class AegesCli
     private static AgentRunOptions CreateAgentRunOptions(AgentRunCliOptions options)
     {
         var configuration = LoadConfiguration(options);
+        var layout = RuntimeDirectoryLayout.CreateDefault();
 
         return new AgentRunOptions(
             ResolveConnectionString(options),
@@ -403,6 +404,8 @@ internal static class AegesCli
             options.Platform ?? RuntimeInformation.OSDescription,
             options.QueuePreviewLimit,
             options.RunnerId ?? configuration.Runners.Default,
+            layout.RootPath,
+            TimeSpan.FromSeconds(configuration.Runners.Codex.TimeoutSeconds),
             options.ClaimQueuedTask);
     }
 
@@ -598,6 +601,10 @@ internal static class AegesCli
         await output.WriteLineAsync($"Queued tasks: {snapshot.QueuedTaskCount}");
         await output.WriteLineAsync($"Claimed task: {snapshot.ClaimedTaskId ?? "(none)"}");
         await output.WriteLineAsync($"Created iteration: {snapshot.CreatedIterationId ?? "(none)"}");
+        await output.WriteLineAsync($"Prompt artifact: {snapshot.PromptArtifactId ?? "(none)"}");
+        await output.WriteLineAsync($"Prompt path: {snapshot.PromptPath ?? "(none)"}");
+        await output.WriteLineAsync($"Worktree path: {snapshot.WorktreePath ?? "(none)"}");
+        await output.WriteLineAsync($"Artifact output: {snapshot.ArtifactOutputDirectory ?? "(none)"}");
         await output.WriteLineAsync($"Heartbeat: {snapshot.HeartbeatAt:O}");
     }
 
@@ -1299,7 +1306,11 @@ internal static class AegesCli
         DateTimeOffset HeartbeatAt,
         int QueuedTaskCount,
         string? ClaimedTaskId,
-        string? CreatedIterationId)
+        string? CreatedIterationId,
+        string? PromptArtifactId,
+        string? PromptPath,
+        string? WorktreePath,
+        string? ArtifactOutputDirectory)
     {
         public static AgentSnapshotOutput From(AgentRunSnapshot snapshot) =>
             new(
@@ -1308,6 +1319,10 @@ internal static class AegesCli
                 snapshot.HeartbeatAt,
                 snapshot.QueuedTaskCount,
                 snapshot.ClaimedTaskId,
-                snapshot.CreatedIterationId);
+                snapshot.CreatedIterationId,
+                snapshot.PromptArtifactId,
+                snapshot.PromptPath,
+                snapshot.WorktreePath,
+                snapshot.ArtifactOutputDirectory);
     }
 }

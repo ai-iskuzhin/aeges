@@ -37,9 +37,10 @@ aeges agent run
 The current shell initializes the local SQLite database, records a heartbeat for
 the configured machine, reports a bounded queued-task snapshot, and claims at
 most one queued task assigned to that machine. A claim moves the task into
-planning and creates its next bounded iteration. Use `--once` for a single
-deterministic pass, and `--no-claim` when only a heartbeat and queue preview are
-needed.
+planning, creates its next bounded iteration, writes a prompt file under
+`artifacts/`, registers prompt artifact metadata, and records the planned
+worktree path on the iteration. Use `--once` for a single deterministic pass,
+and `--no-claim` when only a heartbeat and queue preview are needed.
 
 The runner id for newly created iterations defaults to configured
 `runners.default` and can be overridden with:

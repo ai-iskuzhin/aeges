@@ -1,5 +1,10 @@
+using System.Security.Cryptography;
+using System.Text;
 using Aeges.Application;
+using Aeges.Application.Artifacts;
 using Aeges.Application.Iterations;
+using Aeges.Application.RunnerDispatch;
+using Aeges.Application.Runtime;
 using Aeges.Application.Tasks;
 using Aeges.Core;
 using Aeges.Storage.Sqlite;
@@ -60,12 +65,20 @@ public sealed class LocalAgentRuntime
 
         string? claimedTaskId = null;
         string? createdIterationId = null;
+        string? promptArtifactId = null;
+        string? promptPath = null;
+        string? worktreePath = null;
+        string? artifactOutputDirectory = null;
 
         if (options.ClaimQueuedTask)
         {
             var claim = await ClaimNextQueuedTaskAsync(unitOfWork, machineId, options, cancellationToken);
             claimedTaskId = claim.ClaimedTaskId;
             createdIterationId = claim.CreatedIterationId;
+            promptArtifactId = claim.PromptArtifactId;
+            promptPath = claim.PromptPath;
+            worktreePath = claim.WorktreePath;
+            artifactOutputDirectory = claim.ArtifactOutputDirectory;
         }
 
         var queuedTasks = await unitOfWork.Tasks.ListByStatusAsync(
@@ -79,7 +92,11 @@ public sealed class LocalAgentRuntime
             now,
             queuedTasks.Count,
             claimedTaskId,
-            createdIterationId);
+            createdIterationId,
+            promptArtifactId,
+            promptPath,
+            worktreePath,
+            artifactOutputDirectory);
     }
 
     private async Task<ClaimResult> ClaimNextQueuedTaskAsync(
@@ -96,7 +113,7 @@ public sealed class LocalAgentRuntime
 
         if (task is null)
         {
-            return new ClaimResult(null, null);
+            return ClaimResult.Empty;
         }
 
         var taskService = new TaskService(unitOfWork, clock);
@@ -117,7 +134,71 @@ public sealed class LocalAgentRuntime
             throw new InvalidOperationException(iteration.Error!.Message);
         }
 
-        return new ClaimResult(task.Id.Value, iteration.Value!.Id.Value);
+        var prepared = await PrepareRunnerBundleAsync(unitOfWork, task, iteration.Value!, options, cancellationToken);
+
+        return new ClaimResult(
+            task.Id.Value,
+            iteration.Value!.Id.Value,
+            prepared.PromptArtifactId,
+            prepared.PromptPath,
+            prepared.WorktreePath,
+            prepared.ArtifactOutputDirectory);
+    }
+
+    private async Task<PreparedRunnerBundle> PrepareRunnerBundleAsync(
+        SqliteUnitOfWork unitOfWork,
+        RuntimeTask task,
+        TaskIteration iteration,
+        AgentRunOptions options,
+        CancellationToken cancellationToken)
+    {
+        var project = await unitOfWork.Projects.GetByIdAsync(task.ProjectId, cancellationToken)
+            ?? throw new InvalidOperationException($"Project '{task.ProjectId}' was not found.");
+        var layout = CreateRuntimeLayout(options);
+        var runnerRequest = new RunnerRequestFactory().Create(
+            new CreateRunnerRequestRequest(
+                task,
+                project,
+                iteration,
+                layout,
+                options.RunnerTimeout ?? TimeSpan.FromMinutes(30)));
+
+        if (!runnerRequest.IsSuccess)
+        {
+            throw new InvalidOperationException(runnerRequest.Error!.Message);
+        }
+
+        Directory.CreateDirectory(runnerRequest.Value!.ArtifactOutputDirectory);
+
+        var promptText = BuildPrompt(task, iteration);
+        var promptBytes = Encoding.UTF8.GetBytes(promptText);
+        await File.WriteAllTextAsync(runnerRequest.Value.PromptPath, promptText, Encoding.UTF8, cancellationToken);
+
+        iteration.AssignWorktree(runnerRequest.Value.WorktreePath, clock.Now);
+        await unitOfWork.Iterations.UpdateAsync(iteration, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var relativePromptPath = ToArtifactRelativePath(layout, runnerRequest.Value.PromptPath);
+        var promptArtifact = await new ArtifactService(unitOfWork, clock).RegisterAsync(
+            new RegisterArtifactRequest(
+                task.Id,
+                iteration.Id,
+                ArtifactType.Prompt,
+                relativePromptPath,
+                promptBytes.LongLength,
+                Convert.ToHexString(SHA256.HashData(promptBytes)).ToLowerInvariant()),
+            cancellationToken);
+
+        if (!promptArtifact.IsSuccess)
+        {
+            throw new InvalidOperationException(promptArtifact.Error!.Message);
+        }
+
+        return new PreparedRunnerBundle(
+            promptArtifact.Value!.Id.Value,
+            runnerRequest.Value.PromptPath,
+            runnerRequest.Value.WorktreePath,
+            runnerRequest.Value.ArtifactOutputDirectory);
     }
 
     private static void Validate(AgentRunOptions options)
@@ -156,7 +237,71 @@ public sealed class LocalAgentRuntime
         {
             throw new ArgumentException("Runner ID must not be empty.", nameof(options));
         }
+
+        if (options.RuntimeRootPath is not null && string.IsNullOrWhiteSpace(options.RuntimeRootPath))
+        {
+            throw new ArgumentException("Runtime root path must not be empty.", nameof(options));
+        }
+
+        if (options.RunnerTimeout is { } runnerTimeout && runnerTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                options.RunnerTimeout,
+                "Runner timeout must be greater than zero.");
+        }
     }
 
-    private sealed record ClaimResult(string? ClaimedTaskId, string? CreatedIterationId);
+    private static RuntimeDirectoryLayout CreateRuntimeLayout(AgentRunOptions options) =>
+        options.RuntimeRootPath is null
+            ? RuntimeDirectoryLayout.CreateDefault()
+            : RuntimeDirectoryLayout.Create(options.RuntimeRootPath);
+
+    private static string BuildPrompt(RuntimeTask task, TaskIteration iteration) =>
+        $"""
+        # Aeges Task Prompt
+
+        Task ID: {task.Id}
+        Iteration ID: {iteration.Id}
+        Title: {task.Title}
+
+        Goal:
+        {task.Goal}
+
+        Runtime instructions:
+        - Follow the project rules and governance constraints.
+        - Keep changes scoped to the task goal.
+        - Produce durable outputs for review.
+        """;
+
+    private static string ToArtifactRelativePath(RuntimeDirectoryLayout layout, string artifactPath)
+    {
+        var relativePath = Path.GetRelativePath(layout.ArtifactsPath, artifactPath);
+
+        if (Path.IsPathRooted(relativePath) || relativePath.StartsWith("..", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Prepared artifact path escaped the configured artifact root.");
+        }
+
+        return relativePath
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
+    }
+
+    private sealed record PreparedRunnerBundle(
+        string PromptArtifactId,
+        string PromptPath,
+        string WorktreePath,
+        string ArtifactOutputDirectory);
+
+    private sealed record ClaimResult(
+        string? ClaimedTaskId,
+        string? CreatedIterationId,
+        string? PromptArtifactId,
+        string? PromptPath,
+        string? WorktreePath,
+        string? ArtifactOutputDirectory)
+    {
+        public static ClaimResult Empty { get; } = new(null, null, null, null, null, null);
+    }
 }
