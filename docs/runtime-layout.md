@@ -35,9 +35,18 @@ aeges agent run
 ```
 
 The current shell initializes the local SQLite database, records a heartbeat for
-the configured machine, and reports a bounded queued-task snapshot. Use
-`--once` for a single deterministic heartbeat, which is useful for setup checks
-and scripts.
+the configured machine, reports a bounded queued-task snapshot, and claims at
+most one queued task assigned to that machine. A claim moves the task into
+planning and creates its next bounded iteration. Use `--once` for a single
+deterministic pass, and `--no-claim` when only a heartbeat and queue preview are
+needed.
+
+The runner id for newly created iterations defaults to configured
+`runners.default` and can be overridden with:
+
+```text
+aeges agent run --runner-id codex
+```
 
 Git worktrees should be isolated per task or iteration:
 

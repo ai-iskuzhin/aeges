@@ -85,6 +85,7 @@ aeges machine add
 aeges machine list
 aeges task create
 aeges task status
+aeges agent run
 ```
 
 These commands use the configured SQLite connection string when present, or the
@@ -100,6 +101,11 @@ execution boundaries.
 Project and machine commands provide the local-only setup path for the task
 commands. A developer can migrate the database, add a project, add a machine,
 and create a queued task without Telegram or a future control plane.
+
+`agent run --once` records a heartbeat and may claim one queued task assigned to
+the configured machine. The claim moves the task into planning and creates a
+bounded iteration with the configured runner id. Use `--no-claim` to keep the
+command as a heartbeat and queue-preview check only.
 
 Runtime code may call EF Core migration APIs during local agent startup when
 configured to manage the local SQLite database automatically.

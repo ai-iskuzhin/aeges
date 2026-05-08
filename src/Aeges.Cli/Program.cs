@@ -401,7 +401,9 @@ internal static class AegesCli
             options.MachineId ?? configuration.MachineId,
             options.MachineName ?? Environment.MachineName,
             options.Platform ?? RuntimeInformation.OSDescription,
-            options.QueuePreviewLimit);
+            options.QueuePreviewLimit,
+            options.RunnerId ?? configuration.Runners.Default,
+            options.ClaimQueuedTask);
     }
 
     private static async Task WriteStatusAsync(
@@ -594,6 +596,8 @@ internal static class AegesCli
         await output.WriteLineAsync($"Agent heartbeat: {snapshot.MachineId}");
         await output.WriteLineAsync($"Database: {snapshot.DatabasePath ?? "(unknown)"}");
         await output.WriteLineAsync($"Queued tasks: {snapshot.QueuedTaskCount}");
+        await output.WriteLineAsync($"Claimed task: {snapshot.ClaimedTaskId ?? "(none)"}");
+        await output.WriteLineAsync($"Created iteration: {snapshot.CreatedIterationId ?? "(none)"}");
         await output.WriteLineAsync($"Heartbeat: {snapshot.HeartbeatAt:O}");
     }
 
@@ -628,7 +632,7 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges machine list [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task create --project-id <id> --machine-id <id> --title <title> --goal <goal> [--task-id <id>] [--priority <int>] [--max-iterations <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
-        await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
     }
 
     private class CliOptions
@@ -1094,6 +1098,10 @@ internal static class AegesCli
 
         public int QueuePreviewLimit { get; private init; } = 100;
 
+        public string? RunnerId { get; private init; }
+
+        public bool ClaimQueuedTask { get; private init; } = true;
+
         public new static AgentRunCliOptions Parse(string[] args)
         {
             string? configPath = null;
@@ -1101,10 +1109,12 @@ internal static class AegesCli
             string? machineId = null;
             string? machineName = null;
             string? platform = null;
+            string? runnerId = null;
             var once = false;
             var json = false;
             var pollInterval = TimeSpan.FromSeconds(5);
             var queuePreviewLimit = 100;
+            var claimQueuedTask = true;
 
             for (var index = 0; index < args.Length; index++)
             {
@@ -1115,6 +1125,9 @@ internal static class AegesCli
                         break;
                     case "--json":
                         json = true;
+                        break;
+                    case "--no-claim":
+                        claimQueuedTask = false;
                         break;
                     case "--config":
                         if (!TryReadValue(args, ref index, out configPath))
@@ -1151,6 +1164,13 @@ internal static class AegesCli
                         }
 
                         break;
+                    case "--runner-id":
+                        if (!TryReadValue(args, ref index, out runnerId))
+                        {
+                            return ErrorResult("--runner-id requires a value.");
+                        }
+
+                        break;
                     case "--poll-interval-seconds":
                         if (!TryReadPositiveInt(args, ref index, out var seconds))
                         {
@@ -1182,6 +1202,8 @@ internal static class AegesCli
                 Platform = platform,
                 PollInterval = pollInterval,
                 QueuePreviewLimit = queuePreviewLimit,
+                RunnerId = runnerId,
+                ClaimQueuedTask = claimQueuedTask,
             };
         }
 
@@ -1275,13 +1297,17 @@ internal static class AegesCli
         string MachineId,
         string? DatabasePath,
         DateTimeOffset HeartbeatAt,
-        int QueuedTaskCount)
+        int QueuedTaskCount,
+        string? ClaimedTaskId,
+        string? CreatedIterationId)
     {
         public static AgentSnapshotOutput From(AgentRunSnapshot snapshot) =>
             new(
                 snapshot.MachineId,
                 snapshot.DatabasePath,
                 snapshot.HeartbeatAt,
-                snapshot.QueuedTaskCount);
+                snapshot.QueuedTaskCount,
+                snapshot.ClaimedTaskId,
+                snapshot.CreatedIterationId);
     }
 }
