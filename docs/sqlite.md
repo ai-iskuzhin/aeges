@@ -78,12 +78,19 @@ The CLI also exposes:
 ```text
 aeges db status
 aeges db migrate
+aeges task create
+aeges task status
 ```
 
-Both commands use the configured SQLite connection string when present, or the
+These commands use the configured SQLite connection string when present, or the
 default runtime database at `~/.aeges/aeges.db` otherwise. `db status` reports
 applied and pending EF Core migrations. `db migrate` applies pending migrations
 and then reports the resulting status.
+
+Task commands initialize the local SQLite database before use, then delegate to
+the application task service. Creating a task requires an existing project and
+machine because the runtime stores tasks as durable work assigned inside known
+execution boundaries.
 
 Runtime code may call EF Core migration APIs during local agent startup when
 configured to manage the local SQLite database automatically.

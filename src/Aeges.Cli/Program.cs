@@ -1,7 +1,11 @@
 using System.Text.Json;
+using Aeges.Application;
 using Aeges.Application.Configuration;
 using Aeges.Application.Runtime;
+using Aeges.Application.Tasks;
+using Aeges.Core;
 using Aeges.Storage.Sqlite;
+using Microsoft.EntityFrameworkCore;
 
 return await AegesCli.RunAsync(args, Console.Out, Console.Error, CancellationToken.None);
 
@@ -21,6 +25,16 @@ internal static class AegesCli
         if (args is ["db", "migrate", .. var migrateArgs])
         {
             return await RunDatabaseMigrateAsync(migrateArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["task", "create", .. var createArgs])
+        {
+            return await RunTaskCreateAsync(createArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["task", "status", .. var taskStatusArgs])
+        {
+            return await RunTaskStatusAsync(taskStatusArgs, output, error, cancellationToken);
         }
 
         await WriteUsageAsync(error);
@@ -70,11 +84,94 @@ internal static class AegesCli
         return 0;
     }
 
+    private static async Task<int> RunTaskCreateAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = TaskCreateOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var service = new TaskService(new SqliteUnitOfWork(context), new SystemClock());
+        var result = await service.CreateAsync(
+            new CreateTaskRequest(
+                new ProjectId(options.ProjectId!),
+                new MachineId(options.MachineId!),
+                options.Title!,
+                options.Goal!,
+                options.Priority,
+                options.MaxIterations,
+                options.TaskId is null ? null : new TaskId(options.TaskId)),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            await WriteErrorAsync(result.Error!, options.Json, error);
+            return 1;
+        }
+
+        await WriteTaskAsync(result.Value!, options.Json, output, "Created task");
+
+        return 0;
+    }
+
+    private static async Task<int> RunTaskStatusAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = TaskStatusOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var service = new TaskService(new SqliteUnitOfWork(context), new SystemClock());
+        var result = await service.GetAsync(new TaskId(options.TaskId!), cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            await WriteErrorAsync(result.Error!, options.Json, error);
+            return 1;
+        }
+
+        await WriteTaskAsync(result.Value!, options.Json, output, "Task");
+
+        return 0;
+    }
+
     private static SqliteMigrationService CreateMigrationService(CliOptions options)
     {
-        if (options.ConnectionString is not null)
+        return new SqliteMigrationService(ResolveConnectionString(options));
+    }
+
+    private static async Task<AegesDbContext> CreateReadyDbContextAsync(
+        CliOptions options,
+        CancellationToken cancellationToken)
+    {
+        var context = new AegesDbContext(AegesDbContextOptions.Create(ResolveConnectionString(options)));
+        await SqlitePragmas.ApplyAsync(context, cancellationToken);
+        await context.Database.MigrateAsync(cancellationToken);
+
+        return context;
+    }
+
+    private static string ResolveConnectionString(CliOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.ConnectionString))
         {
-            return new SqliteMigrationService(options.ConnectionString);
+            return options.ConnectionString;
         }
 
         var layout = RuntimeDirectoryLayout.CreateDefault();
@@ -93,7 +190,7 @@ internal static class AegesCli
             connectionString = $"Data Source={layout.DatabasePath}";
         }
 
-        return new SqliteMigrationService(connectionString);
+        return connectionString;
     }
 
     private static async Task WriteStatusAsync(
@@ -128,22 +225,78 @@ internal static class AegesCli
         }
     }
 
+    private static async Task WriteTaskAsync(
+        RuntimeTask task,
+        bool json,
+        TextWriter output,
+        string heading)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                TaskOutput.From(task),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"{heading}: {task.Id}");
+        await output.WriteLineAsync($"Project: {task.ProjectId}");
+        await output.WriteLineAsync($"Machine: {task.MachineId}");
+        await output.WriteLineAsync($"Title: {task.Title}");
+        await output.WriteLineAsync($"Status: {task.Status.ToStorageValue()}");
+        await output.WriteLineAsync($"Priority: {task.Priority}");
+        await output.WriteLineAsync($"Iterations: {task.CurrentIteration}/{task.MaxIterations}");
+        await output.WriteLineAsync($"Created: {task.CreatedAt:O}");
+        await output.WriteLineAsync($"Updated: {task.UpdatedAt:O}");
+
+        if (!string.IsNullOrWhiteSpace(task.FailureReason))
+        {
+            await output.WriteLineAsync($"Failure: {task.FailureReason}");
+        }
+    }
+
+    private static async Task WriteErrorAsync(
+        ApplicationError errorValue,
+        bool json,
+        TextWriter error)
+    {
+        if (json)
+        {
+            await error.WriteLineAsync(JsonSerializer.Serialize(
+                errorValue,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await error.WriteLineAsync($"{errorValue.Code}: {errorValue.Message}");
+    }
+
     private static async Task WriteUsageAsync(TextWriter error)
     {
         await error.WriteLineAsync("Usage:");
         await error.WriteLineAsync("  aeges db status [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges db migrate [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges task create --project-id <id> --machine-id <id> --title <title> --goal <goal> [--task-id <id>] [--priority <int>] [--max-iterations <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
     }
 
-    private sealed class CliOptions
+    private class CliOptions
     {
-        public string? ConfigPath { get; private init; }
+        public string? ConfigPath { get; protected init; }
 
-        public string? ConnectionString { get; private init; }
+        public string? ConnectionString { get; protected init; }
 
-        public bool Json { get; private init; }
+        public bool Json { get; protected init; }
 
-        public string? Error { get; private init; }
+        public string? Error { get; protected init; }
 
         public static CliOptions Parse(string[] args)
         {
@@ -185,7 +338,7 @@ internal static class AegesCli
             };
         }
 
-        private static bool TryReadValue(string[] args, ref int index, out string? value)
+        protected static bool TryReadValue(string[] args, ref int index, out string? value)
         {
             if (index + 1 >= args.Length || args[index + 1].StartsWith("--", StringComparison.Ordinal))
             {
@@ -198,5 +351,255 @@ internal static class AegesCli
 
             return true;
         }
+    }
+
+    private sealed class TaskCreateOptions : CliOptions
+    {
+        public string? ProjectId { get; private init; }
+
+        public string? MachineId { get; private init; }
+
+        public string? TaskId { get; private init; }
+
+        public string? Title { get; private init; }
+
+        public string? Goal { get; private init; }
+
+        public int Priority { get; private init; }
+
+        public int MaxIterations { get; private init; } = 3;
+
+        public new static TaskCreateOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? projectId = null;
+            string? machineId = null;
+            string? taskId = null;
+            string? title = null;
+            string? goal = null;
+            var priority = 0;
+            var maxIterations = 3;
+            var json = false;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--project-id":
+                        if (!TryReadValue(args, ref index, out projectId))
+                        {
+                            return ErrorResult("--project-id requires a value.");
+                        }
+
+                        break;
+                    case "--machine-id":
+                        if (!TryReadValue(args, ref index, out machineId))
+                        {
+                            return ErrorResult("--machine-id requires a value.");
+                        }
+
+                        break;
+                    case "--task-id":
+                        if (!TryReadValue(args, ref index, out taskId))
+                        {
+                            return ErrorResult("--task-id requires a value.");
+                        }
+
+                        break;
+                    case "--title":
+                        if (!TryReadValue(args, ref index, out title))
+                        {
+                            return ErrorResult("--title requires a value.");
+                        }
+
+                        break;
+                    case "--goal":
+                        if (!TryReadValue(args, ref index, out goal))
+                        {
+                            return ErrorResult("--goal requires a value.");
+                        }
+
+                        break;
+                    case "--priority":
+                        if (!TryReadInt(args, ref index, out priority))
+                        {
+                            return ErrorResult("--priority requires an integer value.");
+                        }
+
+                        break;
+                    case "--max-iterations":
+                        if (!TryReadInt(args, ref index, out maxIterations) || maxIterations <= 0)
+                        {
+                            return ErrorResult("--max-iterations requires an integer value greater than zero.");
+                        }
+
+                        break;
+                    default:
+                        return ErrorResult($"Unknown option '{args[index]}'.");
+                }
+            }
+
+            return RequireText(projectId, "--project-id")
+                ?? RequireText(machineId, "--machine-id")
+                ?? RequireText(title, "--title")
+                ?? RequireText(goal, "--goal")
+                ?? new TaskCreateOptions
+                {
+                    ConfigPath = configPath,
+                    ConnectionString = connectionString,
+                    Json = json,
+                    ProjectId = projectId,
+                    MachineId = machineId,
+                    TaskId = taskId,
+                    Title = title,
+                    Goal = goal,
+                    Priority = priority,
+                    MaxIterations = maxIterations,
+                };
+        }
+
+        private static bool TryReadInt(string[] args, ref int index, out int value)
+        {
+            if (!TryReadValue(args, ref index, out var text))
+            {
+                value = 0;
+                return false;
+            }
+
+            return int.TryParse(text, out value);
+        }
+
+        private static TaskCreateOptions? RequireText(string? value, string optionName) =>
+            string.IsNullOrWhiteSpace(value)
+                ? ErrorResult($"{optionName} is required.")
+                : null;
+
+        private static TaskCreateOptions ErrorResult(string error) => new() { Error = error };
+    }
+
+    private sealed class TaskStatusOptions : CliOptions
+    {
+        public string? TaskId { get; private init; }
+
+        public new static TaskStatusOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? taskId = null;
+            var json = false;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--task-id":
+                        if (!TryReadValue(args, ref index, out taskId))
+                        {
+                            return ErrorResult("--task-id requires a value.");
+                        }
+
+                        break;
+                    default:
+                        if (args[index].StartsWith("--", StringComparison.Ordinal))
+                        {
+                            return ErrorResult($"Unknown option '{args[index]}'.");
+                        }
+
+                        if (taskId is not null)
+                        {
+                            return ErrorResult("Only one task identifier can be supplied.");
+                        }
+
+                        taskId = args[index];
+                        break;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(taskId))
+            {
+                return ErrorResult("Task identifier is required.");
+            }
+
+            return new TaskStatusOptions
+            {
+                ConfigPath = configPath,
+                ConnectionString = connectionString,
+                Json = json,
+                TaskId = taskId,
+            };
+        }
+
+        private static TaskStatusOptions ErrorResult(string error) => new() { Error = error };
+    }
+
+    private sealed record TaskOutput(
+        string Id,
+        string ProjectId,
+        string MachineId,
+        string Title,
+        string Goal,
+        string Status,
+        int Priority,
+        int MaxIterations,
+        int CurrentIteration,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset UpdatedAt,
+        DateTimeOffset? StartedAt,
+        DateTimeOffset? CompletedAt,
+        DateTimeOffset? CancelledAt,
+        string? FailureReason)
+    {
+        public static TaskOutput From(RuntimeTask task) =>
+            new(
+                task.Id.Value,
+                task.ProjectId.Value,
+                task.MachineId.Value,
+                task.Title,
+                task.Goal,
+                task.Status.ToStorageValue(),
+                task.Priority,
+                task.MaxIterations,
+                task.CurrentIteration,
+                task.CreatedAt,
+                task.UpdatedAt,
+                task.StartedAt,
+                task.CompletedAt,
+                task.CancelledAt,
+                task.FailureReason);
     }
 }

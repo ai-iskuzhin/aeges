@@ -77,6 +77,8 @@ review, test, and document independently.
 - [x] Add config loading model.
 - [x] Add `aeges db status`.
 - [x] Add `aeges db migrate`.
+- [x] Add `aeges task create`.
+- [x] Add `aeges task status`.
 
 ## Current Focus
 
@@ -144,8 +146,8 @@ review, test, and document independently.
 - [x] Add config loading model.
 - [x] Add `aeges db status`.
 - [x] Add `aeges db migrate`.
-- [ ] Add `aeges task create`.
-- [ ] Add `aeges task status`.
+- [x] Add `aeges task create`.
+- [x] Add `aeges task status`.
 - [ ] Add `aeges agent run` host shell.
 - [ ] Keep CLI usable without Telegram or a control plane.
 
