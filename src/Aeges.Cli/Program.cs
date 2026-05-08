@@ -10,6 +10,9 @@ using Aeges.Storage.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 using var cancellation = new CancellationTokenSource();
+
+// Keep the CLI interruptible without letting Ctrl+C terminate in the middle of
+// a storage update or agent heartbeat.
 Console.CancelKeyPress += (_, eventArgs) =>
 {
     eventArgs.Cancel = true;
@@ -105,6 +108,8 @@ internal static class AegesCli
 
             await output.WriteLineAsync($"Agent running for machine '{agentOptions.MachineId}'. Press Ctrl+C to stop.");
 
+            // The initial shell deliberately performs bounded heartbeats only.
+            // Task dispatch will be layered in later behind governed workflow checks.
             while (!cancellationToken.IsCancellationRequested)
             {
                 var snapshot = await runtime.RunOnceAsync(agentOptions, cancellationToken);

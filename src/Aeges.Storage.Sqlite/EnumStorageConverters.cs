@@ -3,8 +3,14 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Aeges.Storage.Sqlite;
 
+/// <summary>
+/// Converts task lifecycle statuses to and from their stable SQLite text values.
+/// </summary>
 internal sealed class RuntimeTaskStatusStorageConverter : ValueConverter<RuntimeTaskStatus, string>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RuntimeTaskStatusStorageConverter"/> class.
+    /// </summary>
     public RuntimeTaskStatusStorageConverter()
         : base(
             status => status.ToStorageValue(),
@@ -13,8 +19,14 @@ internal sealed class RuntimeTaskStatusStorageConverter : ValueConverter<Runtime
     }
 }
 
+/// <summary>
+/// Converts iteration lifecycle statuses to and from their stable SQLite text values.
+/// </summary>
 internal sealed class TaskIterationStatusStorageConverter : ValueConverter<TaskIterationStatus, string>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TaskIterationStatusStorageConverter"/> class.
+    /// </summary>
     public TaskIterationStatusStorageConverter()
         : base(
             status => status.ToStorageValue(),
@@ -23,8 +35,14 @@ internal sealed class TaskIterationStatusStorageConverter : ValueConverter<TaskI
     }
 }
 
+/// <summary>
+/// Converts approval statuses to and from their stable SQLite text values.
+/// </summary>
 internal sealed class ApprovalStatusStorageConverter : ValueConverter<ApprovalStatus, string>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ApprovalStatusStorageConverter"/> class.
+    /// </summary>
     public ApprovalStatusStorageConverter()
         : base(
             status => status.ToStorageValue(),
@@ -33,8 +51,14 @@ internal sealed class ApprovalStatusStorageConverter : ValueConverter<ApprovalSt
     }
 }
 
+/// <summary>
+/// Converts artifact types to and from their stable SQLite text values.
+/// </summary>
 internal sealed class ArtifactTypeStorageConverter : ValueConverter<ArtifactType, string>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ArtifactTypeStorageConverter"/> class.
+    /// </summary>
     public ArtifactTypeStorageConverter()
         : base(
             type => type.ToStorageValue(),
@@ -43,8 +67,14 @@ internal sealed class ArtifactTypeStorageConverter : ValueConverter<ArtifactType
     }
 }
 
+/// <summary>
+/// Converts machine statuses to and from their stable SQLite text values.
+/// </summary>
 internal sealed class MachineStatusStorageConverter : ValueConverter<MachineStatus, string>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MachineStatusStorageConverter"/> class.
+    /// </summary>
     public MachineStatusStorageConverter()
         : base(
             status => status.ToStorageValue(),
