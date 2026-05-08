@@ -1,0 +1,64 @@
+using Aeges.Core;
+
+namespace Aeges.Telegram;
+
+/// <summary>
+/// Defines stable callback payloads used by Telegram inline buttons.
+/// </summary>
+public static class TelegramCallbackData
+{
+    /// <summary>
+    /// Gets the main menu callback payload.
+    /// </summary>
+    public const string MainMenu = "aeges:menu";
+
+    /// <summary>
+    /// Gets the project list callback payload.
+    /// </summary>
+    public const string ListProjects = "aeges:projects:list";
+
+    /// <summary>
+    /// Gets the machine list callback payload.
+    /// </summary>
+    public const string ListMachines = "aeges:machines:list";
+
+    /// <summary>
+    /// Gets the queued task list callback payload.
+    /// </summary>
+    public const string ListQueuedTasks = "aeges:tasks:queued";
+
+    /// <summary>
+    /// Creates a task details callback payload.
+    /// </summary>
+    /// <param name="taskId">The task identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string ViewTask(TaskId taskId) => $"aeges:task:{taskId.Value}";
+
+    /// <summary>
+    /// Attempts to parse a task details callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="taskId">The parsed task identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseViewTask(string payload, out TaskId taskId)
+    {
+        const string prefix = "aeges:task:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length > prefix.Length)
+        {
+            try
+            {
+                taskId = new TaskId(payload[prefix.Length..]);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                taskId = default;
+                return false;
+            }
+        }
+
+        taskId = default;
+        return false;
+    }
+}

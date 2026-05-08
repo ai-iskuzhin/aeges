@@ -65,6 +65,14 @@ hidden in transport-specific responses. The application layer coordinates
 repositories through `IUnitOfWork`; it does not depend on SQLite or any runner
 implementation.
 
+## Telegram Boundary
+
+`Aeges.Telegram` is a transport layer over application use cases. The MVP
+Telegram surface is button-first: text opens the main menu, and normal
+navigation uses inline button callbacks for projects, machines, queued tasks,
+and task details. The transport delegates data access through an application
+facade so callback handling does not become hidden workflow orchestration.
+
 ## Dependency Direction
 
 Dependencies point inward toward stable abstractions. Infrastructure implements

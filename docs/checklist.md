@@ -94,6 +94,8 @@ review, test, and document independently.
 - [x] Add opt-in local agent runner execution with durable runner execution
       records.
 - [x] Keep CLI usable without Telegram or a control plane.
+- [x] Add button-first Telegram interaction handler.
+- [x] Add Telegram application facade boundary.
 
 ## Current Focus
 
@@ -179,6 +181,19 @@ review, test, and document independently.
 - [x] Add opt-in mock runner execution from the local agent.
 - [x] Add opt-in Codex runner resolution gated by worktree creation.
 - [x] Keep CLI usable without Telegram or a control plane.
+
+## Telegram Transport
+
+- [x] Add button-first Telegram interaction handler.
+- [x] Add stable callback payloads for menu, projects, machines, queued tasks,
+      and task details.
+- [x] Add Telegram application facade boundary so transport code does not own
+      workflow logic.
+- [x] Add authorization check for configured Telegram chat IDs.
+- [x] Add tests for button navigation, authorization, and task-detail callbacks.
+- [ ] Add live Telegram bot adapter around the button interaction handler.
+- [ ] Add approval-resolution buttons after approval workflow is exposed through
+      the facade.
 
 ## Governance
 
