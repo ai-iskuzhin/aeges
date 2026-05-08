@@ -53,6 +53,27 @@ dispatch and reports the Codex project URL:
 https://github.com/openai/codex
 ```
 
+The Codex runner can also pin the model and reasoning effort. The model is
+passed with Codex CLI's `--model` option. Reasoning effort is passed through the
+Codex configuration override mechanism:
+
+```text
+codex exec --model gpt-5.5 --config model_reasoning_effort="high" <prompt>
+```
+
+Local configuration can set:
+
+```json
+{
+  "runners": {
+    "codex": {
+      "model": "gpt-5.5",
+      "reasoningEffort": "high"
+    }
+  }
+}
+```
+
 ## Statuses
 
 Initial runner statuses:

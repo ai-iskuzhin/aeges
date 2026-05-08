@@ -79,6 +79,12 @@ public sealed class AegesConfigurationLoader
         configuration.Runners.Codex.Executable = RequireText(
             configuration.Runners.Codex.Executable,
             nameof(configuration.Runners.Codex.Executable));
+        configuration.Runners.Codex.Model = NormalizeOptionalText(
+            configuration.Runners.Codex.Model,
+            nameof(configuration.Runners.Codex.Model));
+        configuration.Runners.Codex.ReasoningEffort = NormalizeOptionalText(
+            configuration.Runners.Codex.ReasoningEffort,
+            nameof(configuration.Runners.Codex.ReasoningEffort));
 
         if (configuration.Runners.Codex.TimeoutSeconds <= 0)
         {
@@ -101,5 +107,15 @@ public sealed class AegesConfigurationLoader
         }
 
         return value;
+    }
+
+    private static string? NormalizeOptionalText(string? value, string parameterName)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        return RequireText(value, parameterName);
     }
 }

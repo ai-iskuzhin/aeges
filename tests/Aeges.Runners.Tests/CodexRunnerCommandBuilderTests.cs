@@ -13,6 +13,8 @@ public sealed class CodexRunnerCommandBuilderTests
             new CodexRunnerOptions(
                 Executable: "codex-test",
                 BaseArguments: ["exec", "--json"],
+                Model: "gpt-5.5",
+                ReasoningEffort: "high",
                 EnvironmentVariables: new Dictionary<string, string>
                 {
                     ["CODEX_HOME"] = "/tmp/codex",
@@ -22,7 +24,17 @@ public sealed class CodexRunnerCommandBuilderTests
         var command = builder.Build(CreateRequest());
 
         Assert.Equal("codex-test", command.Executable);
-        Assert.Equal(["exec", "--json", "/tmp/aeges/artifacts/task-001/prompt.md"], command.Arguments);
+        Assert.Equal(
+            [
+                "exec",
+                "--json",
+                "--model",
+                "gpt-5.5",
+                "--config",
+                "model_reasoning_effort=\"high\"",
+                "/tmp/aeges/artifacts/task-001/prompt.md",
+            ],
+            command.Arguments);
         Assert.Equal("/tmp/aeges/worktrees/project-001/task-001", command.WorkingDirectory);
         Assert.Equal(TimeSpan.FromMinutes(30), command.Timeout);
         Assert.Equal("/tmp/codex", command.EnvironmentVariables["CODEX_HOME"]);
@@ -76,6 +88,8 @@ public sealed class CodexRunnerCommandBuilderTests
     {
         Assert.Throws<ArgumentException>(() => new CodexRunnerCommandBuilder(new CodexRunnerOptions(Executable: " ")));
         Assert.Throws<ArgumentException>(() => new CodexRunnerCommandBuilder(new CodexRunnerOptions(BaseArguments: ["exec", " "])));
+        Assert.Throws<ArgumentException>(() => new CodexRunnerCommandBuilder(new CodexRunnerOptions(Model: " ")));
+        Assert.Throws<ArgumentException>(() => new CodexRunnerCommandBuilder(new CodexRunnerOptions(ReasoningEffort: " ")));
         Assert.Throws<ArgumentException>(
             () => new CodexRunnerCommandBuilder(
                 new CodexRunnerOptions(
@@ -83,6 +97,19 @@ public sealed class CodexRunnerCommandBuilderTests
                     {
                         [" "] = "value",
                     })));
+    }
+
+    [Fact]
+    public void PathResolver_finds_installed_codex_cli_when_available()
+    {
+        var resolvedPath = new PathCodexExecutableResolver().Resolve("codex");
+
+        if (resolvedPath is null)
+        {
+            return;
+        }
+
+        Assert.True(File.Exists(resolvedPath));
     }
 
     private static RunnerRequest CreateRequest() =>

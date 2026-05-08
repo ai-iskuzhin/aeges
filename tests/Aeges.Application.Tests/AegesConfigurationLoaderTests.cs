@@ -16,6 +16,8 @@ public sealed class AegesConfigurationLoaderTests
         Assert.Equal("sqlite", configuration.Storage.Provider);
         Assert.Equal("codex", configuration.Runners.Default);
         Assert.Equal("codex", configuration.Runners.Codex.Executable);
+        Assert.Null(configuration.Runners.Codex.Model);
+        Assert.Null(configuration.Runners.Codex.ReasoningEffort);
         Assert.Equal(1800, configuration.Runners.Codex.TimeoutSeconds);
         Assert.Empty(configuration.Projects);
     }
@@ -39,6 +41,8 @@ public sealed class AegesConfigurationLoaderTests
                 "default": "codex",
                 "codex": {
                   "executable": "codex-test",
+                  "model": "gpt-5.5",
+                  "reasoningEffort": "high",
                   "timeoutSeconds": 120
                 }
               },
@@ -61,6 +65,8 @@ public sealed class AegesConfigurationLoaderTests
         Assert.Equal("AEGES_TEST_TELEGRAM_TOKEN", configuration.Telegram.BotTokenEnvironmentVariable);
         Assert.Equal([1001, 1002], configuration.Telegram.AllowedChatIds);
         Assert.Equal("codex-test", configuration.Runners.Codex.Executable);
+        Assert.Equal("gpt-5.5", configuration.Runners.Codex.Model);
+        Assert.Equal("high", configuration.Runners.Codex.ReasoningEffort);
         Assert.Equal(120, configuration.Runners.Codex.TimeoutSeconds);
         Assert.Single(configuration.Projects);
         Assert.Equal("aeges", configuration.Projects[0].Id);
@@ -151,6 +157,24 @@ public sealed class AegesConfigurationLoaderTests
             """);
 
         Assert.Throws<ArgumentOutOfRangeException>(
+            () => new AegesConfigurationLoader().Load(new AegesConfigurationLoaderOptions(path)));
+    }
+
+    [Fact]
+    public void Load_rejects_empty_codex_model_settings()
+    {
+        var path = CreateConfigFile(
+            """
+            {
+              "runners": {
+                "codex": {
+                  "model": " "
+                }
+              }
+            }
+            """);
+
+        Assert.Throws<ArgumentException>(
             () => new AegesConfigurationLoader().Load(new AegesConfigurationLoaderOptions(path)));
     }
 

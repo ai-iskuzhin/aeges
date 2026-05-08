@@ -52,6 +52,19 @@ public sealed class CodexRunnerCommandBuilder
 
         var arguments = new List<string>();
         arguments.AddRange(options.BaseArguments ?? ["exec"]);
+
+        if (options.Model is not null)
+        {
+            arguments.Add("--model");
+            arguments.Add(options.Model);
+        }
+
+        if (options.ReasoningEffort is not null)
+        {
+            arguments.Add("--config");
+            arguments.Add($"model_reasoning_effort={ToTomlStringLiteral(options.ReasoningEffort)}");
+        }
+
         arguments.Add(request.PromptPath);
 
         var environment = new Dictionary<string, string>(request.EnvironmentVariables);
@@ -91,6 +104,16 @@ public sealed class CodexRunnerCommandBuilder
             throw new ArgumentException("Base arguments must not be empty.", nameof(options));
         }
 
+        if (options.Model is not null && string.IsNullOrWhiteSpace(options.Model))
+        {
+            throw new ArgumentException("Model must not be empty when configured.", nameof(options));
+        }
+
+        if (options.ReasoningEffort is not null && string.IsNullOrWhiteSpace(options.ReasoningEffort))
+        {
+            throw new ArgumentException("Reasoning effort must not be empty when configured.", nameof(options));
+        }
+
         if (options.EnvironmentVariables?.Any(pair => string.IsNullOrWhiteSpace(pair.Key)) == true)
         {
             throw new ArgumentException("Environment variable names must not be empty.", nameof(options));
@@ -111,4 +134,7 @@ public sealed class CodexRunnerCommandBuilder
                 ? char.ToUpperInvariant(character)
                 : '_'));
     }
+
+    private static string ToTomlStringLiteral(string value) =>
+        "\"" + value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
 }
