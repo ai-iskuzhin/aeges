@@ -99,6 +99,7 @@ review, test, and document independently.
 - [x] Add Telegram long-polling transport service.
 - [x] Add CLI host command for Telegram long polling.
 - [x] Add Telegram approval list and resolution buttons.
+- [x] Add CLI and Telegram task cancellation.
 
 ## Current Focus
 
@@ -176,6 +177,7 @@ review, test, and document independently.
 - [x] Add `aeges db migrate`.
 - [x] Add `aeges task create`.
 - [x] Add `aeges task status`.
+- [x] Add `aeges task cancel`.
 - [x] Add `aeges agent run` host shell.
 - [x] Make local agent claim one queued task assigned to its machine.
 - [x] Make local agent write and register prompt artifacts for claimed
@@ -199,6 +201,7 @@ review, test, and document independently.
 - [x] Add CLI host command for running Telegram long polling.
 - [x] Add approval-resolution buttons after approval workflow is exposed through
       the facade.
+- [x] Add task cancellation buttons from Telegram task details.
 
 ## Governance
 

@@ -73,6 +73,11 @@ internal static class AegesCli
             return await RunTaskStatusAsync(taskStatusArgs, output, error, cancellationToken);
         }
 
+        if (args is ["task", "cancel", .. var taskCancelArgs])
+        {
+            return await RunTaskCancelAsync(taskCancelArgs, output, error, cancellationToken);
+        }
+
         if (args is ["agent", "run", .. var agentRunArgs])
         {
             return await RunAgentRunAsync(agentRunArgs, output, error, cancellationToken);
@@ -412,6 +417,35 @@ internal static class AegesCli
         return 0;
     }
 
+    private static async Task<int> RunTaskCancelAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = TaskStatusOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var service = new TaskService(new SqliteUnitOfWork(context), new SystemClock());
+        var result = await service.CancelAsync(new TaskId(options.TaskId!), cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            await WriteErrorAsync(result.Error!, options.Json, error);
+            return 1;
+        }
+
+        await WriteTaskAsync(result.Value!, options.Json, output, "Cancelled task");
+
+        return 0;
+    }
+
     private static SqliteMigrationService CreateMigrationService(CliOptions options)
     {
         return new SqliteMigrationService(ResolveConnectionString(options));
@@ -737,6 +771,7 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges machine list [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task create --project-id <id> --machine-id <id> --title <title> --goal <goal> [--task-id <id>] [--priority <int>] [--max-iterations <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges task cancel <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--create-worktree] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges telegram run [--once] [--poll-limit <int>] [--timeout-seconds <int>] [--config <path>] [--connection-string <value>] [--json]");
     }

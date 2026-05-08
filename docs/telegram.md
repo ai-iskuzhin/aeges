@@ -14,6 +14,7 @@ Machines      -> aeges:machines:list
 Queued tasks  -> aeges:tasks:queued
 Back          -> aeges:menu
 Task details  -> aeges:task:<task-id>
+Cancel task   -> ae:t:x:<task-id>
 Approvals     -> ae:ap
 Approval      -> ae:a:<approval-id>
 Approve       -> ae:a:y:<approval-id>

@@ -54,6 +54,8 @@ public sealed class TelegramInteractionHandler
             TelegramCallbackData.ListPendingApprovals => await ListPendingApprovalsAsync(cancellationToken),
             _ when TelegramCallbackData.TryParseViewTask(callbackData, out var taskId) =>
                 await ViewTaskAsync(taskId, cancellationToken),
+            _ when TelegramCallbackData.TryParseCancelTask(callbackData, out var taskId) =>
+                await CancelTaskAsync(taskId, cancellationToken),
             _ when TelegramCallbackData.TryParseApproveApproval(callbackData, out var approvalId) =>
                 await ResolveApprovalAsync(approvalId, approved: true, update.ChatId, cancellationToken),
             _ when TelegramCallbackData.TryParseRejectApproval(callbackData, out var approvalId) =>
@@ -147,9 +149,15 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse($"{task.Error!.Code}: {task.Error.Message}", BackButtons());
         }
 
+        var buttons = task.Value!.Status.IsTerminal()
+            ? BackButtons()
+            : Buttons(
+                Row(Button("Cancel", TelegramCallbackData.CancelTask(task.Value.Id))),
+                Row(Button("Back", TelegramCallbackData.MainMenu)));
+
         return new TelegramResponse(
             $"""
-            Task: {task.Value!.Id}
+            Task: {task.Value.Id}
             Title: {task.Value.Title}
             Status: {task.Value.Status.ToStorageValue()}
             Iterations: {task.Value.CurrentIteration}/{task.Value.MaxIterations}
@@ -157,6 +165,22 @@ public sealed class TelegramInteractionHandler
             Goal:
             {task.Value.Goal}
             """,
+            buttons);
+    }
+
+    private async Task<TelegramResponse> CancelTaskAsync(
+        TaskId taskId,
+        CancellationToken cancellationToken)
+    {
+        var task = await application.CancelTaskAsync(taskId, cancellationToken);
+
+        if (!task.IsSuccess)
+        {
+            return new TelegramResponse($"{task.Error!.Code}: {task.Error.Message}", BackButtons());
+        }
+
+        return new TelegramResponse(
+            $"Task cancelled: {task.Value!.Id}",
             BackButtons());
     }
 

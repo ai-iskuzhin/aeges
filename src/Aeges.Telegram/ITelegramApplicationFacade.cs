@@ -47,6 +47,14 @@ public interface ITelegramApplicationFacade
     Task<ApplicationResult<RuntimeTask>> GetTaskAsync(TaskId taskId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Cancels a task.
+    /// </summary>
+    /// <param name="taskId">The task identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The task cancellation result.</returns>
+    Task<ApplicationResult<RuntimeTask>> CancelTaskAsync(TaskId taskId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Gets an approval request by identifier.
     /// </summary>
     /// <param name="approvalId">The approval request identifier.</param>

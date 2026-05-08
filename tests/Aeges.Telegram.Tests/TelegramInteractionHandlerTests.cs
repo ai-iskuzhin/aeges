@@ -128,6 +128,32 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Contains("Title: Wire Telegram buttons", response.Text, StringComparison.Ordinal);
         Assert.Contains("Status: queued", response.Text, StringComparison.Ordinal);
         Assert.Contains("Expose Telegram actions through inline buttons.", response.Text, StringComparison.Ordinal);
+        Assert.Equal("Cancel", response.Buttons.Rows[0][0].Text);
+        Assert.Equal("ae:t:x:task-001", response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("Back", response.Buttons.Rows[1][0].Text);
+    }
+
+    [Fact]
+    public async Task HandleAsync_cancels_task_from_button_callback()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Wire Telegram buttons",
+            "Expose Telegram actions through inline buttons.",
+            Now);
+
+        var facade = new FakeTelegramApplicationFacade { Task = task };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.CancelTask(task.Id)),
+            CancellationToken.None);
+
+        Assert.Equal("Task cancelled: task-001", response.Text);
+        Assert.Equal(RuntimeTaskStatus.Cancelled, task.Status);
+        Assert.True(facade.CancelTaskCalled);
         AssertBackButton(response);
     }
 
@@ -244,6 +270,8 @@ public sealed class TelegramInteractionHandlerTests
 
         public bool ApproveCalled { get; private set; }
 
+        public bool CancelTaskCalled { get; private set; }
+
         public string? ResolvedBy { get; private set; }
 
         public Task<IReadOnlyList<RuntimeProject>> ListProjectsAsync(CancellationToken cancellationToken)
@@ -274,6 +302,22 @@ public sealed class TelegramInteractionHandlerTests
                 : ApplicationResult<RuntimeTask>.Failure("task_not_found", $"Task '{taskId}' was not found.");
 
             return System.Threading.Tasks.Task.FromResult(result);
+        }
+
+        public Task<ApplicationResult<RuntimeTask>> CancelTaskAsync(
+            TaskId taskId,
+            CancellationToken cancellationToken)
+        {
+            CancelTaskCalled = true;
+
+            if (Task is null || Task.Id != taskId)
+            {
+                return System.Threading.Tasks.Task.FromResult(
+                    ApplicationResult<RuntimeTask>.Failure("task_not_found", $"Task '{taskId}' was not found."));
+            }
+
+            Task.Cancel(Now);
+            return System.Threading.Tasks.Task.FromResult(ApplicationResult<RuntimeTask>.Success(Task));
         }
 
         public Task<ApplicationResult<ApprovalRequest>> GetApprovalAsync(

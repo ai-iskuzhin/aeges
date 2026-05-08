@@ -63,6 +63,12 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         await taskService.GetAsync(taskId, cancellationToken);
 
     /// <inheritdoc />
+    public async Task<ApplicationResult<RuntimeTask>> CancelTaskAsync(
+        TaskId taskId,
+        CancellationToken cancellationToken) =>
+        await taskService.CancelAsync(taskId, cancellationToken);
+
+    /// <inheritdoc />
     public async Task<ApplicationResult<ApprovalRequest>> GetApprovalAsync(
         ApprovalId approvalId,
         CancellationToken cancellationToken) =>
