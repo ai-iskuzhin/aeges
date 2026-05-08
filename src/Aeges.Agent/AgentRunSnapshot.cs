@@ -7,8 +7,12 @@ namespace Aeges.Agent;
 /// <param name="DatabasePath">The SQLite database path, when available.</param>
 /// <param name="HeartbeatAt">The heartbeat timestamp.</param>
 /// <param name="QueuedTaskCount">The number of queued tasks visible in the bounded preview.</param>
+/// <param name="ClaimedTaskId">The task claimed by this run, when one was claimed.</param>
+/// <param name="CreatedIterationId">The iteration created for the claimed task, when one was created.</param>
 public sealed record AgentRunSnapshot(
     string MachineId,
     string? DatabasePath,
     DateTimeOffset HeartbeatAt,
-    int QueuedTaskCount);
+    int QueuedTaskCount,
+    string? ClaimedTaskId = null,
+    string? CreatedIterationId = null);

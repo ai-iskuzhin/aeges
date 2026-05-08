@@ -1,4 +1,6 @@
 using Aeges.Application;
+using Aeges.Application.Iterations;
+using Aeges.Application.Tasks;
 using Aeges.Core;
 using Aeges.Storage.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +24,7 @@ public sealed class LocalAgentRuntime
     }
 
     /// <summary>
-    /// Initializes local runtime storage, records a machine heartbeat, and returns a queue snapshot.
+    /// Initializes local runtime storage, records a machine heartbeat, claims queued work, and returns a queue snapshot.
     /// </summary>
     /// <param name="options">The local agent run options.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
@@ -56,6 +58,16 @@ public sealed class LocalAgentRuntime
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        string? claimedTaskId = null;
+        string? createdIterationId = null;
+
+        if (options.ClaimQueuedTask)
+        {
+            var claim = await ClaimNextQueuedTaskAsync(unitOfWork, machineId, options, cancellationToken);
+            claimedTaskId = claim.ClaimedTaskId;
+            createdIterationId = claim.CreatedIterationId;
+        }
+
         var queuedTasks = await unitOfWork.Tasks.ListByStatusAsync(
             RuntimeTaskStatus.Queued,
             options.QueuedTaskPreviewLimit,
@@ -65,7 +77,47 @@ public sealed class LocalAgentRuntime
             machine.Id.Value,
             context.Database.GetDbConnection().DataSource,
             now,
-            queuedTasks.Count);
+            queuedTasks.Count,
+            claimedTaskId,
+            createdIterationId);
+    }
+
+    private async Task<ClaimResult> ClaimNextQueuedTaskAsync(
+        SqliteUnitOfWork unitOfWork,
+        MachineId machineId,
+        AgentRunOptions options,
+        CancellationToken cancellationToken)
+    {
+        var queuedTasks = await unitOfWork.Tasks.ListByStatusAsync(
+            RuntimeTaskStatus.Queued,
+            options.QueuedTaskPreviewLimit,
+            cancellationToken);
+        var task = queuedTasks.FirstOrDefault(candidate => candidate.MachineId == machineId);
+
+        if (task is null)
+        {
+            return new ClaimResult(null, null);
+        }
+
+        var taskService = new TaskService(unitOfWork, clock);
+        var iterationService = new TaskIterationService(unitOfWork, clock);
+        var planning = await taskService.StartPlanningAsync(task.Id, cancellationToken);
+
+        if (!planning.IsSuccess)
+        {
+            throw new InvalidOperationException(planning.Error!.Message);
+        }
+
+        var iteration = await iterationService.CreateNextAsync(
+            new CreateTaskIterationRequest(task.Id, new RunnerId(options.RunnerId)),
+            cancellationToken);
+
+        if (!iteration.IsSuccess)
+        {
+            throw new InvalidOperationException(iteration.Error!.Message);
+        }
+
+        return new ClaimResult(task.Id.Value, iteration.Value!.Id.Value);
     }
 
     private static void Validate(AgentRunOptions options)
@@ -99,5 +151,12 @@ public sealed class LocalAgentRuntime
                 options.QueuedTaskPreviewLimit,
                 "Queued task preview limit must be greater than zero.");
         }
+
+        if (string.IsNullOrWhiteSpace(options.RunnerId))
+        {
+            throw new ArgumentException("Runner ID must not be empty.", nameof(options));
+        }
     }
+
+    private sealed record ClaimResult(string? ClaimedTaskId, string? CreatedIterationId);
 }

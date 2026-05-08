@@ -86,6 +86,7 @@ review, test, and document independently.
 - [x] Add `aeges task create`.
 - [x] Add `aeges task status`.
 - [x] Add `aeges agent run` host shell.
+- [x] Make local agent claim one queued task and create its first bounded iteration.
 - [x] Keep CLI usable without Telegram or a control plane.
 
 ## Current Focus
@@ -162,6 +163,7 @@ review, test, and document independently.
 - [x] Add `aeges task create`.
 - [x] Add `aeges task status`.
 - [x] Add `aeges agent run` host shell.
+- [x] Make local agent claim one queued task assigned to its machine.
 - [x] Keep CLI usable without Telegram or a control plane.
 
 ## Governance

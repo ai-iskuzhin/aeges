@@ -26,6 +26,11 @@ The application layer creates each next bounded iteration by incrementing the
 task iteration counter and inserting the iteration record inside one unit-of-work
 transaction. Terminal tasks cannot create new iterations.
 
+The local agent currently claims at most one queued task per run for its
+configured machine, moves it into planning, and creates the first bounded
+iteration. Runner process execution is intentionally layered after this
+deterministic claim step.
+
 The application layer exposes these lifecycle changes as task use cases. It
 loads the task from storage, delegates transition validation to the core domain
 model, persists only accepted transitions, and returns structured expected
