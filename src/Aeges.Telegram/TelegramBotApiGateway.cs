@@ -22,6 +22,18 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
     }
 
     /// <inheritdoc />
+    public async Task<TelegramBotIdentity> GetIdentityAsync(CancellationToken cancellationToken)
+    {
+        var user = await botClient.GetMe(cancellationToken);
+
+        return new TelegramBotIdentity(
+            user.Id,
+            user.Username,
+            user.FirstName,
+            user.IsBot);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<TelegramBotUpdate>> GetUpdatesAsync(
         int? offset,
         int limit,

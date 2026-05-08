@@ -74,6 +74,9 @@ public sealed class TelegramLongPollingServiceTests
 
         public int? LastTimeoutSeconds { get; private set; }
 
+        public Task<TelegramBotIdentity> GetIdentityAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(new TelegramBotIdentity(100, "aeges_test_bot", "Aeges Test", IsBot: true));
+
         public Task<IReadOnlyList<TelegramBotUpdate>> GetUpdatesAsync(
             int? offset,
             int limit,

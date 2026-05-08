@@ -170,6 +170,7 @@ configured a local token file.
 Run the transport:
 
 ```bash
+aeges telegram check
 aeges telegram run
 ```
 
@@ -250,6 +251,7 @@ aeges task status <task-id> [...]
 aeges task cancel <task-id> [...]
 aeges agent run [--once] [--runner-id <id>] [--create-worktree] [--execute-runner] [...]
 aeges telegram setup [...]
+aeges telegram check [...]
 aeges telegram run [--once] [--no-interactive] [--poll-limit <int>] [--timeout-seconds <int>] [...]
 ```
 

@@ -55,8 +55,12 @@ or logs.
 Run the local Telegram transport with:
 
 ```text
+aeges telegram check
 aeges telegram run
 ```
+
+`aeges telegram check` calls Telegram `getMe` and prints the configured bot
+identity. It is the quickest token/configuration test before long polling.
 
 For script and CI usage, disable prompts and fail deterministically when required
 setup is missing:

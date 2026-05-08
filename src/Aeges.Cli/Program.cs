@@ -102,6 +102,11 @@ internal static class AegesCli
             return await RunTelegramSetupAsync(telegramSetupArgs, input, output, error, cancellationToken);
         }
 
+        if (args is ["telegram", "check", .. var telegramCheckArgs])
+        {
+            return await RunTelegramCheckAsync(telegramCheckArgs, output, error, cancellationToken);
+        }
+
         await WriteUsageAsync(error);
 
         return 2;
@@ -297,6 +302,54 @@ internal static class AegesCli
         await output.WriteLineAsync($"Run: aeges telegram run --config {configPath}");
 
         return 0;
+    }
+
+    private static async Task<int> RunTelegramCheckAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = CliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var configuration = LoadConfiguration(options);
+
+        try
+        {
+            var gateway = TelegramBotClientFactory.CreateGateway(configuration.Telegram, cancellationToken);
+            var identity = await gateway.GetIdentityAsync(cancellationToken);
+
+            if (options.Json)
+            {
+                await output.WriteLineAsync(JsonSerializer.Serialize(
+                    identity,
+                    new JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                    }));
+
+                return 0;
+            }
+
+            await output.WriteLineAsync("Telegram bot is reachable.");
+            await output.WriteLineAsync($"Id: {identity.Id}");
+            await output.WriteLineAsync($"Username: {identity.Username ?? "(none)"}");
+            await output.WriteLineAsync($"Name: {identity.FirstName}");
+            await output.WriteLineAsync($"Is bot: {identity.IsBot}");
+
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            await error.WriteLineAsync($"Telegram check failed: {exception.Message}");
+            return 1;
+        }
     }
 
     private static async Task<int> RunTaskCreateAsync(
@@ -876,8 +929,9 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task cancel <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--create-worktree] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
-        await error.WriteLineAsync("  aeges telegram run [--once] [--no-interactive] [--poll-limit <int>] [--timeout-seconds <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges telegram setup [--config <path>]");
+        await error.WriteLineAsync("  aeges telegram check [--config <path>] [--json]");
+        await error.WriteLineAsync("  aeges telegram run [--once] [--no-interactive] [--poll-limit <int>] [--timeout-seconds <int>] [--config <path>] [--connection-string <value>] [--json]");
     }
 
     private class CliOptions

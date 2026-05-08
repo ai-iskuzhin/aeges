@@ -6,6 +6,13 @@ namespace Aeges.Telegram;
 public interface ITelegramBotGateway
 {
     /// <summary>
+    /// Gets the configured Telegram bot identity.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The configured bot identity.</returns>
+    Task<TelegramBotIdentity> GetIdentityAsync(CancellationToken cancellationToken);
+
+    /// <summary>
     /// Gets inbound Telegram updates.
     /// </summary>
     /// <param name="offset">The next update offset to request.</param>
