@@ -17,7 +17,9 @@ Runner implementations expose:
 
 Runner requests include task, iteration, and project identifiers, project and
 worktree paths, prompt path, artifact output directory, timeout, environment
-variables, and policy hints.
+variables, policy hints, and an explicit runner session policy. Session
+continuity is runner metadata; task lifecycle and artifacts remain owned by
+Aeges.
 
 Runner results include status, exit code, stdout/stderr paths, result artifact
 path, produced artifact paths, and an error summary when execution does not
@@ -73,6 +75,24 @@ Local configuration can set:
   }
 }
 ```
+
+Codex JSON mode emits a thread identifier when a new session starts:
+
+```json
+{"type":"thread.started","thread_id":"019e05e0-d00b-7182-8516-0d258c7993aa"}
+```
+
+Aeges can store this identifier as external runner session metadata. When a
+later governed execution explicitly resumes that session, the Codex command
+builder emits:
+
+```text
+codex exec resume 019e05e0-d00b-7182-8516-0d258c7993aa <prompt>
+```
+
+The runtime must not resume the most recent Codex session implicitly. Hidden
+worker memory is useful continuity, but Aeges should only resume a session when
+the durable task or iteration explicitly references that external session id.
 
 ## Statuses
 

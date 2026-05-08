@@ -43,6 +43,7 @@ public sealed class CodexRunnerCommandBuilderTests
         Assert.Equal("iteration-001", command.EnvironmentVariables["AEGES_ITERATION_ID"]);
         Assert.Equal("project-001", command.EnvironmentVariables["AEGES_PROJECT_ID"]);
         Assert.Equal("/tmp/aeges/artifacts/task-001", command.EnvironmentVariables["AEGES_ARTIFACT_OUTPUT_DIRECTORY"]);
+        Assert.Equal(RunnerSessionPolicy.NewSession.ToString(), command.EnvironmentVariables["AEGES_RUNNER_SESSION_POLICY"]);
         Assert.Equal("src/*", command.EnvironmentVariables["AEGES_POLICY_ALLOWED_PATHS"]);
     }
 
@@ -54,6 +55,34 @@ public sealed class CodexRunnerCommandBuilderTests
 
         Assert.Equal("codex", command.Executable);
         Assert.Equal(["exec", "/tmp/aeges/artifacts/task-001/prompt.md"], command.Arguments);
+    }
+
+    [Fact]
+    public void Build_creates_codex_resume_command_for_explicit_external_session()
+    {
+        var command = new CodexRunnerCommandBuilder(
+            new CodexRunnerOptions(Model: "gpt-5.5", ReasoningEffort: "low"),
+            new FakeCodexExecutableResolver("/usr/local/bin/codex"))
+            .Build(CreateRequest(
+                sessionPolicy: RunnerSessionPolicy.ResumeSession,
+                externalSessionId: "019e05e0-d00b-7182-8516-0d258c7993aa"));
+
+        Assert.Equal(
+            [
+                "exec",
+                "resume",
+                "--model",
+                "gpt-5.5",
+                "--config",
+                "model_reasoning_effort=\"low\"",
+                "019e05e0-d00b-7182-8516-0d258c7993aa",
+                "/tmp/aeges/artifacts/task-001/prompt.md",
+            ],
+            command.Arguments);
+        Assert.Equal(RunnerSessionPolicy.ResumeSession.ToString(), command.EnvironmentVariables["AEGES_RUNNER_SESSION_POLICY"]);
+        Assert.Equal(
+            "019e05e0-d00b-7182-8516-0d258c7993aa",
+            command.EnvironmentVariables["AEGES_EXTERNAL_SESSION_ID"]);
     }
 
     [Fact]
@@ -112,7 +141,32 @@ public sealed class CodexRunnerCommandBuilderTests
         Assert.True(File.Exists(resolvedPath));
     }
 
-    private static RunnerRequest CreateRequest() =>
+    [Fact]
+    public void JsonEvents_reads_thread_started_id()
+    {
+        var found = CodexRunnerJsonEvents.TryReadThreadId(
+            """{"type":"thread.started","thread_id":"019e05e0-d00b-7182-8516-0d258c7993aa"}""",
+            out var threadId);
+
+        Assert.True(found);
+        Assert.Equal("019e05e0-d00b-7182-8516-0d258c7993aa", threadId);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not-json")]
+    [InlineData("""{"type":"turn.started"}""")]
+    public void JsonEvents_ignores_non_thread_started_lines(string jsonLine)
+    {
+        var found = CodexRunnerJsonEvents.TryReadThreadId(jsonLine, out var threadId);
+
+        Assert.False(found);
+        Assert.Null(threadId);
+    }
+
+    private static RunnerRequest CreateRequest(
+        RunnerSessionPolicy sessionPolicy = RunnerSessionPolicy.NewSession,
+        string? externalSessionId = null) =>
         new(
             new TaskId("task-001"),
             new IterationId("iteration-001"),
@@ -129,7 +183,9 @@ public sealed class CodexRunnerCommandBuilderTests
             policyHints: new Dictionary<string, string>
             {
                 ["allowed_paths"] = "src/*",
-            });
+            },
+            sessionPolicy: sessionPolicy,
+            externalSessionId: externalSessionId);
 
     private sealed class FakeCodexExecutableResolver : ICodexExecutableResolver
     {

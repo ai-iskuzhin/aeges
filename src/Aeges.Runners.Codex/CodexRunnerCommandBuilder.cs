@@ -53,6 +53,11 @@ public sealed class CodexRunnerCommandBuilder
         var arguments = new List<string>();
         arguments.AddRange(options.BaseArguments ?? ["exec"]);
 
+        if (request.SessionPolicy == RunnerSessionPolicy.ResumeSession)
+        {
+            arguments.Add("resume");
+        }
+
         if (options.Model is not null)
         {
             arguments.Add("--model");
@@ -63,6 +68,11 @@ public sealed class CodexRunnerCommandBuilder
         {
             arguments.Add("--config");
             arguments.Add($"model_reasoning_effort={ToTomlStringLiteral(options.ReasoningEffort)}");
+        }
+
+        if (request.SessionPolicy == RunnerSessionPolicy.ResumeSession)
+        {
+            arguments.Add(request.ExternalSessionId!);
         }
 
         arguments.Add(request.PromptPath);
@@ -78,6 +88,12 @@ public sealed class CodexRunnerCommandBuilder
         environment["AEGES_ITERATION_ID"] = request.IterationId.Value;
         environment["AEGES_PROJECT_ID"] = request.ProjectId.Value;
         environment["AEGES_ARTIFACT_OUTPUT_DIRECTORY"] = request.ArtifactOutputDirectory;
+        environment["AEGES_RUNNER_SESSION_POLICY"] = request.SessionPolicy.ToString();
+
+        if (request.ExternalSessionId is not null)
+        {
+            environment["AEGES_EXTERNAL_SESSION_ID"] = request.ExternalSessionId;
+        }
 
         foreach (var policyHint in request.PolicyHints)
         {

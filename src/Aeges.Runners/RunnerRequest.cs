@@ -20,6 +20,8 @@ public sealed class RunnerRequest
     /// <param name="timeout">The maximum allowed execution time.</param>
     /// <param name="environmentVariables">Environment variables supplied to the runner.</param>
     /// <param name="policyHints">Governance policy hints supplied to the runner.</param>
+    /// <param name="sessionPolicy">The runner session continuity policy.</param>
+    /// <param name="externalSessionId">The external runner session identifier to resume, when required.</param>
     public RunnerRequest(
         TaskId taskId,
         IterationId iterationId,
@@ -30,7 +32,9 @@ public sealed class RunnerRequest
         string artifactOutputDirectory,
         TimeSpan timeout,
         IReadOnlyDictionary<string, string>? environmentVariables = null,
-        IReadOnlyDictionary<string, string>? policyHints = null)
+        IReadOnlyDictionary<string, string>? policyHints = null,
+        RunnerSessionPolicy sessionPolicy = RunnerSessionPolicy.NewSession,
+        string? externalSessionId = null)
     {
         TaskId = taskId;
         IterationId = iterationId;
@@ -42,6 +46,8 @@ public sealed class RunnerRequest
         Timeout = RequirePositive(timeout, nameof(timeout));
         EnvironmentVariables = CopyDictionary(environmentVariables);
         PolicyHints = CopyDictionary(policyHints);
+        SessionPolicy = sessionPolicy;
+        ExternalSessionId = NormalizeExternalSessionId(sessionPolicy, externalSessionId);
     }
 
     /// <summary>
@@ -94,6 +100,16 @@ public sealed class RunnerRequest
     /// </summary>
     public IReadOnlyDictionary<string, string> PolicyHints { get; }
 
+    /// <summary>
+    /// Gets the runner session continuity policy.
+    /// </summary>
+    public RunnerSessionPolicy SessionPolicy { get; }
+
+    /// <summary>
+    /// Gets the external runner session identifier to resume.
+    /// </summary>
+    public string? ExternalSessionId { get; }
+
     private static IReadOnlyDictionary<string, string> CopyDictionary(IReadOnlyDictionary<string, string>? source) =>
         source is null
             ? new Dictionary<string, string>()
@@ -117,5 +133,22 @@ public sealed class RunnerRequest
         }
 
         return value;
+    }
+
+    private static string? NormalizeExternalSessionId(
+        RunnerSessionPolicy sessionPolicy,
+        string? externalSessionId)
+    {
+        return sessionPolicy switch
+        {
+            RunnerSessionPolicy.NewSession when externalSessionId is null => null,
+            RunnerSessionPolicy.NewSession => throw new ArgumentException(
+                "External session ID must not be set when starting a new runner session.",
+                nameof(externalSessionId)),
+            RunnerSessionPolicy.ResumeSession => RequireText(
+                externalSessionId ?? string.Empty,
+                nameof(externalSessionId)),
+            _ => throw new ArgumentOutOfRangeException(nameof(sessionPolicy), sessionPolicy, "Unknown session policy."),
+        };
     }
 }

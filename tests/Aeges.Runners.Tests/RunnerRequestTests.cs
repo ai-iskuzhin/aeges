@@ -28,6 +28,8 @@ public sealed class RunnerRequestTests
         Assert.Equal(TimeSpan.FromMinutes(30), request.Timeout);
         Assert.Equal("true", request.EnvironmentVariables["AEGES_TEST"]);
         Assert.Equal("src/*", request.PolicyHints["allowed_paths"]);
+        Assert.Equal(RunnerSessionPolicy.NewSession, request.SessionPolicy);
+        Assert.Null(request.ExternalSessionId);
     }
 
     [Fact]
@@ -63,6 +65,26 @@ public sealed class RunnerRequestTests
         Assert.Throws<ArgumentOutOfRangeException>(() => CreateRequest(timeout: TimeSpan.FromSeconds(-1)));
     }
 
+    [Fact]
+    public void Create_records_explicit_external_session_resume()
+    {
+        var request = CreateRequest(
+            sessionPolicy: RunnerSessionPolicy.ResumeSession,
+            externalSessionId: "019e05e0-d00b-7182-8516-0d258c7993aa");
+
+        Assert.Equal(RunnerSessionPolicy.ResumeSession, request.SessionPolicy);
+        Assert.Equal("019e05e0-d00b-7182-8516-0d258c7993aa", request.ExternalSessionId);
+    }
+
+    [Fact]
+    public void Create_rejects_invalid_external_session_policy_inputs()
+    {
+        Assert.Throws<ArgumentException>(() => CreateRequest(externalSessionId: "session-001"));
+        Assert.Throws<ArgumentException>(() => CreateRequest(
+            sessionPolicy: RunnerSessionPolicy.ResumeSession,
+            externalSessionId: " "));
+    }
+
     private static RunnerRequest CreateRequest(
         string projectPath = "/work/aeges",
         string worktreePath = "/tmp/aeges/worktrees/project-001/task-001",
@@ -70,7 +92,9 @@ public sealed class RunnerRequestTests
         string artifactOutputDirectory = "/tmp/aeges/artifacts/task-001",
         TimeSpan? timeout = null,
         IReadOnlyDictionary<string, string>? environmentVariables = null,
-        IReadOnlyDictionary<string, string>? policyHints = null) =>
+        IReadOnlyDictionary<string, string>? policyHints = null,
+        RunnerSessionPolicy sessionPolicy = RunnerSessionPolicy.NewSession,
+        string? externalSessionId = null) =>
         new(
             new TaskId("task-001"),
             new IterationId("iteration-001"),
@@ -81,5 +105,7 @@ public sealed class RunnerRequestTests
             artifactOutputDirectory,
             timeout ?? TimeSpan.FromMinutes(30),
             environmentVariables,
-            policyHints);
+            policyHints,
+            sessionPolicy,
+            externalSessionId);
 }
