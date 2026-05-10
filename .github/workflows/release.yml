@@ -56,7 +56,9 @@ jobs:
           -o .artifacts/release
 
       - name: Stage installer
-        run: cp scripts/install.sh .artifacts/release/install.sh
+        run: |
+          cp scripts/install.sh .artifacts/release/install.sh
+          cp scripts/install.ps1 .artifacts/release/install.ps1
 
       - name: Write checksums
         working-directory: .artifacts/release

@@ -60,6 +60,39 @@ When `AEGES_VERSION` is set and no local package source is provided, it
 downloads `Aeges.Cli.<version>.nupkg` and `SHA256SUMS` from the GitHub release,
 verifies the checksum, then installs from the downloaded package directory.
 
+## Windows PowerShell UX
+
+Windows should use the same artifact contract through PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/aeges-dev/aeges/main/scripts/install.ps1 | iex
+```
+
+For a versioned GitHub release:
+
+```powershell
+$env:AEGES_VERSION = "0.1.0-alpha.1"
+irm https://raw.githubusercontent.com/aeges-dev/aeges/main/scripts/install.ps1 | iex
+```
+
+For a local checkout:
+
+```powershell
+dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
+.\scripts\install.ps1 -PackageSource .\.artifacts\packages -Version 0.1.0-alpha.1
+```
+
+`install.ps1` supports the same configuration surface as `install.sh`:
+
+```text
+AEGES_VERSION
+AEGES_PACKAGE_SOURCE
+AEGES_DOWNLOAD_BASE_URL
+AEGES_GITHUB_REPOSITORY
+AEGES_TOOL_PACKAGE
+AEGES_TOOL_COMMAND
+```
+
 ## .NET Tool
 
 The CLI is packaged as a .NET tool. From a local checkout:
@@ -124,6 +157,7 @@ GitHub releases should publish:
 
 ```text
 install.sh
+install.ps1
 Aeges.Cli.<version>.nupkg
 SHA256SUMS
 ```
@@ -134,10 +168,10 @@ For tag `v0.1.0-alpha.1`, the default remote package URL is:
 https://github.com/aeges-dev/aeges/releases/download/v0.1.0-alpha.1/Aeges.Cli.0.1.0-alpha.1.nupkg
 ```
 
-The release workflow builds, tests, packs the CLI tool, stages `install.sh`, and
-generates SHA-256 checksums. Tags named `v*` publish a GitHub release; manual
-workflow runs upload the same files as workflow artifacts without publishing a
-release.
+The release workflow builds, tests, packs the CLI tool, stages `install.sh` and
+`install.ps1`, and generates SHA-256 checksums. Tags named `v*` publish a GitHub
+release; manual workflow runs upload the same files as workflow artifacts
+without publishing a release.
 
 ## macOS And Linux: Homebrew
 
@@ -178,7 +212,8 @@ aeges agent start
 ## Current Priority
 
 1. Keep the .NET tool package working in CI.
-2. Keep `scripts/install.sh` working for local package sources.
+2. Keep `scripts/install.sh` and `scripts/install.ps1` working for local package
+   sources.
 3. Publish a checksummed GitHub release artifact from version tags.
 4. Add a Homebrew tap.
 5. Add platform service packages only after daemon behavior is stable.

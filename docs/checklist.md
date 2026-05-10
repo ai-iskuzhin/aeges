@@ -111,6 +111,7 @@ review, test, and document independently.
 - [x] Add install roadmap.
 - [x] Add shell installer script for .NET tool based local installs.
 - [x] Add GitHub release workflow for installer, package, and checksum assets.
+- [x] Add Windows PowerShell installer for local and release package installs.
 
 ## Current Focus
 
