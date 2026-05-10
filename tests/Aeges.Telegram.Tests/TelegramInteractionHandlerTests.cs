@@ -227,6 +227,7 @@ public sealed class TelegramInteractionHandlerTests
                 task,
                 [iteration],
                 [artifact],
+                "/runtime/artifacts",
                 [execution],
                 "Mock runner result: success."),
         };
@@ -238,7 +239,7 @@ public sealed class TelegramInteractionHandlerTests
 
         Assert.Contains("> Status: reviewing", response.Text, StringComparison.Ordinal);
         Assert.Contains("Runner response:\n> Mock runner result: success.", response.Text, StringComparison.Ordinal);
-        Assert.Contains("Artifacts:\n> - result: project-aeges/task-001/iteration-001/result.md", response.Text, StringComparison.Ordinal);
+        Assert.Contains("Artifacts:\n> - result: /runtime/artifacts/project-aeges/task-001/iteration-001/result.md", response.Text, StringComparison.Ordinal);
         Assert.Equal("Continue", response.Buttons.Rows[0][0].Text);
         Assert.Equal("ae:t:more:task-001", response.Buttons.Rows[0][0].CallbackData);
         Assert.Equal(TelegramButtonStyle.Primary, response.Buttons.Rows[0][0].Style);
@@ -695,7 +696,7 @@ public sealed class TelegramInteractionHandlerTests
 
             var result = Task is not null && Task.Id == taskId
                 ? ApplicationResult<TelegramTaskReviewSnapshot>.Success(
-                    new TelegramTaskReviewSnapshot(Task, [], [], [], LatestRunnerResponse: null))
+                    new TelegramTaskReviewSnapshot(Task, [], [], "/runtime/artifacts", [], LatestRunnerResponse: null))
                 : ApplicationResult<TelegramTaskReviewSnapshot>.Failure("task_not_found", $"Task '{taskId}' was not found.");
 
             return System.Threading.Tasks.Task.FromResult(result);

@@ -505,7 +505,8 @@ public sealed class TelegramInteractionHandler
                 '\n',
                 snapshot.Artifacts
                     .OrderBy(artifact => artifact.CreatedAt)
-                    .Select(artifact => $"- {artifact.Type.ToStorageValue()}: {artifact.RelativePath}"));
+                    .Select(artifact =>
+                        $"- {artifact.Type.ToStorageValue()}: {FormatArtifactPath(snapshot.ArtifactRootPath, artifact.RelativePath)}"));
         var runnerResponse = snapshot.LatestRunnerResponse is null
             ? "(none yet)"
             : snapshot.LatestRunnerResponse;
@@ -725,6 +726,13 @@ public sealed class TelegramInteractionHandler
 
         return $"{execution.RunnerId} {status}";
     }
+
+    private static string FormatArtifactPath(
+        string artifactRootPath,
+        string relativePath) =>
+        Path.Combine(artifactRootPath, relativePath)
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/');
 
     private static string FormatLastSeen(DateTimeOffset? lastSeenAt) =>
         lastSeenAt is null ? "never" : lastSeenAt.Value.ToString("O");

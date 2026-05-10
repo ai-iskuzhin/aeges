@@ -246,6 +246,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
                 task.Value!,
                 iterations,
                 artifacts,
+                runtimeLayout.ArtifactsPath,
                 executions,
                 latestResponse));
     }

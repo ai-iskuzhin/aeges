@@ -295,6 +295,8 @@ status, and artifacts. Press `Complete` there to confirm the worker result, or
 press `Continue` and send follow-up feedback to requeue the task for another
 bounded iteration. Telegram starts the local agent after creating or continuing
 a task, so queued work can be picked up without a separate terminal step.
+Artifact paths displayed in Telegram point at `~/.aeges/artifacts/...`, not the
+target project directory.
 
 ## Configuration
 

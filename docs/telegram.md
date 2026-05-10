@@ -83,6 +83,10 @@ confirm the result and move the task to `completed`, or press `Continue` and sen
 follow-up feedback to store a `review` artifact and requeue the task for another
 bounded iteration.
 
+Artifact paths shown in Telegram are runtime artifact paths under the local
+Aeges artifact root, such as `~/.aeges/artifacts/...`; they are not saved inside
+the target project checkout.
+
 When Telegram creates or continues a task, it also runs `aeges agent start
 --config <path>`. If the agent is already running, the command leaves it alone;
 if it is stopped, queued work can begin processing without a separate terminal

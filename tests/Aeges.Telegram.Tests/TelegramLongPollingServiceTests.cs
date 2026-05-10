@@ -313,7 +313,7 @@ public sealed class TelegramLongPollingServiceTests
         {
             var result = WatchedTask is not null && WatchedTask.Id == taskId
                 ? Aeges.Application.ApplicationResult<TelegramTaskReviewSnapshot>.Success(
-                    new TelegramTaskReviewSnapshot(WatchedTask, [], [], [], LatestRunnerResponse: null))
+                    new TelegramTaskReviewSnapshot(WatchedTask, [], [], "/runtime/artifacts", [], LatestRunnerResponse: null))
                 : Aeges.Application.ApplicationResult<TelegramTaskReviewSnapshot>.Failure(
                     "task_not_found",
                     $"Task '{taskId}' was not found.");
