@@ -113,6 +113,7 @@ provides a small process wrapper:
 
 ```text
 aeges telegram start
+aeges telegram restart
 aeges telegram status
 aeges telegram stop
 ```
@@ -121,7 +122,9 @@ aeges telegram stop
 metadata to `~/.aeges/runs/telegram.pid.json`, and redirects output to
 `~/.aeges/logs/telegram.stdout.log` and
 `~/.aeges/logs/telegram.stderr.log`. `status` reports whether that pid is still
-alive, and `stop` terminates it and removes the metadata file.
+alive, `stop` terminates it and removes the metadata file, and `restart` stops
+the recorded process before starting a fresh transport with the same options
+accepted by `telegram start`.
 
 For script and CI usage, disable prompts and fail deterministically when required
 setup is missing:

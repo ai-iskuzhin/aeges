@@ -113,6 +113,7 @@ configured runner for assigned tasks:
 
 ```bash
 aeges agent start
+aeges agent restart
 aeges agent status
 aeges agent stop
 ```
@@ -207,6 +208,7 @@ without occupying the terminal, use the local process wrapper:
 
 ```bash
 aeges telegram start
+aeges telegram restart
 aeges telegram status
 aeges telegram stop
 ```
@@ -221,6 +223,14 @@ therefore:
 ```bash
 aeges telegram start
 aeges agent start
+```
+
+After changing configuration or installing a new Aeges build, restart both
+background processes:
+
+```bash
+aeges telegram restart
+aeges agent restart
 ```
 
 Machine status in Telegram comes from the local agent heartbeat. If a machine
@@ -257,6 +267,9 @@ To run work from Telegram, start both background processes:
 aeges telegram start
 aeges agent start
 ```
+
+Use `aeges telegram restart` and `aeges agent restart` after local tool updates
+or configuration changes.
 
 Then send any message to the bot, tap `New task`, choose the project and
 machine, then send the title and goal as chat messages. The task is queued
@@ -321,12 +334,14 @@ aeges task status <task-id> [...]
 aeges task cancel <task-id> [...]
 aeges agent run [--once] [--runner-id <id>] [--create-worktree] [--execute-runner] [...]
 aeges agent start [--runner-id <id>] [--no-execute-runner] [--no-create-worktree] [...]
+aeges agent restart [--runner-id <id>] [--no-execute-runner] [--no-create-worktree] [...]
 aeges agent status [--json]
 aeges agent stop [--json]
 aeges telegram setup [...]
 aeges telegram check [...]
 aeges telegram run [--once] [--no-interactive] [--poll-limit <int>] [--timeout-seconds <int>] [...]
 aeges telegram start [--poll-limit <int>] [--timeout-seconds <int>] [...]
+aeges telegram restart [--poll-limit <int>] [--timeout-seconds <int>] [...]
 aeges telegram status [--json]
 aeges telegram stop [--json]
 ```

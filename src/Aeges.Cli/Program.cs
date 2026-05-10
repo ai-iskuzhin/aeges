@@ -97,6 +97,11 @@ internal static class AegesCli
             return await RunAgentStartAsync(agentStartArgs, output, error, cancellationToken);
         }
 
+        if (args is ["agent", "restart", .. var agentRestartArgs])
+        {
+            return await RunAgentRestartAsync(agentRestartArgs, output, error, cancellationToken);
+        }
+
         if (args is ["agent", "status", .. var agentStatusArgs])
         {
             return await RunAgentStatusAsync(agentStatusArgs, output, error, cancellationToken);
@@ -115,6 +120,11 @@ internal static class AegesCli
         if (args is ["telegram", "start", .. var telegramStartArgs])
         {
             return await RunTelegramStartAsync(telegramStartArgs, input, output, error, cancellationToken);
+        }
+
+        if (args is ["telegram", "restart", .. var telegramRestartArgs])
+        {
+            return await RunTelegramRestartAsync(telegramRestartArgs, input, output, error, cancellationToken);
         }
 
         if (args is ["telegram", "status", .. var telegramStatusArgs])
@@ -240,6 +250,42 @@ internal static class AegesCli
             cancellationToken);
 
         await WriteAgentProcessStartResultAsync(result, options.Json, output);
+
+        return 0;
+    }
+
+    private static async Task<int> RunAgentRestartAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = AgentProcessCliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var manager = new AgentProcessManager();
+        await manager.StopAsync(cancellationToken);
+        var result = await manager.StartAsync(
+            new AgentProcessStartRequest(
+                options.ConfigPath,
+                options.ConnectionString,
+                options.MachineId,
+                options.MachineName,
+                options.Platform,
+                options.RunnerId,
+                options.PollIntervalSeconds,
+                options.QueuePreviewLimit,
+                options.ClaimQueuedTask,
+                options.ExecuteRunner,
+                options.CreateWorktree),
+            cancellationToken);
+
+        await WriteAgentProcessRestartResultAsync(result, options.Json, output);
 
         return 0;
     }
@@ -408,6 +454,47 @@ internal static class AegesCli
             cancellationToken);
 
         await WriteTelegramProcessStartResultAsync(result, options.Json, output);
+
+        return 0;
+    }
+
+    private static async Task<int> RunTelegramRestartAsync(
+        string[] args,
+        TextReader input,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = TelegramProcessCliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var configuration = LoadConfiguration(options);
+        if (!await TelegramCliSetup.EnsureTokenAsync(
+            configuration.Telegram,
+            input,
+            error,
+            allowPrompt: false,
+            cancellationToken))
+        {
+            return 1;
+        }
+
+        var manager = new TelegramProcessManager();
+        await manager.StopAsync(cancellationToken);
+        var result = await manager.StartAsync(
+            new TelegramProcessStartRequest(
+                options.ConfigPath,
+                options.ConnectionString,
+                options.Limit,
+                options.TimeoutSeconds),
+            cancellationToken);
+
+        await WriteTelegramProcessRestartResultAsync(result, options.Json, output);
 
         return 0;
     }
@@ -1081,6 +1168,29 @@ internal static class AegesCli
         await WriteAgentProcessStatusLinesAsync(result.Status, output);
     }
 
+    private static async Task WriteAgentProcessRestartResultAsync(
+        AgentProcessStartResult result,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                AgentProcessStatusOutput.From(result.Status),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync(result.AlreadyRunning
+            ? "Agent worker is already running."
+            : "Agent worker restarted.");
+        await WriteAgentProcessStatusLinesAsync(result.Status, output);
+    }
+
     private static async Task WriteAgentProcessStatusAsync(
         AgentProcessStatus status,
         bool json,
@@ -1194,6 +1304,29 @@ internal static class AegesCli
         await WriteTelegramProcessStatusLinesAsync(result.Status, output);
     }
 
+    private static async Task WriteTelegramProcessRestartResultAsync(
+        TelegramProcessStartResult result,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                TelegramProcessStatusOutput.From(result.Status),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync(result.AlreadyRunning
+            ? "Telegram transport is already running."
+            : "Telegram transport restarted.");
+        await WriteTelegramProcessStatusLinesAsync(result.Status, output);
+    }
+
     private static async Task WriteTelegramProcessStatusAsync(
         TelegramProcessStatus status,
         bool json,
@@ -1290,12 +1423,14 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges task cancel <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--create-worktree] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent start [--machine-id <id>] [--runner-id <id>] [--no-claim] [--no-create-worktree] [--no-execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges agent restart [--machine-id <id>] [--runner-id <id>] [--no-claim] [--no-create-worktree] [--no-execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent status [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent stop [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges telegram setup [--config <path>]");
         await error.WriteLineAsync("  aeges telegram check [--config <path>] [--json]");
         await error.WriteLineAsync("  aeges telegram run [--once] [--no-interactive] [--poll-limit <int>] [--timeout-seconds <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges telegram start [--poll-limit <int>] [--timeout-seconds <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges telegram restart [--poll-limit <int>] [--timeout-seconds <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges telegram status [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges telegram stop [--config <path>] [--connection-string <value>] [--json]");
     }

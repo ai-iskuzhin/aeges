@@ -69,6 +69,7 @@ For normal local background operation, use:
 
 ```text
 aeges agent start
+aeges agent restart
 aeges agent status
 aeges agent stop
 ```
@@ -78,6 +79,9 @@ process. By default it enables worktree creation and runner execution so tasks
 queued from Telegram can be processed automatically. Process metadata is stored
 in `~/.aeges/runs/agent.pid.json`, and output is redirected to
 `~/.aeges/logs/agent.stdout.log` and `~/.aeges/logs/agent.stderr.log`.
+`agent restart` stops the recorded worker when it is running, clears stale
+metadata when needed, and starts a fresh worker with the same options accepted
+by `agent start`.
 
 The runner id for newly created iterations defaults to configured
 `runners.default` and can be overridden with:
