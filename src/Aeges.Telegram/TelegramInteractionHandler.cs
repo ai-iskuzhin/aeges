@@ -71,6 +71,8 @@ public sealed class TelegramInteractionHandler
                 await SelectTaskMachineAsync(update.ChatId, machineId, cancellationToken),
             _ when TelegramCallbackData.TryParseViewTask(callbackData, out var taskId) =>
                 await ViewTaskAsync(taskId, cancellationToken),
+            _ when TelegramCallbackData.TryParseCompleteTask(callbackData, out var taskId) =>
+                await CompleteTaskAsync(taskId, cancellationToken),
             _ when TelegramCallbackData.TryParseCancelTask(callbackData, out var taskId) =>
                 await CancelTaskAsync(taskId, cancellationToken),
             _ when TelegramCallbackData.TryParseApproveApproval(callbackData, out var approvalId) =>
@@ -330,31 +332,55 @@ public sealed class TelegramInteractionHandler
         TaskId taskId,
         CancellationToken cancellationToken)
     {
-        var task = await application.GetTaskAsync(taskId, cancellationToken);
+        var review = await application.GetTaskReviewAsync(taskId, cancellationToken);
 
-        if (!task.IsSuccess)
+        if (!review.IsSuccess)
         {
-            return new TelegramResponse($"{task.Error!.Code}: {task.Error.Message}", BackButtons());
+            return new TelegramResponse($"{review.Error!.Code}: {review.Error.Message}", BackButtons());
         }
 
-        var buttons = task.Value!.Status.IsTerminal()
-            ? BackButtons()
-            : Buttons(
-                Row(Button("Cancel", TelegramCallbackData.CancelTask(task.Value.Id))),
-                Row(Button("Back", TelegramCallbackData.MainMenu)));
+        var snapshot = review.Value!;
+        var task = snapshot.Task;
+        var latestIteration = snapshot.Iterations
+            .OrderByDescending(iteration => iteration.IterationNumber)
+            .FirstOrDefault();
+        var latestExecution = latestIteration is null
+            ? null
+            : snapshot.RunnerExecutions
+                .Where(execution => execution.IterationId == latestIteration.Id)
+                .OrderByDescending(execution => execution.StartedAt)
+                .FirstOrDefault();
+        var artifactLines = snapshot.Artifacts.Count == 0
+            ? "(none)"
+            : string.Join(
+                '\n',
+                snapshot.Artifacts
+                    .OrderBy(artifact => artifact.CreatedAt)
+                    .Select(artifact => $"- {artifact.Type.ToStorageValue()}: {artifact.RelativePath}"));
+        var runnerResponse = snapshot.LatestRunnerResponse is null
+            ? "(none yet)"
+            : snapshot.LatestRunnerResponse;
 
         return new TelegramResponse(
             $"""
-            Task: {task.Value.Id}
-            Title: {task.Value.Title}
-            Status: {task.Value.Status.ToStorageValue()}
-            Iterations: {task.Value.CurrentIteration}/{task.Value.MaxIterations}
+            Task: {task.Id}
+            Title: {task.Title}
+            Status: {task.Status.ToStorageValue()}
+            Iterations: {task.CurrentIteration}/{task.MaxIterations}
+            Latest iteration: {FormatIteration(latestIteration)}
+            Runner: {FormatRunnerExecution(latestExecution)}
 
             Goal:
-            {task.Value.Goal}
+            {task.Goal}
+
+            Runner response:
+            {runnerResponse}
+
+            Artifacts:
+            {artifactLines}
             """,
-            buttons,
-            new TelegramResponseMetadata(TelegramResponseKind.TaskDetails, task.Value.Id));
+            TaskDetailButtons(task),
+            new TelegramResponseMetadata(TelegramResponseKind.TaskDetails, task.Id));
     }
 
     private async Task<TelegramResponse> ViewTaskAsync(
@@ -385,6 +411,23 @@ public sealed class TelegramInteractionHandler
         return new TelegramResponse(
             $"Task cancelled: {task.Value!.Id}",
             BackButtons());
+    }
+
+    private async Task<TelegramResponse> CompleteTaskAsync(
+        TaskId taskId,
+        CancellationToken cancellationToken)
+    {
+        var task = await application.CompleteTaskAsync(taskId, cancellationToken);
+
+        if (!task.IsSuccess)
+        {
+            return new TelegramResponse($"{task.Error!.Code}: {task.Error.Message}", BackButtons());
+        }
+
+        return new TelegramResponse(
+            $"Task completed: {task.Value!.Id}",
+            Buttons(Row(Button("View task", TelegramCallbackData.ViewTask(task.Value.Id))), Row(Button("Back", TelegramCallbackData.MainMenu))),
+            new TelegramResponseMetadata(TelegramResponseKind.TaskWatch, task.Value.Id));
     }
 
     private async Task<TelegramResponse> ViewApprovalAsync(
@@ -451,6 +494,49 @@ public sealed class TelegramInteractionHandler
 
     private static TelegramButtonMarkup CancelDraftButtons() =>
         Buttons(Row(Button("Cancel", TelegramCallbackData.CancelCreateTask)));
+
+    private static TelegramButtonMarkup TaskDetailButtons(RuntimeTask task)
+    {
+        if (task.Status.IsTerminal())
+        {
+            return BackButtons();
+        }
+
+        if (task.Status == RuntimeTaskStatus.Reviewing)
+        {
+            return Buttons(
+                Row(Button("Complete", TelegramCallbackData.CompleteTask(task.Id))),
+                Row(Button("Cancel", TelegramCallbackData.CancelTask(task.Id))),
+                Row(Button("Back", TelegramCallbackData.MainMenu)));
+        }
+
+        return Buttons(
+            Row(Button("Cancel", TelegramCallbackData.CancelTask(task.Id))),
+            Row(Button("Back", TelegramCallbackData.MainMenu)));
+    }
+
+    private static string FormatIteration(TaskIteration? iteration) =>
+        iteration is null
+            ? "(none)"
+            : $"{iteration.IterationNumber} {iteration.Status.ToStorageValue()} via {iteration.RunnerId}";
+
+    private static string FormatRunnerExecution(RuntimeRunnerExecution? execution)
+    {
+        if (execution is null)
+        {
+            return "(none)";
+        }
+
+        var status = execution.Cancelled
+            ? "cancelled"
+            : execution.TimedOut
+                ? "timed out"
+                : execution.ExitCode is null
+                    ? "running"
+                    : $"exit {execution.ExitCode}";
+
+        return $"{execution.RunnerId} {status}";
+    }
 
     private static string FormatLastSeen(DateTimeOffset? lastSeenAt) =>
         lastSeenAt is null ? "never" : lastSeenAt.Value.ToString("O");

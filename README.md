@@ -279,6 +279,8 @@ The `Tasks` button opens status buckets for queued, planning, running,
 reviewing, waiting approval, completed, failed, and cancelled tasks. When a
 watched task changes, Telegram edits the open task-details message when
 possible; otherwise it sends a short notification with a `View task` button.
+Open a task in `reviewing` to see the latest runner response, runner exit
+status, and artifacts. Press `Complete` there to confirm the worker result.
 
 ## Configuration
 

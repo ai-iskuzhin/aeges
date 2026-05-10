@@ -83,6 +83,13 @@ public static class TelegramCallbackData
     public static string CancelTask(TaskId taskId) => $"ae:t:x:{taskId.Value}";
 
     /// <summary>
+    /// Creates a task completion callback payload.
+    /// </summary>
+    /// <param name="taskId">The task identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string CompleteTask(TaskId taskId) => $"ae:t:done:{taskId.Value}";
+
+    /// <summary>
     /// Creates an approval details callback payload.
     /// </summary>
     /// <param name="approvalId">The approval request identifier.</param>
@@ -140,6 +147,34 @@ public static class TelegramCallbackData
     public static bool TryParseCancelTask(string payload, out TaskId taskId)
     {
         const string prefix = "ae:t:x:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length > prefix.Length)
+        {
+            try
+            {
+                taskId = new TaskId(payload[prefix.Length..]);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                taskId = default;
+                return false;
+            }
+        }
+
+        taskId = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to parse a task completion callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="taskId">The parsed task identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseCompleteTask(string payload, out TaskId taskId)
+    {
+        const string prefix = "ae:t:done:";
 
         if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length > prefix.Length)
         {

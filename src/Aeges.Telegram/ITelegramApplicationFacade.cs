@@ -75,12 +75,30 @@ public interface ITelegramApplicationFacade
     Task<ApplicationResult<RuntimeTask>> GetTaskAsync(TaskId taskId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Gets task review details, including iterations, artifacts, runner executions, and an output preview.
+    /// </summary>
+    /// <param name="taskId">The task identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The task review snapshot, or an expected failure.</returns>
+    Task<ApplicationResult<TelegramTaskReviewSnapshot>> GetTaskReviewAsync(
+        TaskId taskId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Cancels a task.
     /// </summary>
     /// <param name="taskId">The task identifier.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The task cancellation result.</returns>
     Task<ApplicationResult<RuntimeTask>> CancelTaskAsync(TaskId taskId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Completes a task after review.
+    /// </summary>
+    /// <param name="taskId">The task identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The task completion result.</returns>
+    Task<ApplicationResult<RuntimeTask>> CompleteTaskAsync(TaskId taskId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Gets an approval request by identifier.

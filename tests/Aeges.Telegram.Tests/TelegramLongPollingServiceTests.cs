@@ -282,7 +282,28 @@ public sealed class TelegramLongPollingServiceTests
             return Task.FromResult(result);
         }
 
+        public Task<Aeges.Application.ApplicationResult<TelegramTaskReviewSnapshot>> GetTaskReviewAsync(
+            TaskId taskId,
+            CancellationToken cancellationToken)
+        {
+            var result = WatchedTask is not null && WatchedTask.Id == taskId
+                ? Aeges.Application.ApplicationResult<TelegramTaskReviewSnapshot>.Success(
+                    new TelegramTaskReviewSnapshot(WatchedTask, [], [], [], LatestRunnerResponse: null))
+                : Aeges.Application.ApplicationResult<TelegramTaskReviewSnapshot>.Failure(
+                    "task_not_found",
+                    $"Task '{taskId}' was not found.");
+
+            return Task.FromResult(result);
+        }
+
         public Task<Aeges.Application.ApplicationResult<RuntimeTask>> CancelTaskAsync(
+            TaskId taskId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<RuntimeTask>.Failure(
+                "task_not_found",
+                $"Task '{taskId}' was not found."));
+
+        public Task<Aeges.Application.ApplicationResult<RuntimeTask>> CompleteTaskAsync(
             TaskId taskId,
             CancellationToken cancellationToken) =>
             Task.FromResult(Aeges.Application.ApplicationResult<RuntimeTask>.Failure(

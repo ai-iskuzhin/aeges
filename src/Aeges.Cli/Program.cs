@@ -4,9 +4,12 @@ using System.Text.Json.Serialization;
 using Aeges.Agent;
 using Aeges.Application;
 using Aeges.Application.Approvals;
+using Aeges.Application.Artifacts;
 using Aeges.Application.Configuration;
+using Aeges.Application.Iterations;
 using Aeges.Application.Machines;
 using Aeges.Application.Projects;
+using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
 using Aeges.Application.Tasks;
 using Aeges.Core;
@@ -384,6 +387,9 @@ internal static class AegesCli
             new ProjectService(unitOfWork, clock),
             new MachineService(unitOfWork, clock),
             new TaskService(unitOfWork, clock),
+            new TaskIterationService(unitOfWork, clock),
+            new ArtifactService(unitOfWork, clock),
+            new RunnerExecutionService(unitOfWork, clock),
             new ApprovalService(unitOfWork, clock));
         var handler = new TelegramInteractionHandler(facade, configuration.Telegram);
         var pollingOptions = new TelegramLongPollingOptions(options.Limit, options.TimeoutSeconds);

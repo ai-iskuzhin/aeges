@@ -254,6 +254,9 @@ public sealed class LocalAgentRuntimeTests
             var executions = await unitOfWork.RunnerExecutions.ListByIterationAsync(
                 new IterationId(snapshot.CreatedIterationId!),
                 CancellationToken.None);
+            var artifacts = await unitOfWork.Artifacts.ListByIterationAsync(
+                new IterationId(snapshot.CreatedIterationId!),
+                CancellationToken.None);
 
             Assert.NotNull(snapshot.RunnerExecutionId);
             Assert.Equal("succeeded", snapshot.RunnerStatus);
@@ -269,6 +272,10 @@ public sealed class LocalAgentRuntimeTests
             Assert.True(execution.IsCompleted);
             Assert.False(execution.TimedOut);
             Assert.False(execution.Cancelled);
+            Assert.Contains(artifacts, artifact => artifact.Type == ArtifactType.StdoutLog);
+            Assert.Contains(artifacts, artifact => artifact.Type == ArtifactType.StderrLog);
+            Assert.Contains(artifacts, artifact => artifact.Type == ArtifactType.Result);
+            Assert.Equal(artifacts.Single(artifact => artifact.Type == ArtifactType.Result).Id, iteration.ResultArtifactId);
         }
         finally
         {

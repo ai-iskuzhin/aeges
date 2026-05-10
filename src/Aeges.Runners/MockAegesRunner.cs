@@ -60,18 +60,31 @@ public sealed class MockAegesRunner : IAegesRunner
             return RunnerResult.Cancelled("Mock runner was cancelled after execution delay.");
         }
 
-        return options.Behavior switch
+        if (options.Behavior == MockRunnerBehavior.Succeed)
         {
-            MockRunnerBehavior.Succeed => RunnerResult.Succeeded(
-                stdoutPath: Path.Combine(request.ArtifactOutputDirectory, "stdout.log"),
-                stderrPath: Path.Combine(request.ArtifactOutputDirectory, "stderr.log"),
-                resultArtifactPath: Path.Combine(request.ArtifactOutputDirectory, "result.md"),
+            Directory.CreateDirectory(request.ArtifactOutputDirectory);
+            var stdoutPath = Path.Combine(request.ArtifactOutputDirectory, "stdout.log");
+            var stderrPath = Path.Combine(request.ArtifactOutputDirectory, "stderr.log");
+            var resultPath = Path.Combine(request.ArtifactOutputDirectory, "result.md");
+
+            await File.WriteAllTextAsync(stdoutPath, "Mock runner completed successfully.\n", cancellationToken);
+            await File.WriteAllTextAsync(stderrPath, string.Empty, cancellationToken);
+            await File.WriteAllTextAsync(resultPath, "Mock runner result: success.\n", cancellationToken);
+
+            return RunnerResult.Succeeded(
+                stdoutPath: stdoutPath,
+                stderrPath: stderrPath,
+                resultArtifactPath: resultPath,
                 producedArtifactPaths:
                 [
-                    Path.Combine(request.ArtifactOutputDirectory, "stdout.log"),
-                    Path.Combine(request.ArtifactOutputDirectory, "stderr.log"),
-                    Path.Combine(request.ArtifactOutputDirectory, "result.md"),
-                ]),
+                    stdoutPath,
+                    stderrPath,
+                    resultPath,
+                ]);
+        }
+
+        return options.Behavior switch
+        {
             MockRunnerBehavior.Fail => RunnerResult.Failed(options.ErrorSummary ?? "Mock runner failed.", exitCode: 1),
             MockRunnerBehavior.TimeOut => RunnerResult.TimedOut(options.ErrorSummary ?? "Mock runner timed out."),
             MockRunnerBehavior.RequireApproval => RunnerResult.ApprovalRequired(options.ErrorSummary ?? "Mock runner requires approval."),

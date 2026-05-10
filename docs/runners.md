@@ -25,6 +25,11 @@ Runner results include status, exit code, stdout/stderr paths, result artifact
 path, produced artifact paths, and an error summary when execution does not
 succeed.
 
+After runner execution, Aeges registers existing stdout, stderr, result, and
+produced files as artifacts attached to the task iteration. These metadata
+records are what transports use to show review summaries; the files remain in
+the runtime artifact directory.
+
 Aeges stores every launched worker process as a durable runner execution record.
 The record captures the owning task and iteration, runner id, command
 description, working directory, start and completion timestamps, exit code, and

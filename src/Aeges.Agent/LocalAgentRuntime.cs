@@ -308,6 +308,7 @@ public sealed class LocalAgentRuntime
 
         var result = await resolvedRunner.RunAsync(runnerRequest, cancellationToken);
         await CompleteRunnerExecutionAsync(executionService, execution.Value!.Id, result, cancellationToken);
+        await RegisterRunnerArtifactsAsync(unitOfWork, taskId, iterationId, runnerRequest, options, result, cancellationToken);
         await ApplyRunnerResultAsync(taskService, iterationService, taskId, iterationId, result, cancellationToken);
 
         return new RunnerRunSummary(
@@ -315,6 +316,70 @@ public sealed class LocalAgentRuntime
             result.Status.ToStorageValue(),
             result.ExitCode,
             result.ErrorSummary);
+    }
+
+    private async Task RegisterRunnerArtifactsAsync(
+        SqliteUnitOfWork unitOfWork,
+        TaskId taskId,
+        IterationId iterationId,
+        RunnerRequest runnerRequest,
+        AgentRunOptions options,
+        RunnerResult result,
+        CancellationToken cancellationToken)
+    {
+        var artifactService = new ArtifactService(unitOfWork, clock);
+        var layout = CreateRuntimeLayout(options);
+        var artifactTypes = new Dictionary<string, ArtifactType>(StringComparer.Ordinal);
+
+        AddPath(artifactTypes, result.StdoutPath, ArtifactType.StdoutLog);
+        AddPath(artifactTypes, result.StderrPath, ArtifactType.StderrLog);
+        AddPath(artifactTypes, result.ResultArtifactPath, ArtifactType.Result);
+
+        foreach (var path in result.ProducedArtifactPaths)
+        {
+            AddPath(artifactTypes, path, ArtifactType.Metadata);
+        }
+
+        foreach (var pair in artifactTypes)
+        {
+            if (!File.Exists(pair.Key))
+            {
+                continue;
+            }
+
+            var fileInfo = new FileInfo(pair.Key);
+            await using var stream = File.OpenRead(pair.Key);
+            var sha256 = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken)).ToLowerInvariant();
+            var registered = await artifactService.RegisterAsync(
+                new RegisterArtifactRequest(
+                    taskId,
+                    iterationId,
+                    pair.Value,
+                    ToArtifactRelativePath(layout, pair.Key),
+                    fileInfo.Length,
+                    sha256),
+                cancellationToken);
+
+            await RequireSuccessAsync(registered);
+        }
+    }
+
+    private static void AddPath(
+        IDictionary<string, ArtifactType> artifacts,
+        string? path,
+        ArtifactType type)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(path);
+
+        if (!artifacts.ContainsKey(fullPath))
+        {
+            artifacts.Add(fullPath, type);
+        }
     }
 
     private IAegesRunner ResolveRunner(AgentRunOptions options)

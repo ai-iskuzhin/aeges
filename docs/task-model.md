@@ -79,6 +79,12 @@ waiting_approval -> running | failed | cancelled
 
 Terminal iteration states do not allow further transitions.
 
+`reviewing` means the worker has returned control to Aeges and the runtime is
+waiting for a governed review decision. For the MVP Telegram flow, successful
+runner execution moves the task to `reviewing`; an operator can inspect the
+runner response and registered artifacts, then press `Complete` in the task
+details view to move the task to `completed`.
+
 ## Artifacts
 
 Artifacts are durable metadata records for files stored outside the database.

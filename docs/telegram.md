@@ -76,6 +76,11 @@ pending approvals so operators can see queue shape without opening every view.
 The task menu groups tasks by lifecycle status: queued, planning, running,
 reviewing, waiting approval, completed, failed, and cancelled.
 
+The `reviewing` bucket is the human confirmation step after a worker succeeds.
+Opening a reviewing task shows the latest iteration, runner exit status,
+registered artifacts, and a short runner response preview. Press `Complete` to
+confirm the result and move the task to `completed`.
+
 When a task watched by a chat changes status, the Telegram transport notifies
 that chat. If the chat's last bot message is the task details message, the
 transport edits that message in place. Otherwise it sends a compact

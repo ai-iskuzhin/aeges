@@ -181,6 +181,93 @@ public sealed class TelegramInteractionHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_shows_review_details_and_completion_button_for_reviewing_task()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Wire Telegram buttons",
+            "Expose Telegram actions through inline buttons.",
+            Now);
+        task.StartPlanning(Now);
+        task.StartRunning(Now);
+        task.StartReview(Now);
+        var iteration = TaskIteration.Create(
+            new IterationId("iteration-001"),
+            task.Id,
+            1,
+            new RunnerId("mock"),
+            Now);
+        iteration.StartRunning(Now);
+        iteration.StartReview(Now);
+        iteration.Complete(Now);
+        var artifact = new RuntimeArtifact(
+            new ArtifactId("artifact-001"),
+            task.Id,
+            iteration.Id,
+            ArtifactType.Result,
+            "project-aeges/task-001/iteration-001/result.md",
+            Now);
+        var execution = RuntimeRunnerExecution.Start(
+            new RunnerExecutionId("runner-execution-001"),
+            task.Id,
+            iteration.Id,
+            new RunnerId("mock"),
+            "runner:mock",
+            "/tmp/worktree",
+            Now);
+        execution.RecordExit(0, Now);
+        var facade = new FakeTelegramApplicationFacade
+        {
+            Task = task,
+            ReviewSnapshot = new TelegramTaskReviewSnapshot(
+                task,
+                [iteration],
+                [artifact],
+                [execution],
+                "Mock runner result: success."),
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ViewTask(task.Id)),
+            CancellationToken.None);
+
+        Assert.Contains("Status: reviewing", response.Text, StringComparison.Ordinal);
+        Assert.Contains("Runner response:\nMock runner result: success.", response.Text, StringComparison.Ordinal);
+        Assert.Contains("result: project-aeges/task-001/iteration-001/result.md", response.Text, StringComparison.Ordinal);
+        Assert.Equal("Complete", response.Buttons.Rows[0][0].Text);
+        Assert.Equal("ae:t:done:task-001", response.Buttons.Rows[0][0].CallbackData);
+    }
+
+    [Fact]
+    public async Task HandleAsync_completes_reviewing_task_from_button_callback()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Wire Telegram buttons",
+            "Expose Telegram actions through inline buttons.",
+            Now);
+        task.StartPlanning(Now);
+        task.StartRunning(Now);
+        task.StartReview(Now);
+        var facade = new FakeTelegramApplicationFacade { Task = task };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.CompleteTask(task.Id)),
+            CancellationToken.None);
+
+        Assert.Equal("Task completed: task-001", response.Text);
+        Assert.Equal(RuntimeTaskStatus.Completed, task.Status);
+        Assert.True(facade.CompleteTaskCalled);
+        Assert.Equal("View task", response.Buttons.Rows[0][0].Text);
+    }
+
+    [Fact]
     public async Task HandleAsync_cancels_task_from_button_callback()
     {
         var task = RuntimeTask.Create(
@@ -369,6 +456,8 @@ public sealed class TelegramInteractionHandlerTests
 
         public RuntimeTask? Task { get; init; }
 
+        public TelegramTaskReviewSnapshot? ReviewSnapshot { get; init; }
+
         public IReadOnlyList<ApprovalRequest> PendingApprovals { get; init; } = [];
 
         public ApprovalRequest? Approval { get; init; }
@@ -386,6 +475,8 @@ public sealed class TelegramInteractionHandlerTests
         public bool ApproveCalled { get; private set; }
 
         public bool CancelTaskCalled { get; private set; }
+
+        public bool CompleteTaskCalled { get; private set; }
 
         public string? ResolvedBy { get; private set; }
 
@@ -448,6 +539,23 @@ public sealed class TelegramInteractionHandlerTests
             return System.Threading.Tasks.Task.FromResult(result);
         }
 
+        public Task<ApplicationResult<TelegramTaskReviewSnapshot>> GetTaskReviewAsync(
+            TaskId taskId,
+            CancellationToken cancellationToken)
+        {
+            if (ReviewSnapshot is not null && ReviewSnapshot.Task.Id == taskId)
+            {
+                return System.Threading.Tasks.Task.FromResult(ApplicationResult<TelegramTaskReviewSnapshot>.Success(ReviewSnapshot));
+            }
+
+            var result = Task is not null && Task.Id == taskId
+                ? ApplicationResult<TelegramTaskReviewSnapshot>.Success(
+                    new TelegramTaskReviewSnapshot(Task, [], [], [], LatestRunnerResponse: null))
+                : ApplicationResult<TelegramTaskReviewSnapshot>.Failure("task_not_found", $"Task '{taskId}' was not found.");
+
+            return System.Threading.Tasks.Task.FromResult(result);
+        }
+
         public Task<ApplicationResult<RuntimeTask>> CancelTaskAsync(
             TaskId taskId,
             CancellationToken cancellationToken)
@@ -461,6 +569,31 @@ public sealed class TelegramInteractionHandlerTests
             }
 
             Task.Cancel(Now);
+            return System.Threading.Tasks.Task.FromResult(ApplicationResult<RuntimeTask>.Success(Task));
+        }
+
+        public Task<ApplicationResult<RuntimeTask>> CompleteTaskAsync(
+            TaskId taskId,
+            CancellationToken cancellationToken)
+        {
+            CompleteTaskCalled = true;
+
+            if (Task is null || Task.Id != taskId)
+            {
+                return System.Threading.Tasks.Task.FromResult(
+                    ApplicationResult<RuntimeTask>.Failure("task_not_found", $"Task '{taskId}' was not found."));
+            }
+
+            try
+            {
+                Task.Complete(Now);
+            }
+            catch (AegesDomainException exception)
+            {
+                return System.Threading.Tasks.Task.FromResult(
+                    ApplicationResult<RuntimeTask>.Failure("invalid_task_status_transition", exception.Message));
+            }
+
             return System.Threading.Tasks.Task.FromResult(ApplicationResult<RuntimeTask>.Success(Task));
         }
 
