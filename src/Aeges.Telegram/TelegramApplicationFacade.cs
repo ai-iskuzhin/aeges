@@ -9,8 +9,9 @@ using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
 using Aeges.Application.Tasks;
 using Aeges.Core;
-using System.Text.Json.Serialization;
+using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Aeges.Telegram;
 
@@ -128,6 +129,66 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     }
 
     /// <inheritdoc />
+    public async Task<ApplicationResult<TelegramAgentRestartResult>> RestartAgentAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+
+            var startInfo = new ProcessStartInfo(ResolveExecutablePath())
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            startInfo.ArgumentList.Add("agent");
+            startInfo.ArgumentList.Add("restart");
+            startInfo.ArgumentList.Add("--config");
+            startInfo.ArgumentList.Add(configPath);
+
+            using var process = Process.Start(startInfo);
+
+            if (process is null)
+            {
+                return ApplicationResult<TelegramAgentRestartResult>.Failure(
+                    "agent_restart_failed",
+                    "Failed to start the aeges agent restart command.");
+            }
+
+            var stdout = process.StandardOutput.ReadToEndAsync(timeout.Token);
+            var stderr = process.StandardError.ReadToEndAsync(timeout.Token);
+
+            await process.WaitForExitAsync(timeout.Token);
+            var outputText = (await stdout).Trim();
+            var errorText = (await stderr).Trim();
+
+            if (process.ExitCode != 0)
+            {
+                return ApplicationResult<TelegramAgentRestartResult>.Failure(
+                    "agent_restart_failed",
+                    FirstNonEmpty(errorText, outputText, $"aeges agent restart exited with code {process.ExitCode}."));
+            }
+
+            return ApplicationResult<TelegramAgentRestartResult>.Success(
+                new TelegramAgentRestartResult(FirstNonEmpty(outputText, "Agent restarted.")));
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return ApplicationResult<TelegramAgentRestartResult>.Failure(
+                "agent_restart_timeout",
+                "aeges agent restart did not finish within 30 seconds.");
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            return ApplicationResult<TelegramAgentRestartResult>.Failure(
+                "agent_restart_unavailable",
+                $"Could not run aeges agent restart: {exception.Message}");
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<ApplicationResult<RuntimeTask>> CreateTaskAsync(
         ProjectId projectId,
         MachineId machineId,
@@ -232,6 +293,34 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
 
         await stream.WriteAsync("\n"u8.ToArray(), cancellationToken);
     }
+
+    private static string ResolveExecutablePath() =>
+        ResolveFromPath("aeges") ?? Environment.ProcessPath ?? "aeges";
+
+    private static string? ResolveFromPath(string executable)
+    {
+        var pathValue = Environment.GetEnvironmentVariable("PATH");
+
+        if (string.IsNullOrWhiteSpace(pathValue))
+        {
+            return null;
+        }
+
+        foreach (var directory in pathValue.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var candidate = Path.Combine(directory, executable);
+
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private static string FirstNonEmpty(params string[] values) =>
+        values.First(value => !string.IsNullOrWhiteSpace(value));
 
     private string? TryReadLatestRunnerResponse(
         IReadOnlyList<RuntimeArtifact> artifacts,

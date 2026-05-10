@@ -95,8 +95,10 @@ sandbox controls:
   `danger-full-access`
 - `Bypass disallowed` toggles Codex's explicit approvals/sandbox bypass flag
 
-Settings are written to the local config file. Restart the local agent before
-running new tasks so the worker process reloads the updated runner policy.
+Settings are written to the local config file. When a setting changes, the
+Telegram transport runs `aeges agent restart --config <path>` so the worker
+process reloads the updated runner policy. If the restart command fails, the
+setting remains saved and the Telegram settings screen reports the failure.
 
 When a task watched by a chat changes status, the Telegram transport notifies
 that chat. If the chat's last bot message is the task details message, the

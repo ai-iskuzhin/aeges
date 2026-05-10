@@ -412,8 +412,11 @@ public sealed class TelegramInteractionHandlerTests
 
         Assert.Equal("danger-full-access", facade.RunnerSettings.CodexSandboxMode);
         Assert.True(facade.RunnerSettings.CodexBypassApprovalsAndSandbox);
+        Assert.Equal(2, facade.RestartAgentCallCount);
         Assert.Contains("Codex sandbox: danger-full-access", sandboxResponse.Text, StringComparison.Ordinal);
         Assert.Contains("Codex bypass approvals and sandbox: allowed", bypassResponse.Text, StringComparison.Ordinal);
+        Assert.Contains("Agent restart: Agent restarted.", sandboxResponse.Text, StringComparison.Ordinal);
+        Assert.Contains("Agent restart: Agent restarted.", bypassResponse.Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -523,6 +526,8 @@ public sealed class TelegramInteractionHandlerTests
 
         public bool CompleteTaskCalled { get; private set; }
 
+        public int RestartAgentCallCount { get; private set; }
+
         public string? ResolvedBy { get; private set; }
 
         public Task<IReadOnlyList<RuntimeProject>> ListProjectsAsync(CancellationToken cancellationToken)
@@ -576,6 +581,15 @@ public sealed class TelegramInteractionHandlerTests
             };
 
             return System.Threading.Tasks.Task.FromResult(ApplicationResult<TelegramRunnerSettings>.Success(RunnerSettings));
+        }
+
+        public Task<ApplicationResult<TelegramAgentRestartResult>> RestartAgentAsync(CancellationToken cancellationToken)
+        {
+            RestartAgentCallCount++;
+
+            return System.Threading.Tasks.Task.FromResult(
+                ApplicationResult<TelegramAgentRestartResult>.Success(
+                    new TelegramAgentRestartResult("Agent restarted.")));
         }
 
         public Task<ApplicationResult<RuntimeTask>> CreateTaskAsync(

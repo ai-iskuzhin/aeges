@@ -350,9 +350,12 @@ public sealed class TelegramInteractionHandler
     {
         var result = await application.SetCodexSandboxModeAsync(sandboxMode, cancellationToken);
 
-        return result.IsSuccess
-            ? RenderSettings(result.Value!)
-            : new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+        if (!result.IsSuccess)
+        {
+            return new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+        }
+
+        return RenderSettings(result.Value!, await RestartAgentNoticeAsync(cancellationToken));
     }
 
     private async Task<TelegramResponse> SetCodexBypassApprovalsAndSandboxAsync(
@@ -361,9 +364,21 @@ public sealed class TelegramInteractionHandler
     {
         var result = await application.SetCodexBypassApprovalsAndSandboxAsync(enabled, cancellationToken);
 
-        return result.IsSuccess
-            ? RenderSettings(result.Value!)
-            : new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+        if (!result.IsSuccess)
+        {
+            return new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+        }
+
+        return RenderSettings(result.Value!, await RestartAgentNoticeAsync(cancellationToken));
+    }
+
+    private async Task<string> RestartAgentNoticeAsync(CancellationToken cancellationToken)
+    {
+        var restart = await application.RestartAgentAsync(cancellationToken);
+
+        return restart.IsSuccess
+            ? $"Agent restart: {restart.Value!.Message}"
+            : $"Agent restart failed: {restart.Error!.Code}: {restart.Error.Message}";
     }
 
     public async Task<TelegramResponse> RenderTaskDetailsAsync(
@@ -533,11 +548,14 @@ public sealed class TelegramInteractionHandler
     private static TelegramButtonMarkup CancelDraftButtons() =>
         Buttons(Row(Button("Cancel", TelegramCallbackData.CancelCreateTask)));
 
-    private static TelegramResponse RenderSettings(TelegramRunnerSettings settings)
+    private static TelegramResponse RenderSettings(
+        TelegramRunnerSettings settings,
+        string? notice = null)
     {
         var sandboxEnabled = settings.CodexSandboxMode != "danger-full-access";
         var sandboxTarget = sandboxEnabled ? "danger-full-access" : "workspace-write";
         var bypassTarget = !settings.CodexBypassApprovalsAndSandbox;
+        var noticeText = string.IsNullOrWhiteSpace(notice) ? "" : $"\n\n{notice}";
 
         return new TelegramResponse(
             $"""
@@ -545,8 +563,7 @@ public sealed class TelegramInteractionHandler
 
             Codex sandbox: {settings.CodexSandboxMode}
             Codex bypass approvals and sandbox: {(settings.CodexBypassApprovalsAndSandbox ? "allowed" : "disallowed")}
-
-            Changes are saved to local config. Restart the agent before running new tasks.
+            {noticeText}
             """,
             Buttons(
                 Row(Button(

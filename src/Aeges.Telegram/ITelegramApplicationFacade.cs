@@ -78,6 +78,13 @@ public interface ITelegramApplicationFacade
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Restarts the local agent so updated runtime settings are applied.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The restart result, or an expected failure.</returns>
+    Task<ApplicationResult<TelegramAgentRestartResult>> RestartAgentAsync(CancellationToken cancellationToken);
+
+    /// <summary>
     /// Creates a queued runtime task.
     /// </summary>
     /// <param name="projectId">The project that owns the task.</param>

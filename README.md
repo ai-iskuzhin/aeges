@@ -239,6 +239,10 @@ aeges telegram restart
 aeges agent restart
 ```
 
+Telegram runner settings restart the agent automatically after saving the local
+config. Manual restart is still useful after tool updates or direct config file
+edits.
+
 Machine status in Telegram comes from the local agent heartbeat. If a machine
 shows `offline`, start the agent worker or run a one-shot heartbeat with
 `aeges agent run --once --machine-id local --no-claim`.

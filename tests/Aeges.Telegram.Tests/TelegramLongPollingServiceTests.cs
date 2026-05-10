@@ -274,6 +274,11 @@ public sealed class TelegramLongPollingServiceTests
             Task.FromResult(Aeges.Application.ApplicationResult<TelegramRunnerSettings>.Success(
                 new TelegramRunnerSettings("workspace-write", enabled)));
 
+        public Task<Aeges.Application.ApplicationResult<TelegramAgentRestartResult>> RestartAgentAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<TelegramAgentRestartResult>.Success(
+                new TelegramAgentRestartResult("Agent restarted.")));
+
         public Task<Aeges.Application.ApplicationResult<RuntimeTask>> CreateTaskAsync(
             ProjectId projectId,
             MachineId machineId,
