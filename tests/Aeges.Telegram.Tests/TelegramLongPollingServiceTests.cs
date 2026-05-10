@@ -7,7 +7,7 @@ namespace Aeges.Telegram.Tests;
 public sealed class TelegramLongPollingServiceTests
 {
     [Fact]
-    public async Task PollOnceAsync_answers_callback_and_sends_handler_response()
+    public async Task PollOnceAsync_answers_callback_and_edits_handler_response()
     {
         var gateway = new FakeTelegramBotGateway
         {
@@ -18,7 +18,8 @@ public sealed class TelegramLongPollingServiceTests
                     1001,
                     Text: null,
                     CallbackData: TelegramCallbackData.ListQueuedTasks,
-                    CallbackQueryId: "callback-001"),
+                    CallbackQueryId: "callback-001",
+                    MessageId: 9001),
             ],
         };
         var service = CreateService(gateway);
@@ -31,10 +32,41 @@ public sealed class TelegramLongPollingServiceTests
         Assert.Equal(42, result.NextOffset);
         Assert.Equal(1, result.ProcessedUpdates);
         Assert.Equal(["callback-001"], gateway.AnsweredCallbackQueryIds);
-        Assert.Single(gateway.SentResponses);
-        Assert.Equal("No queued tasks.", gateway.SentResponses[0].Response.Text);
+        Assert.Empty(gateway.SentResponses);
+        Assert.Single(gateway.EditedResponses);
+        Assert.Equal(9001, gateway.EditedResponses[0].MessageId);
+        Assert.Equal("No queued tasks.", gateway.EditedResponses[0].Response.Text);
         Assert.Equal(25, gateway.LastLimit);
         Assert.Equal(5, gateway.LastTimeoutSeconds);
+    }
+
+    [Fact]
+    public async Task PollOnceAsync_sends_response_for_text_message()
+    {
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    1001,
+                    Text: "hello",
+                    CallbackData: null,
+                    CallbackQueryId: null),
+            ],
+        };
+        var service = CreateService(gateway);
+
+        var result = await service.PollOnceAsync(
+            nextOffset: null,
+            new TelegramLongPollingOptions(),
+            CancellationToken.None);
+
+        Assert.Equal(42, result.NextOffset);
+        Assert.Equal(1, result.ProcessedUpdates);
+        Assert.Empty(gateway.EditedResponses);
+        Assert.Single(gateway.SentResponses);
+        Assert.Equal("Aeges control", gateway.SentResponses[0].Response.Text);
     }
 
     [Fact]
@@ -70,6 +102,8 @@ public sealed class TelegramLongPollingServiceTests
 
         public List<(long ChatId, TelegramResponse Response)> SentResponses { get; } = [];
 
+        public List<(long ChatId, int MessageId, TelegramResponse Response)> EditedResponses { get; } = [];
+
         public int? LastLimit { get; private set; }
 
         public int? LastTimeoutSeconds { get; private set; }
@@ -95,6 +129,16 @@ public sealed class TelegramLongPollingServiceTests
             CancellationToken cancellationToken)
         {
             SentResponses.Add((chatId, response));
+            return Task.CompletedTask;
+        }
+
+        public Task EditResponseAsync(
+            long chatId,
+            int messageId,
+            TelegramResponse response,
+            CancellationToken cancellationToken)
+        {
+            EditedResponses.Add((chatId, messageId, response));
             return Task.CompletedTask;
         }
 

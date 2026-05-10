@@ -214,6 +214,7 @@ review, test, and document independently.
 - [x] Add `aeges telegram setup` wizard for config, token source, and chat IDs.
 - [x] Add `aeges telegram check` for bot identity preflight.
 - [x] Remove environment-variable-name prompt from Telegram setup wizard.
+- [x] Edit Telegram callback messages in place to reduce menu spam.
 
 ## Governance
 

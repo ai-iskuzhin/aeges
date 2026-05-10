@@ -8,9 +8,11 @@ namespace Aeges.Telegram;
 /// <param name="Text">The inbound message text.</param>
 /// <param name="CallbackData">The inline button callback payload.</param>
 /// <param name="CallbackQueryId">The callback query identifier to acknowledge.</param>
+/// <param name="MessageId">The Telegram message identifier that can be edited for callback navigation.</param>
 public sealed record TelegramBotUpdate(
     int UpdateId,
     long ChatId,
     string? Text,
     string? CallbackData,
-    string? CallbackQueryId);
+    string? CallbackQueryId,
+    int? MessageId = null);

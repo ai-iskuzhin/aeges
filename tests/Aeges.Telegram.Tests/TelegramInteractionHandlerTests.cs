@@ -78,7 +78,7 @@ public sealed class TelegramInteractionHandlerTests
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ListMachines),
             CancellationToken.None);
 
-        Assert.Equal("Machines:\n- machine-local: Local (online)", response.Text);
+        Assert.Equal($"Machines:\n- machine-local: Local (online, last seen {Now:O})", response.Text);
         AssertBackButton(response);
     }
 

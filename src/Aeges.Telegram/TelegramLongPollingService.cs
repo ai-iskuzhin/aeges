@@ -70,7 +70,18 @@ public sealed class TelegramLongPollingService
                 new TelegramUpdate(update.ChatId, update.Text, update.CallbackData),
                 cancellationToken);
 
-            await gateway.SendResponseAsync(update.ChatId, response, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(update.CallbackQueryId) && update.MessageId is not null)
+            {
+                await gateway.EditResponseAsync(
+                    update.ChatId,
+                    update.MessageId.Value,
+                    response,
+                    cancellationToken);
+            }
+            else
+            {
+                await gateway.SendResponseAsync(update.ChatId, response, cancellationToken);
+            }
 
             nextOffset = Math.Max(nextOffset ?? 0, update.UpdateId + 1);
             processed++;

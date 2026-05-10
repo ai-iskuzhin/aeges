@@ -38,6 +38,19 @@ public interface ITelegramBotGateway
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Edits an existing response message with updated text and inline buttons.
+    /// </summary>
+    /// <param name="chatId">The target Telegram chat identifier.</param>
+    /// <param name="messageId">The message identifier to edit.</param>
+    /// <param name="response">The response produced by the interaction handler.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    Task EditResponseAsync(
+        long chatId,
+        int messageId,
+        TelegramResponse response,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Answers an inline keyboard callback query.
     /// </summary>
     /// <param name="callbackQueryId">The Telegram callback query identifier.</param>

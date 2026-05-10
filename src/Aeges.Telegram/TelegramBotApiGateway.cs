@@ -68,6 +68,21 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
     }
 
     /// <inheritdoc />
+    public async Task EditResponseAsync(
+        long chatId,
+        int messageId,
+        TelegramResponse response,
+        CancellationToken cancellationToken)
+    {
+        await botClient.EditMessageText(
+            chatId,
+            messageId,
+            response.Text,
+            replyMarkup: ToReplyMarkup(response.Buttons),
+            cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task AnswerCallbackQueryAsync(
         string callbackQueryId,
         CancellationToken cancellationToken)
@@ -87,7 +102,8 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
                 chatId,
                 Text: null,
                 callback.Data,
-                callback.Id);
+                callback.Id,
+                callback.Message?.MessageId);
         }
 
         if (update.Message is not null)

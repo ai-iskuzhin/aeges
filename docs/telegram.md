@@ -5,6 +5,8 @@ workflow lifecycle, runner dispatch, approval policy, or domain rules.
 
 The MVP interaction model is button-first. Inbound text opens the main menu, and
 all normal navigation uses inline buttons with stable callback payloads.
+Button callbacks edit the existing Telegram message when Telegram provides an
+editable message id, so navigation does not spam a chat with repeated menus.
 
 Initial buttons:
 
@@ -30,11 +32,17 @@ chat ID is recorded as the resolver in the form `telegram:<chat-id>`.
 
 The live transport uses long polling for the local-first MVP. The polling loop
 fetches message and callback-query updates, acknowledges callback queries, then
-sends the handler response as a Telegram message with inline keyboard markup.
+sends the handler response as a Telegram message with inline keyboard markup or
+edits the callback message in place.
 
 Allowed chat IDs are enforced before application services are called. An empty
 allowed-chat list is treated as open local MVP mode; configured chat IDs restrict
 the bot to those chats.
+
+Machine status in Telegram reflects the local Aeges agent heartbeat, not whether
+the Telegram transport is running. A newly registered machine starts as
+`offline`; `aeges agent run --once --machine-id <id>` records a heartbeat and
+marks it `online`.
 
 The bot token is read from the environment variable named by
 `telegram.botTokenEnvironmentVariable`, or from the local file configured by

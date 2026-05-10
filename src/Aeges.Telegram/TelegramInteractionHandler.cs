@@ -93,7 +93,8 @@ public sealed class TelegramInteractionHandler
             ? "No machines are registered."
             : "Machines:\n" + string.Join(
                 '\n',
-                machines.Select(machine => $"- {machine.Id}: {machine.Name} ({machine.Status.ToStorageValue()})"));
+                machines.Select(machine =>
+                    $"- {machine.Id}: {machine.Name} ({machine.Status.ToStorageValue()}, last seen {FormatLastSeen(machine.LastSeenAt)})"));
 
         return new TelegramResponse(text, BackButtons());
     }
@@ -242,6 +243,9 @@ public sealed class TelegramInteractionHandler
 
     private static TelegramButtonMarkup BackButtons() =>
         Buttons(Row(Button("Back", TelegramCallbackData.MainMenu)));
+
+    private static string FormatLastSeen(DateTimeOffset? lastSeenAt) =>
+        lastSeenAt is null ? "never" : lastSeenAt.Value.ToString("O");
 
     private static TelegramButton Button(string text, string callbackData) =>
         new(text, callbackData);

@@ -184,6 +184,13 @@ aeges telegram check
 aeges telegram run
 ```
 
+Machine status in Telegram comes from the local agent heartbeat. If a machine
+shows `offline`, run:
+
+```bash
+aeges agent run --once --machine-id local
+```
+
 During local setup, an empty `allowedChatIds` list permits all chats. Before
 using a real bot, restrict access in `~/.aeges/config.json`:
 
