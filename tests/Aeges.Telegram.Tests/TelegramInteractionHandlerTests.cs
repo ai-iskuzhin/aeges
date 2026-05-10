@@ -12,20 +12,44 @@ public sealed class TelegramInteractionHandlerTests
     [Fact]
     public async Task HandleAsync_returns_button_menu_for_plain_text_messages()
     {
-        var handler = new TelegramInteractionHandler(new FakeTelegramApplicationFacade(), new AegesTelegramConfiguration());
+        var machine = RuntimeMachine.Create(new MachineId("machine-local"), "Local", "macOS", Now);
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Queued work",
+            "Do the work.",
+            Now);
+        var approval = ApprovalRequest.Create(
+            new ApprovalId("approval-001"),
+            task.Id,
+            iterationId: null,
+            "Needs approval.",
+            "Approve something.",
+            Now);
+        var facade = new FakeTelegramApplicationFacade
+        {
+            Projects = [RuntimeProject.Create(new ProjectId("project-aeges"), "Aeges", "/workspace/aeges", Now)],
+            Machines = [machine],
+            QueuedTasks = [task],
+            PendingApprovals = [approval],
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
 
         var response = await handler.HandleAsync(new TelegramUpdate(1001, Text: "hello"), CancellationToken.None);
 
         Assert.Equal("Aeges control", response.Text);
-        Assert.Equal(2, response.Buttons.Rows.Count);
-        Assert.Equal("Projects", response.Buttons.Rows[0][0].Text);
-        Assert.Equal(TelegramCallbackData.ListProjects, response.Buttons.Rows[0][0].CallbackData);
-        Assert.Equal("Machines", response.Buttons.Rows[0][1].Text);
-        Assert.Equal(TelegramCallbackData.ListMachines, response.Buttons.Rows[0][1].CallbackData);
-        Assert.Equal("Queued tasks", response.Buttons.Rows[1][0].Text);
-        Assert.Equal(TelegramCallbackData.ListQueuedTasks, response.Buttons.Rows[1][0].CallbackData);
-        Assert.Equal("Approvals", response.Buttons.Rows[1][1].Text);
-        Assert.Equal(TelegramCallbackData.ListPendingApprovals, response.Buttons.Rows[1][1].CallbackData);
+        Assert.Equal(3, response.Buttons.Rows.Count);
+        Assert.Equal("New task", response.Buttons.Rows[0][0].Text);
+        Assert.Equal(TelegramCallbackData.CreateTask, response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("Projects (1)", response.Buttons.Rows[1][0].Text);
+        Assert.Equal(TelegramCallbackData.ListProjects, response.Buttons.Rows[1][0].CallbackData);
+        Assert.Equal("Machines (1)", response.Buttons.Rows[1][1].Text);
+        Assert.Equal(TelegramCallbackData.ListMachines, response.Buttons.Rows[1][1].CallbackData);
+        Assert.Equal("Queued tasks (1)", response.Buttons.Rows[2][0].Text);
+        Assert.Equal(TelegramCallbackData.ListQueuedTasks, response.Buttons.Rows[2][0].CallbackData);
+        Assert.Equal("Approvals (1)", response.Buttons.Rows[2][1].Text);
+        Assert.Equal(TelegramCallbackData.ListPendingApprovals, response.Buttons.Rows[2][1].CallbackData);
     }
 
     [Fact]
@@ -158,6 +182,66 @@ public sealed class TelegramInteractionHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_creates_task_from_button_guided_flow()
+    {
+        var project = RuntimeProject.Create(new ProjectId("project-aeges"), "Aeges", "/workspace/aeges", Now);
+        var machine = RuntimeMachine.Create(new MachineId("machine-local"), "Local", "macOS", Now);
+        machine.MarkOnline(Now);
+        var facade = new FakeTelegramApplicationFacade
+        {
+            Projects = [project],
+            Machines = [machine],
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var projectResponse = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.CreateTask),
+            CancellationToken.None);
+        var machineResponse = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.SelectTaskProject(project.Id)),
+            CancellationToken.None);
+        var titleResponse = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.SelectTaskMachine(machine.Id)),
+            CancellationToken.None);
+        var goalResponse = await handler.HandleAsync(
+            new TelegramUpdate(1001, Text: "Improve README"),
+            CancellationToken.None);
+        var createdResponse = await handler.HandleAsync(
+            new TelegramUpdate(1001, Text: "Add Telegram usage notes."),
+            CancellationToken.None);
+
+        Assert.Equal("Choose a project for the task.", projectResponse.Text);
+        Assert.Equal("Aeges", projectResponse.Buttons.Rows[0][0].Text);
+        Assert.Equal("Choose the machine that should process the task.", machineResponse.Text);
+        Assert.Equal("Local (online)", machineResponse.Buttons.Rows[0][0].Text);
+        Assert.Equal("Send the task title.", titleResponse.Text);
+        Assert.Equal("Now send the task goal/details.", goalResponse.Text);
+        Assert.Contains("Task queued: task-created", createdResponse.Text, StringComparison.Ordinal);
+        Assert.Equal(project.Id, facade.CreatedProjectId);
+        Assert.Equal(machine.Id, facade.CreatedMachineId);
+        Assert.Equal("Improve README", facade.CreatedTitle);
+        Assert.Equal("Add Telegram usage notes.", facade.CreatedGoal);
+    }
+
+    [Fact]
+    public async Task HandleAsync_cancels_task_creation_draft()
+    {
+        var project = RuntimeProject.Create(new ProjectId("project-aeges"), "Aeges", "/workspace/aeges", Now);
+        var facade = new FakeTelegramApplicationFacade { Projects = [project] };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.CreateTask),
+            CancellationToken.None);
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.CancelCreateTask),
+            CancellationToken.None);
+
+        Assert.Equal("Task creation cancelled.", response.Text);
+        AssertBackButton(response);
+    }
+
+    [Fact]
     public async Task HandleAsync_lists_pending_approvals_with_detail_buttons()
     {
         var approval = ApprovalRequest.Create(
@@ -240,8 +324,8 @@ public sealed class TelegramInteractionHandlerTests
             new TelegramUpdate(1001, CallbackData: "aeges:task:   "),
             CancellationToken.None);
 
-        Assert.Equal("Unknown action. Choose an Aeges action below.", response.Text);
-        Assert.Equal(TelegramCallbackData.ListProjects, response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("Unknown action. Send any message to open the Aeges menu.", response.Text);
+        Assert.Empty(response.Buttons.Rows);
     }
 
     private static void AssertBackButton(TelegramResponse response)
@@ -268,6 +352,14 @@ public sealed class TelegramInteractionHandlerTests
 
         public int ListProjectsCallCount { get; private set; }
 
+        public ProjectId? CreatedProjectId { get; private set; }
+
+        public MachineId? CreatedMachineId { get; private set; }
+
+        public string? CreatedTitle { get; private set; }
+
+        public string? CreatedGoal { get; private set; }
+
         public bool ApproveCalled { get; private set; }
 
         public bool CancelTaskCalled { get; private set; }
@@ -292,6 +384,28 @@ public sealed class TelegramInteractionHandlerTests
             int limit,
             CancellationToken cancellationToken) =>
             System.Threading.Tasks.Task.FromResult(PendingApprovals.Take(limit).ToArray() as IReadOnlyList<ApprovalRequest>);
+
+        public Task<ApplicationResult<RuntimeTask>> CreateTaskAsync(
+            ProjectId projectId,
+            MachineId machineId,
+            string title,
+            string goal,
+            CancellationToken cancellationToken)
+        {
+            CreatedProjectId = projectId;
+            CreatedMachineId = machineId;
+            CreatedTitle = title;
+            CreatedGoal = goal;
+            var task = RuntimeTask.Create(
+                new TaskId("task-created"),
+                projectId,
+                machineId,
+                title,
+                goal,
+                Now);
+
+            return System.Threading.Tasks.Task.FromResult(ApplicationResult<RuntimeTask>.Success(task));
+        }
 
         public Task<ApplicationResult<RuntimeTask>> GetTaskAsync(
             TaskId taskId,

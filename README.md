@@ -242,6 +242,7 @@ using a real bot, restrict access in `~/.aeges/config.json`:
 
 The MVP Telegram UI includes buttons for:
 
+- creating a new task
 - projects
 - machines
 - queued tasks
@@ -249,6 +250,17 @@ The MVP Telegram UI includes buttons for:
 - task cancellation
 - pending approvals
 - approve/reject approval decisions
+
+To run work from Telegram, start both background processes:
+
+```bash
+aeges telegram start
+aeges agent start
+```
+
+Then send any message to the bot, tap `New task`, choose the project and
+machine, then send the title and goal as chat messages. The task is queued
+durably and the local agent worker will pick it up on its next poll.
 
 ## Configuration
 

@@ -33,6 +33,30 @@ public static class TelegramCallbackData
     public const string ListPendingApprovals = "ae:ap";
 
     /// <summary>
+    /// Gets the task creation callback payload.
+    /// </summary>
+    public const string CreateTask = "ae:t:new";
+
+    /// <summary>
+    /// Gets the task creation cancellation callback payload.
+    /// </summary>
+    public const string CancelCreateTask = "ae:t:new:x";
+
+    /// <summary>
+    /// Creates a task project selection callback payload.
+    /// </summary>
+    /// <param name="projectId">The project identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string SelectTaskProject(ProjectId projectId) => $"ae:t:p:{projectId.Value}";
+
+    /// <summary>
+    /// Creates a task machine selection callback payload.
+    /// </summary>
+    /// <param name="machineId">The machine identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string SelectTaskMachine(MachineId machineId) => $"ae:t:m:{machineId.Value}";
+
+    /// <summary>
     /// Creates a task details callback payload.
     /// </summary>
     /// <param name="taskId">The task identifier.</param>
@@ -120,6 +144,62 @@ public static class TelegramCallbackData
         }
 
         taskId = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to parse a task project selection callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="projectId">The parsed project identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseSelectTaskProject(string payload, out ProjectId projectId)
+    {
+        const string prefix = "ae:t:p:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length > prefix.Length)
+        {
+            try
+            {
+                projectId = new ProjectId(payload[prefix.Length..]);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                projectId = default;
+                return false;
+            }
+        }
+
+        projectId = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to parse a task machine selection callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="machineId">The parsed machine identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseSelectTaskMachine(string payload, out MachineId machineId)
+    {
+        const string prefix = "ae:t:m:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length > prefix.Length)
+        {
+            try
+            {
+                machineId = new MachineId(payload[prefix.Length..]);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                machineId = default;
+                return false;
+            }
+        }
+
+        machineId = default;
         return false;
     }
 

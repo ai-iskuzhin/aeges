@@ -39,6 +39,22 @@ public interface ITelegramApplicationFacade
     Task<IReadOnlyList<ApprovalRequest>> ListPendingApprovalsAsync(int limit, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Creates a queued runtime task.
+    /// </summary>
+    /// <param name="projectId">The project that owns the task.</param>
+    /// <param name="machineId">The machine assigned to process the task.</param>
+    /// <param name="title">The task title.</param>
+    /// <param name="goal">The task goal.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The task creation result.</returns>
+    Task<ApplicationResult<RuntimeTask>> CreateTaskAsync(
+        ProjectId projectId,
+        MachineId machineId,
+        string title,
+        string goal,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Gets a task by identifier.
     /// </summary>
     /// <param name="taskId">The task identifier.</param>

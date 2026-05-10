@@ -214,6 +214,8 @@ review, test, and document independently.
 - [x] Add approval-resolution buttons after approval workflow is exposed through
       the facade.
 - [x] Add task cancellation buttons from Telegram task details.
+- [x] Add button-driven Telegram task creation flow.
+- [x] Add count badges to Telegram menu buttons.
 - [x] Add current-process Telegram token prompt for `aeges telegram run`.
 - [x] Add `aeges telegram setup` wizard for config, token source, and chat IDs.
 - [x] Add `aeges telegram check` for bot identity preflight.

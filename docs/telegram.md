@@ -11,10 +11,14 @@ editable message id, so navigation does not spam a chat with repeated menus.
 Initial buttons:
 
 ```text
+New task      -> ae:t:new
 Projects      -> aeges:projects:list
 Machines      -> aeges:machines:list
 Queued tasks  -> aeges:tasks:queued
 Back          -> aeges:menu
+Project       -> ae:t:p:<project-id>
+Machine       -> ae:t:m:<machine-id>
+Cancel draft  -> ae:t:new:x
 Task details  -> aeges:task:<task-id>
 Cancel task   -> ae:t:x:<task-id>
 Approvals     -> ae:ap
@@ -52,6 +56,21 @@ local processing, run both:
 aeges telegram start
 aeges agent start
 ```
+
+To create work from Telegram:
+
+1. Open the bot menu by sending any message.
+2. Tap `New task`.
+3. Choose a project.
+4. Choose the machine that should process the task.
+5. Send the task title as a message.
+6. Send the task goal/details as a message.
+
+The task is created in `queued` state. If the local agent worker is running, it
+will claim and process the task on its next polling pass.
+
+The main menu shows count badges for projects, machines, queued tasks, and
+pending approvals so operators can see queue shape without opening every view.
 
 The bot token is read from the environment variable named by
 `telegram.botTokenEnvironmentVariable`, or from the local file configured by

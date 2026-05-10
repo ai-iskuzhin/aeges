@@ -169,6 +169,16 @@ public sealed class TelegramLongPollingServiceTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ApprovalRequest>>([]);
 
+        public Task<Aeges.Application.ApplicationResult<RuntimeTask>> CreateTaskAsync(
+            ProjectId projectId,
+            MachineId machineId,
+            string title,
+            string goal,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<RuntimeTask>.Failure(
+                "task_creation_unavailable",
+                "Task creation is not available in this test facade."));
+
         public Task<Aeges.Application.ApplicationResult<RuntimeTask>> GetTaskAsync(
             TaskId taskId,
             CancellationToken cancellationToken) =>
