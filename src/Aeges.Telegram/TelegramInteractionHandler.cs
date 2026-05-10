@@ -567,10 +567,10 @@ public sealed class TelegramInteractionHandler
             """,
             Buttons(
                 Row(Button(
-                    sandboxEnabled ? "🟢 Sandbox enabled" : "🔴 Sandbox disabled",
+                    sandboxEnabled ? "Allowed: Sandbox enabled" : "Blocked: Sandbox disabled",
                     TelegramCallbackData.SetCodexSandboxMode(sandboxTarget))),
                 Row(Button(
-                    settings.CodexBypassApprovalsAndSandbox ? "🟢 Bypass allowed" : "🔴 Bypass disallowed",
+                    settings.CodexBypassApprovalsAndSandbox ? "Allowed: Bypass enabled" : "Blocked: Bypass disabled",
                     TelegramCallbackData.SetCodexBypassApprovalsAndSandbox(bypassTarget))),
                 Row(Button("Back", TelegramCallbackData.MainMenu))));
     }

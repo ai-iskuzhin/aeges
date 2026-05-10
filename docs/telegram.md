@@ -89,11 +89,12 @@ metadata.
 The main menu includes `Settings`. The settings view exposes Codex runner
 sandbox controls:
 
-- green buttons show currently allowed/enabled behavior
-- red buttons show currently disallowed/disabled behavior
+- Telegram inline keyboards do not support real button colors
+- `Allowed:` labels show currently allowed/enabled behavior
+- `Blocked:` labels show currently disallowed/disabled behavior
 - `Sandbox enabled` toggles between `workspace-write` and
   `danger-full-access`
-- `Bypass disallowed` toggles Codex's explicit approvals/sandbox bypass flag
+- `Bypass disabled` toggles Codex's explicit approvals/sandbox bypass flag
 
 Settings are written to the local config file. When a setting changes, the
 Telegram transport runs `aeges agent restart --config <path>` so the worker

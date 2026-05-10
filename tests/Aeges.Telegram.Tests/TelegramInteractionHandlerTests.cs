@@ -391,9 +391,9 @@ public sealed class TelegramInteractionHandlerTests
 
         Assert.Contains("Codex sandbox: workspace-write", response.Text, StringComparison.Ordinal);
         Assert.Contains("Codex bypass approvals and sandbox: disallowed", response.Text, StringComparison.Ordinal);
-        Assert.Equal("🟢 Sandbox enabled", response.Buttons.Rows[0][0].Text);
+        Assert.Equal("Allowed: Sandbox enabled", response.Buttons.Rows[0][0].Text);
         Assert.Equal("ae:s:sb:danger-full-access", response.Buttons.Rows[0][0].CallbackData);
-        Assert.Equal("🔴 Bypass disallowed", response.Buttons.Rows[1][0].Text);
+        Assert.Equal("Blocked: Bypass disabled", response.Buttons.Rows[1][0].Text);
         Assert.Equal("ae:s:bp:1", response.Buttons.Rows[1][0].CallbackData);
     }
 
