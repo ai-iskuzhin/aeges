@@ -109,11 +109,14 @@ review, test, and document independently.
 - [x] Simplify Telegram setup to default to local secret files.
 - [x] Package CLI as a local .NET tool named `aeges`.
 - [x] Add install roadmap.
+- [x] Add shell installer script for .NET tool based local installs.
 
 ## Current Focus
 
 - [ ] Keep `Aeges.Core` infrastructure-free.
 - [ ] Add unit tests for future core lifecycle and value object rules.
+- [ ] Add release-hosted shell installer with checksum verification.
+- [ ] Add Homebrew formula after release artifacts are stable.
 
 ## Storage Foundation
 

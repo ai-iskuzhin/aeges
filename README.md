@@ -26,8 +26,9 @@ Yes, as an MVP for local governed execution. Today you can:
 - use Telegram long polling with buttons for projects, machines, queued tasks,
   task cancellation, and approval approve/reject actions
 
-The current MVP is intentionally small. There is no installer, web dashboard,
-remote control plane, advanced scheduler, or autonomous workflow loop yet.
+The current MVP is intentionally small. There is no native package, web
+dashboard, remote control plane, advanced scheduler, or autonomous workflow loop
+yet.
 
 ## Requirements
 
@@ -52,15 +53,22 @@ Install the CLI from the local checkout:
 
 ```bash
 dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
-dotnet tool install --global Aeges.Cli \
-  --add-source "$PWD/.artifacts/packages" \
-  --version 0.1.0-alpha.1
+AEGES_PACKAGE_SOURCE="$PWD/.artifacts/packages" \
+AEGES_VERSION=0.1.0-alpha.1 \
+sh scripts/install.sh
 ```
 
 If your shell cannot find `aeges`, add the .NET tools directory to `PATH`:
 
 ```bash
 export PATH="$PATH:$HOME/.dotnet/tools"
+```
+
+The future public shell UX should be:
+
+```bash
+curl -fsSL https://aeges.dev/install.sh | sh
+wget -qO- https://aeges.dev/install.sh | sh
 ```
 
 Create the schema and check migration status:
