@@ -59,9 +59,12 @@ public sealed class TelegramInteractionHandler
             TelegramCallbackData.ListProjects => await ListProjectsAsync(cancellationToken),
             TelegramCallbackData.ListMachines => await ListMachinesAsync(cancellationToken),
             TelegramCallbackData.ListQueuedTasks => await ListQueuedTasksAsync(cancellationToken),
+            TelegramCallbackData.TaskMenu => await TaskMenuAsync(cancellationToken),
             TelegramCallbackData.ListPendingApprovals => await ListPendingApprovalsAsync(cancellationToken),
             TelegramCallbackData.CreateTask => await StartTaskCreationAsync(update.ChatId, cancellationToken),
             TelegramCallbackData.CancelCreateTask => CancelTaskCreation(update.ChatId),
+            _ when TelegramCallbackData.TryParseListTasksByStatus(callbackData, out var status) =>
+                await ListTasksByStatusAsync(status, cancellationToken),
             _ when TelegramCallbackData.TryParseSelectTaskProject(callbackData, out var projectId) =>
                 await SelectTaskProjectAsync(update.ChatId, projectId, cancellationToken),
             _ when TelegramCallbackData.TryParseSelectTaskMachine(callbackData, out var machineId) =>
@@ -98,7 +101,7 @@ public sealed class TelegramInteractionHandler
                     Button($"Projects ({projects.Count})", TelegramCallbackData.ListProjects),
                     Button($"Machines ({machines.Count})", TelegramCallbackData.ListMachines)),
                 Row(
-                    Button($"Queued tasks ({CountBadge(queuedTasks.Count, MenuCountLimit)})", TelegramCallbackData.ListQueuedTasks),
+                    Button($"Tasks ({CountBadge(queuedTasks.Count, MenuCountLimit)} queued)", TelegramCallbackData.TaskMenu),
                     Button($"Approvals ({CountBadge(approvals.Count, MenuCountLimit)})", TelegramCallbackData.ListPendingApprovals))));
     }
 
@@ -129,7 +132,7 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse("Now send the task goal/details.", CancelDraftButtons());
         }
 
-        if (draft.Step != TaskDraftStep.AwaitingGoal || draft.Title is null)
+        if (draft.Step != TaskDraftStep.AwaitingGoal || draft.Title is null || draft.MachineId is null)
         {
             drafts.TryRemove(update.ChatId, out _);
             return await MainMenuAsync(cancellationToken);
@@ -137,7 +140,7 @@ public sealed class TelegramInteractionHandler
 
         var result = await application.CreateTaskAsync(
             draft.ProjectId,
-            draft.MachineId,
+            draft.MachineId.Value,
             draft.Title,
             text,
             cancellationToken);
@@ -156,8 +159,9 @@ public sealed class TelegramInteractionHandler
             Title: {result.Value.Title}
             """,
             Buttons(
-                Row(Button("View task", TelegramCallbackData.ViewTask(result.Value.Id))),
-                Row(Button("Back", TelegramCallbackData.MainMenu))));
+            Row(Button("View task", TelegramCallbackData.ViewTask(result.Value.Id))),
+                Row(Button("Back", TelegramCallbackData.MainMenu))),
+            new TelegramResponseMetadata(TelegramResponseKind.TaskWatch, result.Value.Id));
     }
 
     private async Task<TelegramResponse> StartTaskCreationAsync(
@@ -199,7 +203,7 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse("No machines are registered. Add a machine from the CLI first.", BackButtons());
         }
 
-        drafts[chatId] = new TaskDraft(projectId, default, null, TaskDraftStep.ChoosingMachine);
+        drafts[chatId] = new TaskDraft(projectId, MachineId: null, null, TaskDraftStep.ChoosingMachine);
         var rows = machines
             .Select(machine => Row(Button($"{machine.Name} ({machine.Status.ToStorageValue()})", TelegramCallbackData.SelectTaskMachine(machine.Id))))
             .Append(Row(Button("Cancel", TelegramCallbackData.CancelCreateTask)))
@@ -259,20 +263,45 @@ public sealed class TelegramInteractionHandler
 
     private async Task<TelegramResponse> ListQueuedTasksAsync(CancellationToken cancellationToken)
     {
-        var tasks = await application.ListQueuedTasksAsync(DefaultTaskLimit, cancellationToken);
+        return await ListTasksByStatusAsync(RuntimeTaskStatus.Queued, cancellationToken);
+    }
+
+    private async Task<TelegramResponse> TaskMenuAsync(CancellationToken cancellationToken)
+    {
+        var rows = new List<IReadOnlyList<TelegramButton>>();
+
+        foreach (var status in TaskStatuses)
+        {
+            var tasks = await application.ListTasksByStatusAsync(status, MenuCountLimit, cancellationToken);
+            rows.Add(Row(Button(
+                $"{FormatStatus(status)} ({CountBadge(tasks.Count, MenuCountLimit)})",
+                TelegramCallbackData.ListTasksByStatus(status))));
+        }
+
+        rows.Add(Row(Button("Back", TelegramCallbackData.MainMenu)));
+
+        return new TelegramResponse("Tasks by status", Buttons([.. rows]));
+    }
+
+    private async Task<TelegramResponse> ListTasksByStatusAsync(
+        RuntimeTaskStatus status,
+        CancellationToken cancellationToken)
+    {
+        var tasks = await application.ListTasksByStatusAsync(status, DefaultTaskLimit, cancellationToken);
+        var statusText = FormatStatus(status);
 
         if (tasks.Count == 0)
         {
-            return new TelegramResponse("No queued tasks.", BackButtons());
+            return new TelegramResponse($"No {statusText} tasks.", TaskMenuButtons());
         }
 
         var buttons = tasks
             .Select(task => Row(Button(task.Title, TelegramCallbackData.ViewTask(task.Id))))
-            .Append(Row(Button("Back", TelegramCallbackData.MainMenu)))
+            .Append(Row(Button("Back", TelegramCallbackData.TaskMenu)))
             .ToArray();
 
         return new TelegramResponse(
-            "Queued tasks:\n" + string.Join('\n', tasks.Select(task => $"- {task.Id}: {task.Title}")),
+            $"{statusText} tasks:\n" + string.Join('\n', tasks.Select(task => $"- {task.Id}: {task.Title}")),
             Buttons(buttons));
     }
 
@@ -297,7 +326,7 @@ public sealed class TelegramInteractionHandler
             Buttons(buttons));
     }
 
-    private async Task<TelegramResponse> ViewTaskAsync(
+    public async Task<TelegramResponse> RenderTaskDetailsAsync(
         TaskId taskId,
         CancellationToken cancellationToken)
     {
@@ -324,7 +353,22 @@ public sealed class TelegramInteractionHandler
             Goal:
             {task.Value.Goal}
             """,
-            buttons);
+            buttons,
+            new TelegramResponseMetadata(TelegramResponseKind.TaskDetails, task.Value.Id));
+    }
+
+    private async Task<TelegramResponse> ViewTaskAsync(
+        TaskId taskId,
+        CancellationToken cancellationToken) =>
+        await RenderTaskDetailsAsync(taskId, cancellationToken);
+
+    public async Task<RuntimeTask?> GetTaskOrDefaultAsync(
+        TaskId taskId,
+        CancellationToken cancellationToken)
+    {
+        var task = await application.GetTaskAsync(taskId, cancellationToken);
+
+        return task.IsSuccess ? task.Value : null;
     }
 
     private async Task<TelegramResponse> CancelTaskAsync(
@@ -402,6 +446,9 @@ public sealed class TelegramInteractionHandler
     private static TelegramButtonMarkup BackButtons() =>
         Buttons(Row(Button("Back", TelegramCallbackData.MainMenu)));
 
+    private static TelegramButtonMarkup TaskMenuButtons() =>
+        Buttons(Row(Button("Back", TelegramCallbackData.TaskMenu)));
+
     private static TelegramButtonMarkup CancelDraftButtons() =>
         Buttons(Row(Button("Cancel", TelegramCallbackData.CancelCreateTask)));
 
@@ -410,6 +457,9 @@ public sealed class TelegramInteractionHandler
 
     private static string CountBadge(int count, int limit) =>
         count >= limit ? $"{limit}+" : count.ToString();
+
+    private static string FormatStatus(RuntimeTaskStatus status) =>
+        status.ToStorageValue().Replace('_', ' ');
 
     private static TelegramButton Button(string text, string callbackData) =>
         new(text, callbackData);
@@ -420,9 +470,21 @@ public sealed class TelegramInteractionHandler
     private static TelegramButtonMarkup Buttons(params IReadOnlyList<TelegramButton>[] rows) =>
         new(rows);
 
+    private static RuntimeTaskStatus[] TaskStatuses { get; } =
+    [
+        RuntimeTaskStatus.Queued,
+        RuntimeTaskStatus.Planning,
+        RuntimeTaskStatus.Running,
+        RuntimeTaskStatus.Reviewing,
+        RuntimeTaskStatus.WaitingApproval,
+        RuntimeTaskStatus.Completed,
+        RuntimeTaskStatus.Failed,
+        RuntimeTaskStatus.Cancelled,
+    ];
+
     private sealed record TaskDraft(
         ProjectId ProjectId,
-        MachineId MachineId,
+        MachineId? MachineId,
         string? Title,
         TaskDraftStep Step);
 

@@ -46,8 +46,8 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Equal(TelegramCallbackData.ListProjects, response.Buttons.Rows[1][0].CallbackData);
         Assert.Equal("Machines (1)", response.Buttons.Rows[1][1].Text);
         Assert.Equal(TelegramCallbackData.ListMachines, response.Buttons.Rows[1][1].CallbackData);
-        Assert.Equal("Queued tasks (1)", response.Buttons.Rows[2][0].Text);
-        Assert.Equal(TelegramCallbackData.ListQueuedTasks, response.Buttons.Rows[2][0].CallbackData);
+        Assert.Equal("Tasks (1 queued)", response.Buttons.Rows[2][0].Text);
+        Assert.Equal(TelegramCallbackData.TaskMenu, response.Buttons.Rows[2][0].CallbackData);
         Assert.Equal("Approvals (1)", response.Buttons.Rows[2][1].Text);
         Assert.Equal(TelegramCallbackData.ListPendingApprovals, response.Buttons.Rows[2][1].CallbackData);
     }
@@ -124,10 +124,33 @@ public sealed class TelegramInteractionHandlerTests
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ListQueuedTasks),
             CancellationToken.None);
 
-        Assert.Equal("Queued tasks:\n- task-001: Wire Telegram buttons", response.Text);
+        Assert.Equal("queued tasks:\n- task-001: Wire Telegram buttons", response.Text);
         Assert.Equal("Wire Telegram buttons", response.Buttons.Rows[0][0].Text);
         Assert.Equal("aeges:task:task-001", response.Buttons.Rows[0][0].CallbackData);
         Assert.Equal("Back", response.Buttons.Rows[1][0].Text);
+    }
+
+    [Fact]
+    public async Task HandleAsync_shows_task_status_menu()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Queued work",
+            "Do the work.",
+            Now);
+        var facade = new FakeTelegramApplicationFacade { QueuedTasks = [task] };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.TaskMenu),
+            CancellationToken.None);
+
+        Assert.Equal("Tasks by status", response.Text);
+        Assert.Equal("queued (1)", response.Buttons.Rows[0][0].Text);
+        Assert.Equal(TelegramCallbackData.ListTasksByStatus(RuntimeTaskStatus.Queued), response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("planning (0)", response.Buttons.Rows[1][0].Text);
     }
 
     [Fact]
@@ -379,6 +402,13 @@ public sealed class TelegramInteractionHandlerTests
             int limit,
             CancellationToken cancellationToken) =>
             System.Threading.Tasks.Task.FromResult(QueuedTasks.Take(limit).ToArray() as IReadOnlyList<RuntimeTask>);
+
+        public Task<IReadOnlyList<RuntimeTask>> ListTasksByStatusAsync(
+            RuntimeTaskStatus status,
+            int limit,
+            CancellationToken cancellationToken) =>
+            System.Threading.Tasks.Task.FromResult(
+                QueuedTasks.Where(task => task.Status == status).Take(limit).ToArray() as IReadOnlyList<RuntimeTask>);
 
         public Task<IReadOnlyList<ApprovalRequest>> ListPendingApprovalsAsync(
             int limit,

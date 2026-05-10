@@ -51,6 +51,13 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         await taskService.ListByStatusAsync(RuntimeTaskStatus.Queued, limit, cancellationToken);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<RuntimeTask>> ListTasksByStatusAsync(
+        RuntimeTaskStatus status,
+        int limit,
+        CancellationToken cancellationToken) =>
+        await taskService.ListByStatusAsync(status, limit, cancellationToken);
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<ApprovalRequest>> ListPendingApprovalsAsync(
         int limit,
         CancellationToken cancellationToken) =>

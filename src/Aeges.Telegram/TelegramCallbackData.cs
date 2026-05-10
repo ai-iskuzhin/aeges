@@ -28,6 +28,11 @@ public static class TelegramCallbackData
     public const string ListQueuedTasks = "aeges:tasks:queued";
 
     /// <summary>
+    /// Gets the task status menu callback payload.
+    /// </summary>
+    public const string TaskMenu = "ae:t";
+
+    /// <summary>
     /// Gets the pending approval list callback payload.
     /// </summary>
     public const string ListPendingApprovals = "ae:ap";
@@ -55,6 +60,13 @@ public static class TelegramCallbackData
     /// <param name="machineId">The machine identifier.</param>
     /// <returns>The callback payload.</returns>
     public static string SelectTaskMachine(MachineId machineId) => $"ae:t:m:{machineId.Value}";
+
+    /// <summary>
+    /// Creates a task status list callback payload.
+    /// </summary>
+    /// <param name="status">The task lifecycle status.</param>
+    /// <returns>The callback payload.</returns>
+    public static string ListTasksByStatus(RuntimeTaskStatus status) => $"ae:t:s:{status.ToStorageValue()}";
 
     /// <summary>
     /// Creates a task details callback payload.
@@ -200,6 +212,34 @@ public static class TelegramCallbackData
         }
 
         machineId = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to parse a task status list callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="status">The parsed task lifecycle status.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseListTasksByStatus(string payload, out RuntimeTaskStatus status)
+    {
+        const string prefix = "ae:t:s:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length > prefix.Length)
+        {
+            try
+            {
+                status = RuntimeTaskStatusExtensions.FromStorageValue(payload[prefix.Length..]);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                status = default;
+                return false;
+            }
+        }
+
+        status = default;
         return false;
     }
 

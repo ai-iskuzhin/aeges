@@ -31,6 +31,18 @@ public interface ITelegramApplicationFacade
     Task<IReadOnlyList<RuntimeTask>> ListQueuedTasksAsync(int limit, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Lists tasks by lifecycle status.
+    /// </summary>
+    /// <param name="status">The lifecycle status to list.</param>
+    /// <param name="limit">The maximum number of tasks to return.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The matching tasks.</returns>
+    Task<IReadOnlyList<RuntimeTask>> ListTasksByStatusAsync(
+        RuntimeTaskStatus status,
+        int limit,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Lists pending approval requests.
     /// </summary>
     /// <param name="limit">The maximum number of approvals to return.</param>

@@ -14,7 +14,9 @@ Initial buttons:
 New task      -> ae:t:new
 Projects      -> aeges:projects:list
 Machines      -> aeges:machines:list
-Queued tasks  -> aeges:tasks:queued
+Tasks        -> ae:t
+Task status  -> ae:t:s:<status>
+Queued tasks -> aeges:tasks:queued
 Back          -> aeges:menu
 Project       -> ae:t:p:<project-id>
 Machine       -> ae:t:m:<machine-id>
@@ -71,6 +73,13 @@ will claim and process the task on its next polling pass.
 
 The main menu shows count badges for projects, machines, queued tasks, and
 pending approvals so operators can see queue shape without opening every view.
+The task menu groups tasks by lifecycle status: queued, planning, running,
+reviewing, waiting approval, completed, failed, and cancelled.
+
+When a task watched by a chat changes status, the Telegram transport notifies
+that chat. If the chat's last bot message is the task details message, the
+transport edits that message in place. Otherwise it sends a compact
+notification with a `View task` button.
 
 The bot token is read from the environment variable named by
 `telegram.botTokenEnvironmentVariable`, or from the local file configured by

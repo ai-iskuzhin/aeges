@@ -245,7 +245,7 @@ The MVP Telegram UI includes buttons for:
 - creating a new task
 - projects
 - machines
-- queued tasks
+- tasks grouped by lifecycle status
 - task details
 - task cancellation
 - pending approvals
@@ -261,6 +261,11 @@ aeges agent start
 Then send any message to the bot, tap `New task`, choose the project and
 machine, then send the title and goal as chat messages. The task is queued
 durably and the local agent worker will pick it up on its next poll.
+
+The `Tasks` button opens status buckets for queued, planning, running,
+reviewing, waiting approval, completed, failed, and cancelled tasks. When a
+watched task changes, Telegram edits the open task-details message when
+possible; otherwise it sends a short notification with a `View task` button.
 
 ## Configuration
 

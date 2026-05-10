@@ -55,16 +55,18 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
     }
 
     /// <inheritdoc />
-    public async Task SendResponseAsync(
+    public async Task<int?> SendResponseAsync(
         long chatId,
         TelegramResponse response,
         CancellationToken cancellationToken)
     {
-        await botClient.SendMessage(
+        var message = await botClient.SendMessage(
             chatId,
             response.Text,
             replyMarkup: ToReplyMarkup(response.Buttons),
             cancellationToken: cancellationToken);
+
+        return message.MessageId;
     }
 
     /// <inheritdoc />
