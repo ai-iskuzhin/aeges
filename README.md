@@ -291,7 +291,9 @@ reviewing, waiting approval, completed, failed, and cancelled tasks. When a
 watched task changes, Telegram edits the open task-details message when
 possible; otherwise it sends a short notification with a `View task` button.
 Open a task in `reviewing` to see the latest runner response, runner exit
-status, and artifacts. Press `Complete` there to confirm the worker result.
+status, and artifacts. Press `Complete` there to confirm the worker result, or
+press `Continue` and send follow-up feedback to requeue the task for another
+bounded iteration.
 
 ## Configuration
 
@@ -345,6 +347,7 @@ aeges machine list [...]
 aeges task create --project-id <id> --machine-id <id> --title <title> --goal <goal> [...]
 aeges task status <task-id> [...]
 aeges task cancel <task-id> [...]
+aeges task continue <task-id> --feedback <text> [...]
 aeges agent run [--once] [--runner-id <id>] [--create-worktree] [--execute-runner] [...]
 aeges agent start [--runner-id <id>] [--no-execute-runner] [--no-create-worktree] [...]
 aeges agent restart [--runner-id <id>] [--no-execute-runner] [--no-create-worktree] [...]

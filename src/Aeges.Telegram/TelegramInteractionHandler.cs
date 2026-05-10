@@ -15,6 +15,7 @@ public sealed class TelegramInteractionHandler
     private readonly ITelegramApplicationFacade application;
     private readonly HashSet<long> allowedChatIds;
     private readonly ConcurrentDictionary<long, TaskDraft> drafts = new();
+    private readonly ConcurrentDictionary<long, TaskId> continuationDrafts = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TelegramInteractionHandler"/> class.
@@ -64,6 +65,7 @@ public sealed class TelegramInteractionHandler
             TelegramCallbackData.SettingsMenu => await SettingsMenuAsync(cancellationToken),
             TelegramCallbackData.CreateTask => await StartTaskCreationAsync(update.ChatId, cancellationToken),
             TelegramCallbackData.CancelCreateTask => CancelTaskCreation(update.ChatId),
+            TelegramCallbackData.CancelContinueTask => CancelTaskContinuation(update.ChatId),
             _ when TelegramCallbackData.TryParseSetCodexSandboxMode(callbackData, out var sandboxMode) =>
                 await SetCodexSandboxModeAsync(sandboxMode, cancellationToken),
             _ when TelegramCallbackData.TryParseSetCodexBypassApprovalsAndSandbox(callbackData, out var bypassEnabled) =>
@@ -78,6 +80,8 @@ public sealed class TelegramInteractionHandler
                 await ViewTaskAsync(taskId, cancellationToken),
             _ when TelegramCallbackData.TryParseCompleteTask(callbackData, out var taskId) =>
                 await CompleteTaskAsync(taskId, cancellationToken),
+            _ when TelegramCallbackData.TryParseContinueTask(callbackData, out var taskId) =>
+                await StartTaskContinuationAsync(update.ChatId, taskId, cancellationToken),
             _ when TelegramCallbackData.TryParseCancelTask(callbackData, out var taskId) =>
                 await CancelTaskAsync(taskId, cancellationToken),
             _ when TelegramCallbackData.TryParseApproveApproval(callbackData, out var approvalId) =>
@@ -117,12 +121,19 @@ public sealed class TelegramInteractionHandler
         TelegramUpdate update,
         CancellationToken cancellationToken)
     {
+        var text = update.Text?.Trim();
+
+        if (continuationDrafts.TryGetValue(update.ChatId, out var continuationTaskId))
+        {
+            return string.IsNullOrWhiteSpace(text)
+                ? new TelegramResponse("Send non-empty feedback, or cancel task continuation.", ContinueDraftButtons())
+                : await ContinueTaskWithFeedbackAsync(update.ChatId, continuationTaskId, text, cancellationToken);
+        }
+
         if (!drafts.TryGetValue(update.ChatId, out var draft))
         {
             return await MainMenuAsync(cancellationToken);
         }
-
-        var text = update.Text?.Trim();
 
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -187,6 +198,7 @@ public sealed class TelegramInteractionHandler
         }
 
         drafts.TryRemove(chatId, out _);
+        continuationDrafts.TryRemove(chatId, out _);
         var rows = projects
             .Select(project => Row(Button(project.Name, TelegramCallbackData.SelectTaskProject(project.Id))))
             .Append(Row(Button("Cancel", TelegramCallbackData.CancelCreateTask)))
@@ -247,6 +259,71 @@ public sealed class TelegramInteractionHandler
         drafts.TryRemove(chatId, out _);
 
         return new TelegramResponse("Task creation cancelled.", BackButtons());
+    }
+
+    private async Task<TelegramResponse> StartTaskContinuationAsync(
+        long chatId,
+        TaskId taskId,
+        CancellationToken cancellationToken)
+    {
+        var task = await application.GetTaskAsync(taskId, cancellationToken);
+
+        if (!task.IsSuccess)
+        {
+            return new TelegramResponse($"{task.Error!.Code}: {task.Error.Message}", BackButtons());
+        }
+
+        if (task.Value!.Status != RuntimeTaskStatus.Reviewing)
+        {
+            return new TelegramResponse("Only reviewing tasks can be continued.", BackButtons());
+        }
+
+        if (task.Value.CurrentIteration >= task.Value.MaxIterations)
+        {
+            return new TelegramResponse("This task has reached its iteration limit.", BackButtons());
+        }
+
+        drafts.TryRemove(chatId, out _);
+        continuationDrafts[chatId] = taskId;
+
+        return new TelegramResponse(
+            "Send the follow-up instructions for the next iteration.",
+            ContinueDraftButtons());
+    }
+
+    private async Task<TelegramResponse> ContinueTaskWithFeedbackAsync(
+        long chatId,
+        TaskId taskId,
+        string feedback,
+        CancellationToken cancellationToken)
+    {
+        var result = await application.ContinueTaskAsync(taskId, feedback, cancellationToken);
+        continuationDrafts.TryRemove(chatId, out _);
+
+        if (!result.IsSuccess)
+        {
+            return new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+        }
+
+        return new TelegramResponse(
+            $"""
+            Task continued: {result.Value!.Id}
+            Status: {result.Value.Status.ToStorageValue()}
+
+            Follow-up:
+            {TelegramMarkdown.Quote(feedback)}
+            """,
+            Buttons(
+                Row(Button("View task", TelegramCallbackData.ViewTask(result.Value.Id))),
+                Row(Button("Back", TelegramCallbackData.MainMenu))),
+            new TelegramResponseMetadata(TelegramResponseKind.TaskWatch, result.Value.Id));
+    }
+
+    private TelegramResponse CancelTaskContinuation(long chatId)
+    {
+        continuationDrafts.TryRemove(chatId, out _);
+
+        return new TelegramResponse("Task continuation cancelled.", BackButtons());
     }
 
     private async Task<TelegramResponse> ListProjectsAsync(CancellationToken cancellationToken)
@@ -554,6 +631,9 @@ public sealed class TelegramInteractionHandler
     private static TelegramButtonMarkup CancelDraftButtons() =>
         Buttons(Row(Button("Cancel", TelegramCallbackData.CancelCreateTask)));
 
+    private static TelegramButtonMarkup ContinueDraftButtons() =>
+        Buttons(Row(Button("Cancel", TelegramCallbackData.CancelContinueTask)));
+
     private static TelegramResponse RenderSettings(
         TelegramRunnerSettings settings,
         string? notice = null)
@@ -593,6 +673,7 @@ public sealed class TelegramInteractionHandler
         if (task.Status == RuntimeTaskStatus.Reviewing)
         {
             return Buttons(
+                Row(Button("Continue", TelegramCallbackData.ContinueTask(task.Id), TelegramButtonStyle.Primary)),
                 Row(Button("Complete", TelegramCallbackData.CompleteTask(task.Id))),
                 Row(Button("Cancel", TelegramCallbackData.CancelTask(task.Id))),
                 Row(Button("Back", TelegramCallbackData.MainMenu)));

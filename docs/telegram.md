@@ -79,7 +79,9 @@ reviewing, waiting approval, completed, failed, and cancelled.
 The `reviewing` bucket is the human confirmation step after a worker succeeds.
 Opening a reviewing task shows the latest iteration, runner exit status,
 registered artifacts, and a short runner response preview. Press `Complete` to
-confirm the result and move the task to `completed`.
+confirm the result and move the task to `completed`, or press `Continue` and send
+follow-up feedback to store a `review` artifact and requeue the task for another
+bounded iteration.
 
 Telegram messages are sent with MarkdownV2 enabled. User/task content such as
 goals, approval reasons, failure reasons, and runner response previews is shown

@@ -212,6 +212,20 @@ public sealed class RuntimeTask
     public void StartReview(DateTimeOffset now) => TransitionTo(RuntimeTaskStatus.Reviewing, now);
 
     /// <summary>
+    /// Requeues a reviewed task for another bounded iteration.
+    /// </summary>
+    /// <param name="now">The transition timestamp.</param>
+    public void RequeueForRevision(DateTimeOffset now)
+    {
+        if (CurrentIteration >= MaxIterations)
+        {
+            throw new AegesDomainException($"Task '{Id}' cannot continue because it reached {MaxIterations} iterations.");
+        }
+
+        TransitionTo(RuntimeTaskStatus.Queued, now);
+    }
+
+    /// <summary>
     /// Pauses the task until a required approval is resolved.
     /// </summary>
     /// <param name="now">The transition timestamp.</param>
@@ -287,6 +301,7 @@ public sealed class RuntimeTask
                 or RuntimeTaskStatus.Failed
                 or RuntimeTaskStatus.Cancelled,
             RuntimeTaskStatus.Reviewing => nextStatus is RuntimeTaskStatus.Completed
+                or RuntimeTaskStatus.Queued
                 or RuntimeTaskStatus.Running
                 or RuntimeTaskStatus.WaitingApproval
                 or RuntimeTaskStatus.Failed

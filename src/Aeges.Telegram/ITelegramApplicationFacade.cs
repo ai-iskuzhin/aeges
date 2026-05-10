@@ -135,6 +135,18 @@ public interface ITelegramApplicationFacade
     Task<ApplicationResult<RuntimeTask>> CompleteTaskAsync(TaskId taskId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Stores review feedback and requeues a task for another iteration.
+    /// </summary>
+    /// <param name="taskId">The reviewed task identifier.</param>
+    /// <param name="feedback">The reviewer feedback to include in the next prompt.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The requeued task, or an expected failure.</returns>
+    Task<ApplicationResult<RuntimeTask>> ContinueTaskAsync(
+        TaskId taskId,
+        string feedback,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Gets an approval request by identifier.
     /// </summary>
     /// <param name="approvalId">The approval request identifier.</param>

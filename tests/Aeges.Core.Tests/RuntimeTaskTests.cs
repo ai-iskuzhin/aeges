@@ -139,6 +139,36 @@ public sealed class RuntimeTaskTests
         Assert.Throws<AegesDomainException>(() => task.AdvanceIteration(CreatedAt.AddMinutes(3)));
     }
 
+    [Fact]
+    public void Reviewing_task_can_be_requeued_for_revision()
+    {
+        var task = CreateTask(maxIterations: 2);
+
+        task.StartPlanning(CreatedAt.AddMinutes(1));
+        task.AdvanceIteration(CreatedAt.AddMinutes(2));
+        task.StartRunning(CreatedAt.AddMinutes(3));
+        task.StartReview(CreatedAt.AddMinutes(4));
+        task.RequeueForRevision(CreatedAt.AddMinutes(5));
+
+        Assert.Equal(RuntimeTaskStatus.Queued, task.Status);
+        Assert.Equal(1, task.CurrentIteration);
+        Assert.Equal(CreatedAt.AddMinutes(5), task.UpdatedAt);
+    }
+
+    [Fact]
+    public void RequeueForRevision_enforces_iteration_limit()
+    {
+        var task = CreateTask(maxIterations: 1);
+
+        task.StartPlanning(CreatedAt.AddMinutes(1));
+        task.AdvanceIteration(CreatedAt.AddMinutes(2));
+        task.StartRunning(CreatedAt.AddMinutes(3));
+        task.StartReview(CreatedAt.AddMinutes(4));
+
+        Assert.Throws<AegesDomainException>(() => task.RequeueForRevision(CreatedAt.AddMinutes(5)));
+        Assert.Equal(RuntimeTaskStatus.Reviewing, task.Status);
+    }
+
     [Theory]
     [InlineData(RuntimeTaskStatus.Queued, "queued")]
     [InlineData(RuntimeTaskStatus.Planning, "planning")]

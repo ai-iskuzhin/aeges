@@ -10,6 +10,8 @@ using Aeges.Application.Runtime;
 using Aeges.Application.Tasks;
 using Aeges.Core;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -246,6 +248,78 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         await taskService.CompleteAsync(taskId, cancellationToken);
 
     /// <inheritdoc />
+    public async Task<ApplicationResult<RuntimeTask>> ContinueTaskAsync(
+        TaskId taskId,
+        string feedback,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(feedback))
+        {
+            return ApplicationResult<RuntimeTask>.Failure(
+                "empty_review_feedback",
+                "Review feedback must not be empty.");
+        }
+
+        var task = await taskService.GetAsync(taskId, cancellationToken);
+
+        if (!task.IsSuccess)
+        {
+            return ApplicationResult<RuntimeTask>.Failure(task.Error!.Code, task.Error.Message);
+        }
+
+        if (task.Value!.Status != RuntimeTaskStatus.Reviewing)
+        {
+            return ApplicationResult<RuntimeTask>.Failure(
+                "task_not_reviewing",
+                $"Task '{taskId}' is not waiting for review feedback.");
+        }
+
+        if (task.Value.CurrentIteration >= task.Value.MaxIterations)
+        {
+            return ApplicationResult<RuntimeTask>.Failure(
+                "iteration_limit_reached",
+                $"Task '{taskId}' cannot continue because it reached {task.Value.MaxIterations} iterations.");
+        }
+
+        var iterations = await iterationService.ListByTaskAsync(taskId, cancellationToken);
+        var latestIterationId = iterations
+            .OrderByDescending(iteration => iteration.IterationNumber)
+            .FirstOrDefault()
+            ?.Id;
+        var artifactId = ArtifactId.New();
+        var artifactContent = CreateReviewFeedbackContent(task.Value, feedback);
+        var artifactBytes = Encoding.UTF8.GetBytes(artifactContent);
+        var relativePath = CreateReviewArtifactPath(task.Value, artifactId);
+        var fullPath = ResolveArtifactPath(relativePath);
+        var directory = Path.GetDirectoryName(fullPath);
+
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        await File.WriteAllTextAsync(fullPath, artifactContent, Encoding.UTF8, cancellationToken);
+
+        var artifact = await artifactService.RegisterAsync(
+            new RegisterArtifactRequest(
+                taskId,
+                latestIterationId,
+                ArtifactType.Review,
+                relativePath,
+                artifactBytes.LongLength,
+                Convert.ToHexString(SHA256.HashData(artifactBytes)).ToLowerInvariant(),
+                artifactId),
+            cancellationToken);
+
+        if (!artifact.IsSuccess)
+        {
+            return ApplicationResult<RuntimeTask>.Failure(artifact.Error!.Code, artifact.Error.Message);
+        }
+
+        return await taskService.RequeueForRevisionAsync(taskId, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<ApplicationResult<ApprovalRequest>> GetApprovalAsync(
         ApprovalId approvalId,
         CancellationToken cancellationToken) =>
@@ -321,6 +395,50 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
 
     private static string FirstNonEmpty(params string[] values) =>
         values.First(value => !string.IsNullOrWhiteSpace(value));
+
+    private static string CreateReviewFeedbackContent(RuntimeTask task, string feedback) =>
+        $"""
+        # Review Feedback
+
+        Task ID: {task.Id}
+        Previous iteration: {task.CurrentIteration}
+
+        Feedback:
+        {feedback.Trim()}
+        """;
+
+    private static string CreateReviewArtifactPath(RuntimeTask task, ArtifactId artifactId) =>
+        string.Join(
+            '/',
+            SanitizePathSegment(task.ProjectId.Value),
+            SanitizePathSegment(task.Id.Value),
+            "review",
+            $"{SanitizePathSegment(artifactId.Value)}.md");
+
+    private string ResolveArtifactPath(string relativePath)
+    {
+        var fullPath = Path.GetFullPath(Path.Combine(runtimeLayout.ArtifactsPath, relativePath));
+        var artifactRoot = Path.GetFullPath(runtimeLayout.ArtifactsPath);
+
+        if (Path.GetRelativePath(artifactRoot, fullPath).StartsWith("..", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Review feedback artifact path escaped the configured artifact root.");
+        }
+
+        return fullPath;
+    }
+
+    private static string SanitizePathSegment(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+
+        foreach (var character in value)
+        {
+            builder.Append(char.IsLetterOrDigit(character) || character is '-' or '_' ? character : '-');
+        }
+
+        return builder.ToString();
+    }
 
     private string? TryReadLatestRunnerResponse(
         IReadOnlyList<RuntimeArtifact> artifacts,

@@ -43,7 +43,7 @@ queued -> planning
 queued -> cancelled
 planning -> running | waiting_approval | failed | cancelled
 running -> reviewing | waiting_approval | failed | cancelled
-reviewing -> completed | running | waiting_approval | failed | cancelled
+reviewing -> queued | completed | running | waiting_approval | failed | cancelled
 waiting_approval -> running | failed | cancelled
 ```
 
@@ -83,7 +83,9 @@ Terminal iteration states do not allow further transitions.
 waiting for a governed review decision. For the MVP Telegram flow, successful
 runner execution moves the task to `reviewing`; an operator can inspect the
 runner response and registered artifacts, then press `Complete` in the task
-details view to move the task to `completed`.
+details view to move the task to `completed`. If the operator supplies follow-up
+feedback instead, Aeges stores that feedback as a durable `review` artifact and
+requeues the task for the next bounded iteration.
 
 ## Artifacts
 

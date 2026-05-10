@@ -21,6 +21,7 @@ namespace Aeges.Agent;
 /// </summary>
 public sealed class LocalAgentRuntime
 {
+    private const int MaxReviewFeedbackBytes = 32 * 1024;
     private readonly IClock clock;
     private readonly IAegesRunner? runner;
     private readonly IGitRuntime gitRuntime;
@@ -223,7 +224,8 @@ public sealed class LocalAgentRuntime
 
         Directory.CreateDirectory(runnerRequest.Value!.ArtifactOutputDirectory);
 
-        var promptText = BuildPrompt(task, iteration);
+        var reviewFeedback = await ReadReviewFeedbackAsync(unitOfWork, layout, task.Id, cancellationToken);
+        var promptText = BuildPrompt(task, iteration, reviewFeedback);
         var promptBytes = Encoding.UTF8.GetBytes(promptText);
         await File.WriteAllTextAsync(runnerRequest.Value.PromptPath, promptText, Encoding.UTF8, cancellationToken);
 
@@ -569,7 +571,10 @@ public sealed class LocalAgentRuntime
             ? RuntimeDirectoryLayout.CreateDefault()
             : RuntimeDirectoryLayout.Create(options.RuntimeRootPath);
 
-    private static string BuildPrompt(RuntimeTask task, TaskIteration iteration) =>
+    private static string BuildPrompt(
+        RuntimeTask task,
+        TaskIteration iteration,
+        string reviewFeedback) =>
         $"""
         # Aeges Task Prompt
 
@@ -580,11 +585,82 @@ public sealed class LocalAgentRuntime
         Goal:
         {task.Goal}
 
+        Review feedback:
+        {reviewFeedback}
+
         Runtime instructions:
         - Follow the project rules and governance constraints.
         - Keep changes scoped to the task goal.
         - Produce durable outputs for review.
         """;
+
+    private static async Task<string> ReadReviewFeedbackAsync(
+        SqliteUnitOfWork unitOfWork,
+        RuntimeDirectoryLayout layout,
+        TaskId taskId,
+        CancellationToken cancellationToken)
+    {
+        var artifacts = await unitOfWork.Artifacts.ListByTaskAsync(taskId, cancellationToken);
+        var reviewArtifacts = artifacts
+            .Where(artifact => artifact.Type == ArtifactType.Review)
+            .OrderBy(artifact => artifact.CreatedAt)
+            .ToArray();
+
+        if (reviewArtifacts.Length == 0)
+        {
+            return "(none)";
+        }
+
+        var sections = new List<string>();
+
+        foreach (var artifact in reviewArtifacts)
+        {
+            var fullPath = ResolveArtifactPath(layout, artifact.RelativePath);
+
+            if (!File.Exists(fullPath))
+            {
+                sections.Add($"- Missing review artifact: {artifact.RelativePath}");
+                continue;
+            }
+
+            var content = await ReadBoundedTextAsync(fullPath, cancellationToken);
+            sections.Add(
+                $"""
+                ## Review artifact {artifact.Id}
+                {content}
+                """);
+        }
+
+        return string.Join("\n\n", sections);
+    }
+
+    private static string ResolveArtifactPath(RuntimeDirectoryLayout layout, string relativePath)
+    {
+        var fullPath = Path.GetFullPath(Path.Combine(layout.ArtifactsPath, relativePath));
+        var artifactRoot = Path.GetFullPath(layout.ArtifactsPath);
+
+        if (!fullPath.StartsWith(artifactRoot, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Review artifact path escaped the configured artifact root.");
+        }
+
+        return fullPath;
+    }
+
+    private static async Task<string> ReadBoundedTextAsync(
+        string path,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = File.OpenRead(path);
+        var length = (int)Math.Min(stream.Length, MaxReviewFeedbackBytes);
+        var buffer = new byte[length];
+        var read = await stream.ReadAsync(buffer.AsMemory(0, length), cancellationToken);
+        var content = Encoding.UTF8.GetString(buffer, 0, read);
+
+        return stream.Length > MaxReviewFeedbackBytes
+            ? content + "\n[truncated]"
+            : content;
+    }
 
     private static string ToArtifactRelativePath(RuntimeDirectoryLayout layout, string artifactPath)
     {

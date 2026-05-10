@@ -88,6 +88,13 @@ public static class TelegramCallbackData
     public static string CancelTask(TaskId taskId) => $"ae:t:x:{taskId.Value}";
 
     /// <summary>
+    /// Creates a task continuation callback payload.
+    /// </summary>
+    /// <param name="taskId">The task identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string ContinueTask(TaskId taskId) => $"ae:t:more:{taskId.Value}";
+
+    /// <summary>
     /// Creates a Codex sandbox mode settings callback payload.
     /// </summary>
     /// <param name="sandboxMode">The target sandbox mode.</param>
@@ -107,6 +114,11 @@ public static class TelegramCallbackData
     /// <param name="taskId">The task identifier.</param>
     /// <returns>The callback payload.</returns>
     public static string CompleteTask(TaskId taskId) => $"ae:t:done:{taskId.Value}";
+
+    /// <summary>
+    /// Gets the task continuation cancellation callback payload.
+    /// </summary>
+    public const string CancelContinueTask = "ae:t:more:x";
 
     /// <summary>
     /// Creates an approval details callback payload.
@@ -166,6 +178,34 @@ public static class TelegramCallbackData
     public static bool TryParseCancelTask(string payload, out TaskId taskId)
     {
         const string prefix = "ae:t:x:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length > prefix.Length)
+        {
+            try
+            {
+                taskId = new TaskId(payload[prefix.Length..]);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                taskId = default;
+                return false;
+            }
+        }
+
+        taskId = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to parse a task continuation callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="taskId">The parsed task identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseContinueTask(string payload, out TaskId taskId)
+    {
+        const string prefix = "ae:t:more:";
 
         if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length > prefix.Length)
         {

@@ -141,6 +141,17 @@ public sealed class TaskService
         await UpdateTaskAsync(taskId, static (task, now) => task.StartReview(now), cancellationToken);
 
     /// <summary>
+    /// Requeues a reviewed task for another bounded iteration.
+    /// </summary>
+    /// <param name="taskId">The task identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The updated task, or an expected failure.</returns>
+    public async Task<ApplicationResult<RuntimeTask>> RequeueForRevisionAsync(
+        TaskId taskId,
+        CancellationToken cancellationToken) =>
+        await UpdateTaskAsync(taskId, static (task, now) => task.RequeueForRevision(now), cancellationToken);
+
+    /// <summary>
     /// Pauses a task until approval is resolved.
     /// </summary>
     /// <param name="taskId">The task identifier.</param>

@@ -330,6 +330,14 @@ public sealed class TelegramLongPollingServiceTests
                 "task_not_found",
                 $"Task '{taskId}' was not found."));
 
+        public Task<Aeges.Application.ApplicationResult<RuntimeTask>> ContinueTaskAsync(
+            TaskId taskId,
+            string feedback,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<RuntimeTask>.Failure(
+                "task_not_found",
+                $"Task '{taskId}' was not found."));
+
         public Task<Aeges.Application.ApplicationResult<ApprovalRequest>> GetApprovalAsync(
             ApprovalId approvalId,
             CancellationToken cancellationToken) =>

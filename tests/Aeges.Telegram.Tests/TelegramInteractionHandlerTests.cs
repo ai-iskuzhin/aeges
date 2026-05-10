@@ -239,8 +239,43 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Contains("> Status: reviewing", response.Text, StringComparison.Ordinal);
         Assert.Contains("Runner response:\n> Mock runner result: success.", response.Text, StringComparison.Ordinal);
         Assert.Contains("Artifacts:\n> - result: project-aeges/task-001/iteration-001/result.md", response.Text, StringComparison.Ordinal);
-        Assert.Equal("Complete", response.Buttons.Rows[0][0].Text);
-        Assert.Equal("ae:t:done:task-001", response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("Continue", response.Buttons.Rows[0][0].Text);
+        Assert.Equal("ae:t:more:task-001", response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal(TelegramButtonStyle.Primary, response.Buttons.Rows[0][0].Style);
+        Assert.Equal("Complete", response.Buttons.Rows[1][0].Text);
+        Assert.Equal("ae:t:done:task-001", response.Buttons.Rows[1][0].CallbackData);
+    }
+
+    [Fact]
+    public async Task HandleAsync_continues_reviewing_task_with_follow_up_feedback()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Fix smoke test",
+            "Update notes/status.txt.",
+            Now);
+        task.StartPlanning(Now);
+        task.AdvanceIteration(Now);
+        task.StartRunning(Now);
+        task.StartReview(Now);
+        var facade = new FakeTelegramApplicationFacade { Task = task };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var prompt = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ContinueTask(task.Id)),
+            CancellationToken.None);
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, Text: "Please retry with sandbox disabled."),
+            CancellationToken.None);
+
+        Assert.Equal("Send the follow-up instructions for the next iteration.", prompt.Text);
+        Assert.True(facade.ContinueTaskCalled);
+        Assert.Equal("Please retry with sandbox disabled.", facade.ContinuedFeedback);
+        Assert.Contains("Task continued: task-001", response.Text, StringComparison.Ordinal);
+        Assert.Contains("Status: queued", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Please retry with sandbox disabled.", response.Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -528,6 +563,10 @@ public sealed class TelegramInteractionHandlerTests
 
         public bool CompleteTaskCalled { get; private set; }
 
+        public bool ContinueTaskCalled { get; private set; }
+
+        public string? ContinuedFeedback { get; private set; }
+
         public int RestartAgentCallCount { get; private set; }
 
         public string? ResolvedBy { get; private set; }
@@ -680,6 +719,33 @@ public sealed class TelegramInteractionHandlerTests
             {
                 return System.Threading.Tasks.Task.FromResult(
                     ApplicationResult<RuntimeTask>.Failure("invalid_task_status_transition", exception.Message));
+            }
+
+            return System.Threading.Tasks.Task.FromResult(ApplicationResult<RuntimeTask>.Success(Task));
+        }
+
+        public Task<ApplicationResult<RuntimeTask>> ContinueTaskAsync(
+            TaskId taskId,
+            string feedback,
+            CancellationToken cancellationToken)
+        {
+            ContinueTaskCalled = true;
+            ContinuedFeedback = feedback;
+
+            if (Task is null || Task.Id != taskId)
+            {
+                return System.Threading.Tasks.Task.FromResult(
+                    ApplicationResult<RuntimeTask>.Failure("task_not_found", $"Task '{taskId}' was not found."));
+            }
+
+            try
+            {
+                Task.RequeueForRevision(Now);
+            }
+            catch (AegesDomainException exception)
+            {
+                return System.Threading.Tasks.Task.FromResult(
+                    ApplicationResult<RuntimeTask>.Failure("task_domain_rule_violation", exception.Message));
             }
 
             return System.Threading.Tasks.Task.FromResult(ApplicationResult<RuntimeTask>.Success(Task));

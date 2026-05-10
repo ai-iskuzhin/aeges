@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Aeges.Agent;
@@ -88,6 +90,11 @@ internal static class AegesCli
         if (args is ["task", "cancel", .. var taskCancelArgs])
         {
             return await RunTaskCancelAsync(taskCancelArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["task", "continue", .. var taskContinueArgs])
+        {
+            return await RunTaskContinueAsync(taskContinueArgs, output, error, cancellationToken);
         }
 
         if (args is ["agent", "run", .. var agentRunArgs])
@@ -840,6 +847,159 @@ internal static class AegesCli
         return 0;
     }
 
+    private static async Task<int> RunTaskContinueAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = TaskContinueOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var unitOfWork = new SqliteUnitOfWork(context);
+        var clock = new SystemClock();
+        var taskService = new TaskService(unitOfWork, clock);
+        var taskId = new TaskId(options.TaskId!);
+        var task = await taskService.GetAsync(taskId, cancellationToken);
+
+        if (!task.IsSuccess)
+        {
+            await WriteErrorAsync(task.Error!, options.Json, error);
+            return 1;
+        }
+
+        if (task.Value!.Status != RuntimeTaskStatus.Reviewing)
+        {
+            await WriteErrorAsync(
+                new ApplicationError("task_not_reviewing", $"Task '{taskId}' is not waiting for review feedback."),
+                options.Json,
+                error);
+            return 1;
+        }
+
+        if (task.Value.CurrentIteration >= task.Value.MaxIterations)
+        {
+            await WriteErrorAsync(
+                new ApplicationError("iteration_limit_reached", $"Task '{taskId}' cannot continue because it reached {task.Value.MaxIterations} iterations."),
+                options.Json,
+                error);
+            return 1;
+        }
+
+        var artifact = await RegisterReviewFeedbackArtifactAsync(
+            unitOfWork,
+            task.Value,
+            options.Feedback!,
+            cancellationToken);
+
+        if (!artifact.IsSuccess)
+        {
+            await WriteErrorAsync(artifact.Error!, options.Json, error);
+            return 1;
+        }
+
+        var result = await taskService.RequeueForRevisionAsync(taskId, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            await WriteErrorAsync(result.Error!, options.Json, error);
+            return 1;
+        }
+
+        await WriteTaskAsync(result.Value!, options.Json, output, "Continued task");
+
+        return 0;
+    }
+
+    private static async Task<ApplicationResult<RuntimeArtifact>> RegisterReviewFeedbackArtifactAsync(
+        SqliteUnitOfWork unitOfWork,
+        RuntimeTask task,
+        string feedback,
+        CancellationToken cancellationToken)
+    {
+        var layout = RuntimeDirectoryLayout.CreateDefault();
+        var iterations = await new TaskIterationService(unitOfWork, new SystemClock())
+            .ListByTaskAsync(task.Id, cancellationToken);
+        var latestIterationId = iterations
+            .OrderByDescending(iteration => iteration.IterationNumber)
+            .FirstOrDefault()
+            ?.Id;
+        var artifactId = ArtifactId.New();
+        var content = CreateReviewFeedbackContent(task, feedback);
+        var bytes = Encoding.UTF8.GetBytes(content);
+        var relativePath = CreateReviewArtifactPath(task, artifactId);
+        var fullPath = ResolveArtifactPath(layout, relativePath);
+        var directory = Path.GetDirectoryName(fullPath);
+
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        await File.WriteAllTextAsync(fullPath, content, Encoding.UTF8, cancellationToken);
+
+        return await new ArtifactService(unitOfWork, new SystemClock()).RegisterAsync(
+            new RegisterArtifactRequest(
+                task.Id,
+                latestIterationId,
+                ArtifactType.Review,
+                relativePath,
+                bytes.LongLength,
+                Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(),
+                artifactId),
+            cancellationToken);
+    }
+
+    private static string CreateReviewFeedbackContent(RuntimeTask task, string feedback) =>
+        $"""
+        # Review Feedback
+
+        Task ID: {task.Id}
+        Previous iteration: {task.CurrentIteration}
+
+        Feedback:
+        {feedback.Trim()}
+        """;
+
+    private static string CreateReviewArtifactPath(RuntimeTask task, ArtifactId artifactId) =>
+        string.Join(
+            '/',
+            SanitizePathSegment(task.ProjectId.Value),
+            SanitizePathSegment(task.Id.Value),
+            "review",
+            $"{SanitizePathSegment(artifactId.Value)}.md");
+
+    private static string ResolveArtifactPath(RuntimeDirectoryLayout layout, string relativePath)
+    {
+        var fullPath = Path.GetFullPath(Path.Combine(layout.ArtifactsPath, relativePath));
+        var artifactRoot = Path.GetFullPath(layout.ArtifactsPath);
+
+        if (Path.GetRelativePath(artifactRoot, fullPath).StartsWith("..", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Review feedback artifact path escaped the configured artifact root.");
+        }
+
+        return fullPath;
+    }
+
+    private static string SanitizePathSegment(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+
+        foreach (var character in value)
+        {
+            builder.Append(char.IsLetterOrDigit(character) || character is '-' or '_' ? character : '-');
+        }
+
+        return builder.ToString();
+    }
+
     private static SqliteMigrationService CreateMigrationService(CliOptions options)
     {
         return new SqliteMigrationService(ResolveConnectionString(options));
@@ -1432,6 +1592,7 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges task create --project-id <id> --machine-id <id> --title <title> --goal <goal> [--task-id <id>] [--priority <int>] [--max-iterations <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task cancel <task-id> [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges task continue <task-id> --feedback <text> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--create-worktree] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent start [--machine-id <id>] [--runner-id <id>] [--no-claim] [--no-create-worktree] [--no-execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent restart [--machine-id <id>] [--runner-id <id>] [--no-claim] [--no-create-worktree] [--no-execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
@@ -1893,6 +2054,94 @@ internal static class AegesCli
         }
 
         private static TaskStatusOptions ErrorResult(string error) => new() { Error = error };
+    }
+
+    private sealed class TaskContinueOptions : CliOptions
+    {
+        public string? TaskId { get; private init; }
+
+        public string? Feedback { get; private init; }
+
+        public new static TaskContinueOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? taskId = null;
+            string? feedback = null;
+            var json = false;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--feedback":
+                        if (!TryReadValue(args, ref index, out feedback))
+                        {
+                            return ErrorResult("--feedback requires a value.");
+                        }
+
+                        break;
+                    case "--task-id":
+                        if (!TryReadValue(args, ref index, out taskId))
+                        {
+                            return ErrorResult("--task-id requires a value.");
+                        }
+
+                        break;
+                    default:
+                        if (args[index].StartsWith("--", StringComparison.Ordinal))
+                        {
+                            return ErrorResult($"Unknown option '{args[index]}'.");
+                        }
+
+                        if (taskId is not null)
+                        {
+                            return ErrorResult("Only one task identifier can be supplied.");
+                        }
+
+                        taskId = args[index];
+                        break;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(taskId))
+            {
+                return ErrorResult("Task identifier is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(feedback))
+            {
+                return ErrorResult("--feedback is required.");
+            }
+
+            return new TaskContinueOptions
+            {
+                ConfigPath = configPath,
+                ConnectionString = connectionString,
+                Json = json,
+                TaskId = taskId,
+                Feedback = feedback,
+            };
+        }
+
+        private static TaskContinueOptions ErrorResult(string error) => new() { Error = error };
     }
 
     private sealed class AgentRunCliOptions : CliOptions

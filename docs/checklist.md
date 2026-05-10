@@ -217,6 +217,7 @@ review, test, and document independently.
 - [x] Add button-driven Telegram task creation flow.
 - [x] Add count badges to Telegram menu buttons.
 - [x] Add Telegram task status buckets and watched-task status notifications.
+- [x] Add Telegram reviewing-task continuation with durable review feedback.
 - [x] Add current-process Telegram token prompt for `aeges telegram run`.
 - [x] Add `aeges telegram setup` wizard for config, token source, and chat IDs.
 - [x] Add `aeges telegram check` for bot identity preflight.
@@ -234,6 +235,13 @@ review, test, and document independently.
 - [x] Add allowed and denied path policy checks.
 - [x] Add max iteration and timeout policy checks.
 - [x] Add lock conflict detection.
+
+## Operator CLI
+
+- [x] Add `aeges task continue` parity for Telegram task continuation.
+- [ ] Add `aeges task review` to show runner response, iterations, and
+      artifacts without Telegram.
+- [ ] Add `aeges task artifacts` to list artifact metadata and local paths.
 
 ## Documentation
 

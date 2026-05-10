@@ -174,6 +174,30 @@ public sealed class TaskServiceTests
     }
 
     [Fact]
+    public async Task RequeueForRevisionAsync_requeues_reviewing_task()
+    {
+        var unitOfWork = new InMemoryUnitOfWork();
+        var clock = new FixedClock(Now);
+        await SeedProjectAndMachineAsync(unitOfWork, clock);
+        var service = new TaskService(unitOfWork, clock);
+        await service.CreateAsync(
+            new CreateTaskRequest(new ProjectId("project-001"), new MachineId("machine-001"), "Build CLI", "Create commands.", TaskId: new TaskId("task-001")),
+            CancellationToken.None);
+        await service.StartPlanningAsync(new TaskId("task-001"), CancellationToken.None);
+        await service.AdvanceIterationAsync(new TaskId("task-001"), CancellationToken.None);
+        await service.StartRunningAsync(new TaskId("task-001"), CancellationToken.None);
+        await service.StartReviewAsync(new TaskId("task-001"), CancellationToken.None);
+
+        clock.Now = Now.AddMinutes(5);
+        var result = await service.RequeueForRevisionAsync(new TaskId("task-001"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RuntimeTaskStatus.Queued, result.Value!.Status);
+        Assert.Equal(1, result.Value.CurrentIteration);
+        Assert.Equal(Now.AddMinutes(5), result.Value.UpdatedAt);
+    }
+
+    [Fact]
     public async Task CancelAsync_cancels_queued_task()
     {
         var unitOfWork = new InMemoryUnitOfWork();
