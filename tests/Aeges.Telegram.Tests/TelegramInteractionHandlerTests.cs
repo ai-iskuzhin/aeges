@@ -173,10 +173,10 @@ public sealed class TelegramInteractionHandlerTests
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ViewTask(task.Id)),
             CancellationToken.None);
 
-        Assert.Contains("Task: task-001", response.Text, StringComparison.Ordinal);
-        Assert.Contains("Title: Wire Telegram buttons", response.Text, StringComparison.Ordinal);
-        Assert.Contains("Status: queued", response.Text, StringComparison.Ordinal);
-        Assert.Contains("Expose Telegram actions through inline buttons.", response.Text, StringComparison.Ordinal);
+        Assert.Contains("Task details:\n> Task: task-001", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Title: Wire Telegram buttons", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Status: queued", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Expose Telegram actions through inline buttons.", response.Text, StringComparison.Ordinal);
         Assert.Equal("Cancel", response.Buttons.Rows[0][0].Text);
         Assert.Equal("ae:t:x:task-001", response.Buttons.Rows[0][0].CallbackData);
         Assert.Equal("Back", response.Buttons.Rows[1][0].Text);
@@ -236,9 +236,9 @@ public sealed class TelegramInteractionHandlerTests
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ViewTask(task.Id)),
             CancellationToken.None);
 
-        Assert.Contains("Status: reviewing", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Status: reviewing", response.Text, StringComparison.Ordinal);
         Assert.Contains("Runner response:\n> Mock runner result: success.", response.Text, StringComparison.Ordinal);
-        Assert.Contains("result: project-aeges/task-001/iteration-001/result.md", response.Text, StringComparison.Ordinal);
+        Assert.Contains("Artifacts:\n> - result: project-aeges/task-001/iteration-001/result.md", response.Text, StringComparison.Ordinal);
         Assert.Equal("Complete", response.Buttons.Rows[0][0].Text);
         Assert.Equal("ae:t:done:task-001", response.Buttons.Rows[0][0].CallbackData);
     }

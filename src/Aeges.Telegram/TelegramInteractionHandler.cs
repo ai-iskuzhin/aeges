@@ -413,15 +413,21 @@ public sealed class TelegramInteractionHandler
         var runnerResponse = snapshot.LatestRunnerResponse is null
             ? "(none yet)"
             : snapshot.LatestRunnerResponse;
+        var taskMetadata = string.Join(
+            '\n',
+            [
+                $"Task: {task.Id}",
+                $"Title: {task.Title}",
+                $"Status: {task.Status.ToStorageValue()}",
+                $"Iterations: {task.CurrentIteration}/{task.MaxIterations}",
+                $"Latest iteration: {FormatIteration(latestIteration)}",
+                $"Runner: {FormatRunnerExecution(latestExecution)}",
+            ]);
 
         return new TelegramResponse(
             $"""
-            Task: {task.Id}
-            Title: {task.Title}
-            Status: {task.Status.ToStorageValue()}
-            Iterations: {task.CurrentIteration}/{task.MaxIterations}
-            Latest iteration: {FormatIteration(latestIteration)}
-            Runner: {FormatRunnerExecution(latestExecution)}
+            Task details:
+            {TelegramMarkdown.Quote(taskMetadata)}
 
             Goal:
             {TelegramMarkdown.Quote(task.Goal)}
@@ -430,7 +436,7 @@ public sealed class TelegramInteractionHandler
             {TelegramMarkdown.Quote(runnerResponse)}
 
             Artifacts:
-            {artifactLines}
+            {TelegramMarkdown.Quote(artifactLines)}
             """,
             TaskDetailButtons(task),
             new TelegramResponseMetadata(TelegramResponseKind.TaskDetails, task.Id));
