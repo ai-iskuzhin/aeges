@@ -4,27 +4,60 @@ Aeges should be easy to install without hiding how the runtime works. The
 installation path should mature in layers, starting with the native .NET tool
 flow and expanding into platform package managers when releases are stable.
 
+## Branch Channels
+
+Aeges should use two public branch channels for installer scripts and docs:
+
+```text
+production    stable public channel
+develop       preview integration channel
+```
+
+`production` is the branch that backs public install snippets and eventually
+`get.aeges.top`. `develop` is for testing unreleased installer changes before
+they become public defaults. Versioned binaries still come from GitHub Releases,
+not from branch contents.
+
+Stable latest installer scripts should be linked from GitHub raw files until
+`get.aeges.top` is wired:
+
+```text
+https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.sh
+https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.ps1
+```
+
+Preview latest installer scripts use:
+
+```text
+https://raw.githubusercontent.com/aeges-dev/aeges/develop/scripts/install.sh
+https://raw.githubusercontent.com/aeges-dev/aeges/develop/scripts/install.ps1
+```
+
+The current `main` branch can remain the repository default while the project is
+being shaped, but public install commands should move to `production` once that
+branch exists.
+
 ## Recommended Shell UX
 
 The friendly macOS/Linux install path should feel like Docker-style installers:
 
 ```bash
-curl -fsSL https://aeges.dev/install.sh | sh
+curl -fsSL https://get.aeges.top/install.sh | sh
 ```
 
 Equivalent forms should also work:
 
 ```bash
-wget -qO- https://aeges.dev/install.sh | sh
+wget -qO- https://get.aeges.top/install.sh | sh
 ```
 
 ```bash
-curl -fsSL https://aeges.dev/install.sh -o install.sh
+curl -fsSL https://get.aeges.top/install.sh -o install.sh
 sh install.sh
 ```
 
-Until `aeges.dev` and release artifacts exist, use the checked-in installer
-from a local checkout:
+Until `get.aeges.top` and the `production` branch are wired, use the checked-in
+installer from a local checkout:
 
 ```bash
 dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
@@ -40,7 +73,7 @@ configuration. Those remain explicit runtime setup steps.
 For a GitHub release download, specify a version:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aeges-dev/aeges/main/scripts/install.sh | \
+curl -fsSL https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.sh | \
   AEGES_VERSION=0.1.0-alpha.1 sh
 ```
 
@@ -65,14 +98,14 @@ verifies the checksum, then installs from the downloaded package directory.
 Windows should use the same artifact contract through PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/aeges-dev/aeges/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.ps1 | iex
 ```
 
 For a versioned GitHub release:
 
 ```powershell
 $env:AEGES_VERSION = "0.1.0-alpha.1"
-irm https://raw.githubusercontent.com/aeges-dev/aeges/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.ps1 | iex
 ```
 
 For a local checkout:
@@ -144,7 +177,7 @@ release hardening:
 - provide idempotent reinstall/update behavior
 
 ```bash
-curl -fsSL https://aeges.dev/install.sh | AEGES_VERSION=0.1.0 sh
+curl -fsSL https://get.aeges.top/install.sh | AEGES_VERSION=0.1.0 sh
 ```
 
 The initial checked-in script installs the .NET tool package. A later

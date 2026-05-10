@@ -15,8 +15,8 @@ Aeges installer
 Installs or updates the Aeges CLI as a global .NET tool.
 
 Usage:
-  curl -fsSL https://raw.githubusercontent.com/aeges-dev/aeges/main/scripts/install.sh | sh
-  wget -qO- https://raw.githubusercontent.com/aeges-dev/aeges/main/scripts/install.sh | sh
+  curl -fsSL https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.sh | sh
+  wget -qO- https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.sh | sh
 
 Options via environment variables:
   AEGES_VERSION=0.1.0-alpha.1
@@ -31,7 +31,7 @@ Local checkout example:
   AEGES_PACKAGE_SOURCE="$PWD/.artifacts/packages" AEGES_VERSION=0.1.0-alpha.1 sh scripts/install.sh
 
 Release example:
-  curl -fsSL https://raw.githubusercontent.com/aeges-dev/aeges/main/scripts/install.sh | sh
+  curl -fsSL https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.sh | sh
   AEGES_VERSION=0.1.0-alpha.1 sh install.sh
 EOF
 }

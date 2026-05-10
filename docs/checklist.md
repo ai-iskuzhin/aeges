@@ -112,11 +112,14 @@ review, test, and document independently.
 - [x] Add shell installer script for .NET tool based local installs.
 - [x] Add GitHub release workflow for installer, package, and checksum assets.
 - [x] Add Windows PowerShell installer for local and release package installs.
+- [x] Document `develop` and `production` installer channels.
 
 ## Current Focus
 
 - [ ] Keep `Aeges.Core` infrastructure-free.
 - [ ] Add unit tests for future core lifecycle and value object rules.
+- [ ] Create `develop` and `production` branches when remote repository policy
+      is ready.
 - [ ] Publish first version-tagged release and test remote installer URL.
 - [ ] Add Homebrew formula after release artifacts are stable.
 

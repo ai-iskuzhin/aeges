@@ -17,11 +17,11 @@ Aeges installer
 Installs or updates the Aeges CLI as a global .NET tool.
 
 Usage:
-  irm https://raw.githubusercontent.com/aeges-dev/aeges/main/scripts/install.ps1 | iex
+  irm https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.ps1 | iex
 
 Versioned release:
   `$env:AEGES_VERSION = "0.1.0-alpha.1"
-  irm https://raw.githubusercontent.com/aeges-dev/aeges/main/scripts/install.ps1 | iex
+  irm https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.ps1 | iex
 
 Local checkout:
   dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
