@@ -97,6 +97,21 @@ internal static class AegesCli
             return await RunTelegramRunAsync(telegramRunArgs, input, output, error, cancellationToken);
         }
 
+        if (args is ["telegram", "start", .. var telegramStartArgs])
+        {
+            return await RunTelegramStartAsync(telegramStartArgs, input, output, error, cancellationToken);
+        }
+
+        if (args is ["telegram", "status", .. var telegramStatusArgs])
+        {
+            return await RunTelegramStatusAsync(telegramStatusArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["telegram", "stop", .. var telegramStopArgs])
+        {
+            return await RunTelegramStopAsync(telegramStopArgs, output, error, cancellationToken);
+        }
+
         if (args is ["telegram", "setup", .. var telegramSetupArgs])
         {
             return await RunTelegramSetupAsync(telegramSetupArgs, input, output, error, cancellationToken);
@@ -249,8 +264,7 @@ internal static class AegesCli
                 return 0;
             }
 
-            await output.WriteLineAsync(
-                $"Telegram transport running with token from '{configuration.Telegram.BotTokenEnvironmentVariable}'. Press Ctrl+C to stop.");
+            await output.WriteLineAsync("Telegram transport running. Press Ctrl+C to stop.");
 
             await service.RunAsync(pollingOptions, cancellationToken);
 
@@ -266,6 +280,86 @@ internal static class AegesCli
             await output.WriteLineAsync("Telegram transport stopped.");
             return 0;
         }
+    }
+
+    private static async Task<int> RunTelegramStartAsync(
+        string[] args,
+        TextReader input,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = TelegramProcessCliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var configuration = LoadConfiguration(options);
+        if (!await TelegramCliSetup.EnsureTokenAsync(
+            configuration.Telegram,
+            input,
+            error,
+            allowPrompt: false,
+            cancellationToken))
+        {
+            return 1;
+        }
+
+        var manager = new TelegramProcessManager();
+        var result = await manager.StartAsync(
+            new TelegramProcessStartRequest(
+                options.ConfigPath,
+                options.ConnectionString,
+                options.Limit,
+                options.TimeoutSeconds),
+            cancellationToken);
+
+        await WriteTelegramProcessStartResultAsync(result, options.Json, output);
+
+        return 0;
+    }
+
+    private static async Task<int> RunTelegramStatusAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = CliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var status = await new TelegramProcessManager().GetStatusAsync(cancellationToken);
+        await WriteTelegramProcessStatusAsync(status, options.Json, output);
+
+        return 0;
+    }
+
+    private static async Task<int> RunTelegramStopAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = CliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var result = await new TelegramProcessManager().StopAsync(cancellationToken);
+        await WriteTelegramProcessStopResultAsync(result, options.Json, output);
+
+        return 0;
     }
 
     private static async Task<int> RunTelegramSetupAsync(
@@ -896,6 +990,97 @@ internal static class AegesCli
             $"Next offset: {(result.NextOffset is null ? "(none)" : result.NextOffset.Value.ToString())}");
     }
 
+    private static async Task WriteTelegramProcessStartResultAsync(
+        TelegramProcessStartResult result,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                TelegramProcessStatusOutput.From(result.Status),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        if (result.AlreadyRunning)
+        {
+            await output.WriteLineAsync("Telegram transport is already running.");
+        }
+        else
+        {
+            await output.WriteLineAsync("Telegram transport started.");
+        }
+
+        await WriteTelegramProcessStatusLinesAsync(result.Status, output);
+    }
+
+    private static async Task WriteTelegramProcessStatusAsync(
+        TelegramProcessStatus status,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                TelegramProcessStatusOutput.From(status),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await WriteTelegramProcessStatusLinesAsync(status, output);
+    }
+
+    private static async Task WriteTelegramProcessStopResultAsync(
+        TelegramProcessStopResult result,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                TelegramProcessStatusOutput.From(result.PreviousStatus),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync(result.Stopped
+            ? "Telegram transport stopped."
+            : "Telegram transport was not running.");
+        await output.WriteLineAsync($"Metadata: {result.PreviousStatus.MetadataPath}");
+    }
+
+    private static async Task WriteTelegramProcessStatusLinesAsync(
+        TelegramProcessStatus status,
+        TextWriter output)
+    {
+        var state = status.IsRunning ? "running" : status.IsStale ? "stale" : "stopped";
+        await output.WriteLineAsync($"Status: {state}");
+        await output.WriteLineAsync($"Metadata: {status.MetadataPath}");
+
+        if (status.Metadata is null)
+        {
+            return;
+        }
+
+        await output.WriteLineAsync($"PID: {status.Metadata.ProcessId}");
+        await output.WriteLineAsync($"Started: {status.Metadata.StartedAt:O}");
+        await output.WriteLineAsync($"Stdout: {status.Metadata.StdoutPath}");
+        await output.WriteLineAsync($"Stderr: {status.Metadata.StderrPath}");
+    }
+
     private static async Task WriteErrorAsync(
         ApplicationError errorValue,
         bool json,
@@ -932,6 +1117,9 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges telegram setup [--config <path>]");
         await error.WriteLineAsync("  aeges telegram check [--config <path>] [--json]");
         await error.WriteLineAsync("  aeges telegram run [--once] [--no-interactive] [--poll-limit <int>] [--timeout-seconds <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges telegram start [--poll-limit <int>] [--timeout-seconds <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges telegram status [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges telegram stop [--config <path>] [--connection-string <value>] [--json]");
     }
 
     private class CliOptions
@@ -1626,6 +1814,84 @@ internal static class AegesCli
         private static TelegramRunCliOptions ErrorResult(string error) => new() { Error = error };
     }
 
+    private sealed class TelegramProcessCliOptions : CliOptions
+    {
+        public int Limit { get; private init; } = 50;
+
+        public int TimeoutSeconds { get; private init; } = 30;
+
+        public new static TelegramProcessCliOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            var json = false;
+            var limit = 50;
+            var timeoutSeconds = 30;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--poll-limit":
+                        if (!TryReadPositiveInt(args, ref index, out limit))
+                        {
+                            return ErrorResult("--poll-limit requires an integer value greater than zero.");
+                        }
+
+                        break;
+                    case "--timeout-seconds":
+                        if (!TryReadPositiveInt(args, ref index, out timeoutSeconds))
+                        {
+                            return ErrorResult("--timeout-seconds requires an integer value greater than zero.");
+                        }
+
+                        break;
+                    default:
+                        return ErrorResult($"Unknown option '{args[index]}'.");
+                }
+            }
+
+            return new TelegramProcessCliOptions
+            {
+                ConfigPath = configPath,
+                ConnectionString = connectionString,
+                Json = json,
+                Limit = limit,
+                TimeoutSeconds = timeoutSeconds,
+            };
+        }
+
+        private static bool TryReadPositiveInt(string[] args, ref int index, out int value)
+        {
+            if (!TryReadValue(args, ref index, out var text) || !int.TryParse(text, out value))
+            {
+                value = 0;
+                return false;
+            }
+
+            return value > 0;
+        }
+
+        private static TelegramProcessCliOptions ErrorResult(string error) => new() { Error = error };
+    }
+
     private sealed record ProjectOutput(
         string Id,
         string Name,
@@ -1734,5 +2000,23 @@ internal static class AegesCli
                 snapshot.RunnerErrorSummary,
                 snapshot.WorktreeCreated,
                 snapshot.WorktreeBaseCommit);
+    }
+
+    private sealed record TelegramProcessStatusOutput(
+        string Status,
+        string MetadataPath,
+        int? ProcessId,
+        DateTimeOffset? StartedAt,
+        string? StdoutPath,
+        string? StderrPath)
+    {
+        public static TelegramProcessStatusOutput From(TelegramProcessStatus status) =>
+            new(
+                status.IsRunning ? "running" : status.IsStale ? "stale" : "stopped",
+                status.MetadataPath,
+                status.Metadata?.ProcessId,
+                status.Metadata?.StartedAt,
+                status.Metadata?.StdoutPath,
+                status.Metadata?.StderrPath);
     }
 }

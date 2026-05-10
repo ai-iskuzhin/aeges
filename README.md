@@ -188,6 +188,19 @@ aeges telegram check
 aeges telegram run
 ```
 
+`telegram run` stays in the foreground. To keep the Telegram transport running
+without occupying the terminal, use the local process wrapper:
+
+```bash
+aeges telegram start
+aeges telegram status
+aeges telegram stop
+```
+
+Background process metadata is stored in `~/.aeges/runs/telegram.pid.json`.
+Transport logs are written to `~/.aeges/logs/telegram.stdout.log` and
+`~/.aeges/logs/telegram.stderr.log`.
+
 Machine status in Telegram comes from the local agent heartbeat. If a machine
 shows `offline`, run:
 
@@ -274,6 +287,9 @@ aeges agent run [--once] [--runner-id <id>] [--create-worktree] [--execute-runne
 aeges telegram setup [...]
 aeges telegram check [...]
 aeges telegram run [--once] [--no-interactive] [--poll-limit <int>] [--timeout-seconds <int>] [...]
+aeges telegram start [--poll-limit <int>] [--timeout-seconds <int>] [...]
+aeges telegram status [--json]
+aeges telegram stop [--json]
 ```
 
 Most commands support `--json` for deterministic machine-readable output.

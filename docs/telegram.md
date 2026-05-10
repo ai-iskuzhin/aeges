@@ -71,6 +71,21 @@ aeges telegram run
 `aeges telegram check` calls Telegram `getMe` and prints the configured bot
 identity. It is the quickest token/configuration test before long polling.
 
+`aeges telegram run` is a foreground command. For normal local use, the CLI also
+provides a small process wrapper:
+
+```text
+aeges telegram start
+aeges telegram status
+aeges telegram stop
+```
+
+`start` launches `telegram run --no-interactive` in the background, writes
+metadata to `~/.aeges/runs/telegram.pid.json`, and redirects output to
+`~/.aeges/logs/telegram.stdout.log` and
+`~/.aeges/logs/telegram.stderr.log`. `status` reports whether that pid is still
+alive, and `stop` terminates it and removes the metadata file.
+
 For script and CI usage, disable prompts and fail deterministically when required
 setup is missing:
 
