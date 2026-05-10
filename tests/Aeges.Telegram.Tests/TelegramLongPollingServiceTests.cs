@@ -279,6 +279,11 @@ public sealed class TelegramLongPollingServiceTests
             Task.FromResult(Aeges.Application.ApplicationResult<TelegramAgentRestartResult>.Success(
                 new TelegramAgentRestartResult("Agent restarted.")));
 
+        public Task<Aeges.Application.ApplicationResult<TelegramAgentRestartResult>> StartAgentAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<TelegramAgentRestartResult>.Success(
+                new TelegramAgentRestartResult("Agent started.")));
+
         public Task<Aeges.Application.ApplicationResult<RuntimeTask>> CreateTaskAsync(
             ProjectId projectId,
             MachineId machineId,

@@ -276,6 +276,10 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Contains("Task continued: task-001", response.Text, StringComparison.Ordinal);
         Assert.Contains("Status: queued", response.Text, StringComparison.Ordinal);
         Assert.Contains("> Please retry with sandbox disabled.", response.Text, StringComparison.Ordinal);
+        Assert.Contains("Agent:\n> Agent started.", response.Text, StringComparison.Ordinal);
+        Assert.Equal(TelegramResponseKind.TaskDetails, response.Metadata?.Kind);
+        Assert.Equal(task.Id, response.Metadata?.TaskId);
+        Assert.Equal(1, facade.StartAgentCallCount);
     }
 
     [Fact]
@@ -364,6 +368,9 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Equal("Send the task title.", titleResponse.Text);
         Assert.Equal("Now send the task goal/details.", goalResponse.Text);
         Assert.Contains("Task queued: task-created", createdResponse.Text, StringComparison.Ordinal);
+        Assert.Contains("Agent:\n> Agent started.", createdResponse.Text, StringComparison.Ordinal);
+        Assert.Equal(TelegramResponseKind.TaskDetails, createdResponse.Metadata?.Kind);
+        Assert.Equal(1, facade.StartAgentCallCount);
         Assert.Equal(project.Id, facade.CreatedProjectId);
         Assert.Equal(machine.Id, facade.CreatedMachineId);
         Assert.Equal("Improve README", facade.CreatedTitle);
@@ -569,6 +576,8 @@ public sealed class TelegramInteractionHandlerTests
 
         public int RestartAgentCallCount { get; private set; }
 
+        public int StartAgentCallCount { get; private set; }
+
         public string? ResolvedBy { get; private set; }
 
         public Task<IReadOnlyList<RuntimeProject>> ListProjectsAsync(CancellationToken cancellationToken)
@@ -631,6 +640,15 @@ public sealed class TelegramInteractionHandlerTests
             return System.Threading.Tasks.Task.FromResult(
                 ApplicationResult<TelegramAgentRestartResult>.Success(
                     new TelegramAgentRestartResult("Agent restarted.")));
+        }
+
+        public Task<ApplicationResult<TelegramAgentRestartResult>> StartAgentAsync(CancellationToken cancellationToken)
+        {
+            StartAgentCallCount++;
+
+            return System.Threading.Tasks.Task.FromResult(
+                ApplicationResult<TelegramAgentRestartResult>.Success(
+                    new TelegramAgentRestartResult("Agent started.")));
         }
 
         public Task<ApplicationResult<RuntimeTask>> CreateTaskAsync(

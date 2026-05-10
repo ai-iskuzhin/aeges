@@ -218,6 +218,8 @@ review, test, and document independently.
 - [x] Add count badges to Telegram menu buttons.
 - [x] Add Telegram task status buckets and watched-task status notifications.
 - [x] Add Telegram reviewing-task continuation with durable review feedback.
+- [x] Start the local agent automatically after Telegram queues or continues a
+      task.
 - [x] Add current-process Telegram token prompt for `aeges telegram run`.
 - [x] Add `aeges telegram setup` wizard for config, token source, and chat IDs.
 - [x] Add `aeges telegram check` for bot identity preflight.

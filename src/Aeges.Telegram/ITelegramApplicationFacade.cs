@@ -85,6 +85,13 @@ public interface ITelegramApplicationFacade
     Task<ApplicationResult<TelegramAgentRestartResult>> RestartAgentAsync(CancellationToken cancellationToken);
 
     /// <summary>
+    /// Starts the local agent when it is not already running.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The start result, or an expected failure.</returns>
+    Task<ApplicationResult<TelegramAgentRestartResult>> StartAgentAsync(CancellationToken cancellationToken);
+
+    /// <summary>
     /// Creates a queued runtime task.
     /// </summary>
     /// <param name="projectId">The project that owns the task.</param>

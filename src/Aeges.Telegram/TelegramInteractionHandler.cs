@@ -170,6 +170,8 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
         }
 
+        var agentNotice = await StartAgentNoticeAsync(cancellationToken);
+
         return new TelegramResponse(
             $"""
             Task queued: {result.Value!.Id}
@@ -179,11 +181,14 @@ public sealed class TelegramInteractionHandler
 
             Goal:
             {TelegramMarkdown.Quote(text)}
+
+            Agent:
+            {TelegramMarkdown.Quote(agentNotice)}
             """,
             Buttons(
             Row(Button("View task", TelegramCallbackData.ViewTask(result.Value.Id))),
                 Row(Button("Back", TelegramCallbackData.MainMenu))),
-            new TelegramResponseMetadata(TelegramResponseKind.TaskWatch, result.Value.Id));
+            new TelegramResponseMetadata(TelegramResponseKind.TaskDetails, result.Value.Id));
     }
 
     private async Task<TelegramResponse> StartTaskCreationAsync(
@@ -305,6 +310,8 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
         }
 
+        var agentNotice = await StartAgentNoticeAsync(cancellationToken);
+
         return new TelegramResponse(
             $"""
             Task continued: {result.Value!.Id}
@@ -312,11 +319,14 @@ public sealed class TelegramInteractionHandler
 
             Follow-up:
             {TelegramMarkdown.Quote(feedback)}
+
+            Agent:
+            {TelegramMarkdown.Quote(agentNotice)}
             """,
             Buttons(
                 Row(Button("View task", TelegramCallbackData.ViewTask(result.Value.Id))),
                 Row(Button("Back", TelegramCallbackData.MainMenu))),
-            new TelegramResponseMetadata(TelegramResponseKind.TaskWatch, result.Value.Id));
+            new TelegramResponseMetadata(TelegramResponseKind.TaskDetails, result.Value.Id));
     }
 
     private TelegramResponse CancelTaskContinuation(long chatId)
@@ -456,6 +466,15 @@ public sealed class TelegramInteractionHandler
         return restart.IsSuccess
             ? $"Agent restart: {restart.Value!.Message}"
             : $"Agent restart failed: {restart.Error!.Code}: {restart.Error.Message}";
+    }
+
+    private async Task<string> StartAgentNoticeAsync(CancellationToken cancellationToken)
+    {
+        var start = await application.StartAgentAsync(cancellationToken);
+
+        return start.IsSuccess
+            ? start.Value!.Message
+            : $"Could not start agent automatically: {start.Error!.Code}: {start.Error.Message}";
     }
 
     public async Task<TelegramResponse> RenderTaskDetailsAsync(

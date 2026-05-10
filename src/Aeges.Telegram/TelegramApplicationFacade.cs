@@ -133,6 +133,21 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     /// <inheritdoc />
     public async Task<ApplicationResult<TelegramAgentRestartResult>> RestartAgentAsync(CancellationToken cancellationToken)
     {
+        return await RunAgentProcessCommandAsync("restart", "agent_restart", "Agent restarted.", cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApplicationResult<TelegramAgentRestartResult>> StartAgentAsync(CancellationToken cancellationToken)
+    {
+        return await RunAgentProcessCommandAsync("start", "agent_start", "Agent started.", cancellationToken);
+    }
+
+    private async Task<ApplicationResult<TelegramAgentRestartResult>> RunAgentProcessCommandAsync(
+        string command,
+        string errorCodePrefix,
+        string fallbackMessage,
+        CancellationToken cancellationToken)
+    {
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -146,7 +161,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
                 CreateNoWindow = true,
             };
             startInfo.ArgumentList.Add("agent");
-            startInfo.ArgumentList.Add("restart");
+            startInfo.ArgumentList.Add(command);
             startInfo.ArgumentList.Add("--config");
             startInfo.ArgumentList.Add(configPath);
 
@@ -155,8 +170,8 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
             if (process is null)
             {
                 return ApplicationResult<TelegramAgentRestartResult>.Failure(
-                    "agent_restart_failed",
-                    "Failed to start the aeges agent restart command.");
+                    $"{errorCodePrefix}_failed",
+                    $"Failed to start the aeges agent {command} command.");
             }
 
             var stdout = process.StandardOutput.ReadToEndAsync(timeout.Token);
@@ -169,24 +184,24 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
             if (process.ExitCode != 0)
             {
                 return ApplicationResult<TelegramAgentRestartResult>.Failure(
-                    "agent_restart_failed",
-                    FirstNonEmpty(errorText, outputText, $"aeges agent restart exited with code {process.ExitCode}."));
+                    $"{errorCodePrefix}_failed",
+                    FirstNonEmpty(errorText, outputText, $"aeges agent {command} exited with code {process.ExitCode}."));
             }
 
             return ApplicationResult<TelegramAgentRestartResult>.Success(
-                new TelegramAgentRestartResult(FirstNonEmpty(outputText, "Agent restarted.")));
+                new TelegramAgentRestartResult(FirstNonEmpty(outputText, fallbackMessage)));
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             return ApplicationResult<TelegramAgentRestartResult>.Failure(
-                "agent_restart_timeout",
-                "aeges agent restart did not finish within 30 seconds.");
+                $"{errorCodePrefix}_timeout",
+                $"aeges agent {command} did not finish within 30 seconds.");
         }
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
             return ApplicationResult<TelegramAgentRestartResult>.Failure(
-                "agent_restart_unavailable",
-                $"Could not run aeges agent restart: {exception.Message}");
+                $"{errorCodePrefix}_unavailable",
+                $"Could not run aeges agent {command}: {exception.Message}");
         }
     }
 

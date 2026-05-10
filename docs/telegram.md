@@ -83,6 +83,11 @@ confirm the result and move the task to `completed`, or press `Continue` and sen
 follow-up feedback to store a `review` artifact and requeue the task for another
 bounded iteration.
 
+When Telegram creates or continues a task, it also runs `aeges agent start
+--config <path>`. If the agent is already running, the command leaves it alone;
+if it is stopped, queued work can begin processing without a separate terminal
+step.
+
 Telegram messages are sent with MarkdownV2 enabled. User/task content such as
 goals, approval reasons, failure reasons, and runner response previews is shown
 as block quotes so operator-provided text is visually distinct from runtime
