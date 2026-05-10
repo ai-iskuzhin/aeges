@@ -7,6 +7,7 @@ The MVP interaction model is button-first. Inbound text opens the main menu, and
 all normal navigation uses inline buttons with stable callback payloads.
 Button callbacks edit the existing Telegram message when Telegram provides an
 editable message id, so navigation does not spam a chat with repeated menus.
+Button menus are laid out as compact grids with at most two columns.
 
 Initial buttons:
 
@@ -84,8 +85,9 @@ The `reviewing` bucket is the human confirmation step after a worker succeeds.
 Opening a reviewing task shows the latest iteration, runner exit status,
 registered artifacts, and a short runner response preview. Press `Complete` to
 confirm the result, move the task to `completed`, and return to the completed
-task bucket. Press `Continue` and send follow-up feedback to store a `review`
-artifact and requeue the task for another bounded iteration.
+task bucket without a duplicate status notification. Press `Continue` and send
+follow-up feedback to store a `review` artifact and requeue the task for another
+bounded iteration.
 
 Artifact paths shown in Telegram are runtime artifact paths under the local
 Aeges artifact root, such as `~/.aeges/artifacts/...`; they are not saved inside

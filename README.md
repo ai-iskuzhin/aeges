@@ -272,6 +272,8 @@ The MVP Telegram UI includes buttons for:
 - approve/reject approval decisions
 - runner settings for Codex sandbox and bypass mode
 
+Telegram keeps button menus compact by using up to two columns.
+
 To run work from Telegram, start both background processes:
 
 ```bash
@@ -296,8 +298,9 @@ Open a task in `reviewing` to see the latest runner response, runner exit
 status, and artifacts. Press `Complete` there to confirm the worker result, or
 press `Continue` and send follow-up feedback to requeue the task for another
 bounded iteration. Completing a task returns Telegram to the completed task
-bucket. Telegram starts the local agent after creating or continuing a task, so
-queued work can be picked up without a separate terminal step.
+bucket without sending a second completion notification. Telegram starts the
+local agent after creating or continuing a task, so queued work can be picked up
+without a separate terminal step.
 Artifact paths displayed in Telegram point at `~/.aeges/artifacts/...`, not the
 target project directory.
 

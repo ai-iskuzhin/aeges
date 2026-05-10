@@ -165,6 +165,55 @@ public sealed class TelegramLongPollingServiceTests
         Assert.Equal(TelegramCallbackData.ViewTask(task.Id), gateway.SentResponses[1].Response.Buttons.Rows[0][0].CallbackData);
     }
 
+    [Fact]
+    public async Task PollOnceAsync_does_not_send_extra_notification_after_completion_callback()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Complete from Telegram",
+            "Complete without a duplicate notification.",
+            DateTimeOffset.UtcNow);
+        task.StartPlanning(DateTimeOffset.UtcNow);
+        task.StartRunning(DateTimeOffset.UtcNow);
+        task.StartReview(DateTimeOffset.UtcNow);
+        var facade = new FakeTelegramApplicationFacade { WatchedTask = task };
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    1001,
+                    Text: null,
+                    CallbackData: TelegramCallbackData.ViewTask(task.Id),
+                    CallbackQueryId: "callback-001",
+                    MessageId: 9001),
+            ],
+        };
+        var service = CreateService(gateway, facade);
+
+        await service.PollOnceAsync(null, new TelegramLongPollingOptions(), CancellationToken.None);
+        gateway.Updates =
+        [
+            new TelegramBotUpdate(
+                42,
+                1001,
+                Text: null,
+                CallbackData: TelegramCallbackData.CompleteTask(task.Id),
+                CallbackQueryId: "callback-002",
+                MessageId: 9001),
+        ];
+
+        await service.PollOnceAsync(42, new TelegramLongPollingOptions(), CancellationToken.None);
+
+        Assert.Equal(RuntimeTaskStatus.Completed, task.Status);
+        Assert.Empty(gateway.SentResponses);
+        Assert.Equal(2, gateway.EditedResponses.Count);
+        Assert.Contains("completed tasks:", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
+    }
+
     private static TelegramLongPollingService CreateService(
         FakeTelegramBotGateway gateway,
         FakeTelegramApplicationFacade? facade = null)
@@ -259,7 +308,8 @@ public sealed class TelegramLongPollingServiceTests
             RuntimeTaskStatus status,
             int limit,
             CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<RuntimeTask>>([]);
+            Task.FromResult<IReadOnlyList<RuntimeTask>>(
+                WatchedTask is not null && WatchedTask.Status == status ? [WatchedTask] : []);
 
         public Task<IReadOnlyList<RuntimeTask>> ListProjectTasksByStatusAsync(
             ProjectId projectId,
@@ -344,10 +394,19 @@ public sealed class TelegramLongPollingServiceTests
 
         public Task<Aeges.Application.ApplicationResult<RuntimeTask>> CompleteTaskAsync(
             TaskId taskId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(Aeges.Application.ApplicationResult<RuntimeTask>.Failure(
-                "task_not_found",
-                $"Task '{taskId}' was not found."));
+            CancellationToken cancellationToken)
+        {
+            if (WatchedTask is null || WatchedTask.Id != taskId)
+            {
+                return Task.FromResult(Aeges.Application.ApplicationResult<RuntimeTask>.Failure(
+                    "task_not_found",
+                    $"Task '{taskId}' was not found."));
+            }
+
+            WatchedTask.Complete(DateTimeOffset.UtcNow);
+
+            return Task.FromResult(Aeges.Application.ApplicationResult<RuntimeTask>.Success(WatchedTask));
+        }
 
         public Task<Aeges.Application.ApplicationResult<RuntimeTask>> ContinueTaskAsync(
             TaskId taskId,

@@ -39,9 +39,11 @@ public sealed class TelegramInteractionHandlerTests
         var response = await handler.HandleAsync(new TelegramUpdate(1001, Text: "hello"), CancellationToken.None);
 
         Assert.Equal("Aeges control", response.Text);
-        Assert.Equal(4, response.Buttons.Rows.Count);
+        Assert.Equal(3, response.Buttons.Rows.Count);
         Assert.Equal("New task", response.Buttons.Rows[0][0].Text);
         Assert.Equal(TelegramCallbackData.CreateTask, response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("Settings", response.Buttons.Rows[0][1].Text);
+        Assert.Equal(TelegramCallbackData.SettingsMenu, response.Buttons.Rows[0][1].CallbackData);
         Assert.Equal("Projects (1)", response.Buttons.Rows[1][0].Text);
         Assert.Equal(TelegramCallbackData.ListProjects, response.Buttons.Rows[1][0].CallbackData);
         Assert.Equal("Machines (1)", response.Buttons.Rows[1][1].Text);
@@ -50,8 +52,6 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Equal(TelegramCallbackData.TaskMenu, response.Buttons.Rows[2][0].CallbackData);
         Assert.Equal("Approvals (1)", response.Buttons.Rows[2][1].Text);
         Assert.Equal(TelegramCallbackData.ListPendingApprovals, response.Buttons.Rows[2][1].CallbackData);
-        Assert.Equal("Settings", response.Buttons.Rows[3][0].Text);
-        Assert.Equal(TelegramCallbackData.SettingsMenu, response.Buttons.Rows[3][0].CallbackData);
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Equal(
             TelegramCallbackData.ListProjectTasksByStatus(new ProjectId("project-aeges"), RuntimeTaskStatus.Queued),
             response.Buttons.Rows[0][0].CallbackData);
-        Assert.Equal("planning (0)", response.Buttons.Rows[1][0].Text);
+        Assert.Equal("planning (0)", response.Buttons.Rows[0][1].Text);
         Assert.Equal("Back", response.Buttons.Rows[^1][0].Text);
         Assert.Equal(TelegramCallbackData.ListProjects, response.Buttons.Rows[^1][0].CallbackData);
     }
@@ -227,7 +227,7 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Equal("Tasks by status", response.Text);
         Assert.Equal("queued (1)", response.Buttons.Rows[0][0].Text);
         Assert.Equal(TelegramCallbackData.ListTasksByStatus(RuntimeTaskStatus.Queued), response.Buttons.Rows[0][0].CallbackData);
-        Assert.Equal("planning (0)", response.Buttons.Rows[1][0].Text);
+        Assert.Equal("planning (0)", response.Buttons.Rows[0][1].Text);
     }
 
     [Fact]
@@ -254,7 +254,7 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Contains("> Expose Telegram actions through inline buttons.", response.Text, StringComparison.Ordinal);
         Assert.Equal("Cancel", response.Buttons.Rows[0][0].Text);
         Assert.Equal("ae:t:x:task-001", response.Buttons.Rows[0][0].CallbackData);
-        Assert.Equal("Back", response.Buttons.Rows[1][0].Text);
+        Assert.Equal("Back", response.Buttons.Rows[0][1].Text);
     }
 
     [Fact]
@@ -318,8 +318,8 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Equal("Continue", response.Buttons.Rows[0][0].Text);
         Assert.Equal("ae:t:more:task-001", response.Buttons.Rows[0][0].CallbackData);
         Assert.Equal(TelegramButtonStyle.Primary, response.Buttons.Rows[0][0].Style);
-        Assert.Equal("Complete", response.Buttons.Rows[1][0].Text);
-        Assert.Equal("ae:t:done:task-001", response.Buttons.Rows[1][0].CallbackData);
+        Assert.Equal("Complete", response.Buttons.Rows[0][1].Text);
+        Assert.Equal("ae:t:done:task-001", response.Buttons.Rows[0][1].CallbackData);
     }
 
     [Fact]
@@ -385,6 +385,8 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Equal(TelegramCallbackData.ViewTask(task.Id), response.Buttons.Rows[0][0].CallbackData);
         Assert.Equal("Back", response.Buttons.Rows[1][0].Text);
         Assert.Equal(TelegramCallbackData.TaskMenu, response.Buttons.Rows[1][0].CallbackData);
+        Assert.Equal(TelegramResponseKind.TaskWatch, response.Metadata?.Kind);
+        Assert.Equal(task.Id, response.Metadata?.TaskId);
     }
 
     [Fact]
@@ -515,9 +517,9 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Equal("Sandbox enabled", response.Buttons.Rows[0][0].Text);
         Assert.Equal("ae:s:sb:danger-full-access", response.Buttons.Rows[0][0].CallbackData);
         Assert.Equal(TelegramButtonStyle.Success, response.Buttons.Rows[0][0].Style);
-        Assert.Equal("Bypass disabled", response.Buttons.Rows[1][0].Text);
-        Assert.Equal("ae:s:bp:1", response.Buttons.Rows[1][0].CallbackData);
-        Assert.Equal(TelegramButtonStyle.Danger, response.Buttons.Rows[1][0].Style);
+        Assert.Equal("Bypass disabled", response.Buttons.Rows[0][1].Text);
+        Assert.Equal("ae:s:bp:1", response.Buttons.Rows[0][1].CallbackData);
+        Assert.Equal(TelegramButtonStyle.Danger, response.Buttons.Rows[0][1].Style);
     }
 
     [Fact]
