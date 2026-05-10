@@ -371,17 +371,20 @@ public sealed class TelegramInteractionHandlerTests
         task.StartPlanning(Now);
         task.StartRunning(Now);
         task.StartReview(Now);
-        var facade = new FakeTelegramApplicationFacade { Task = task };
+        var facade = new FakeTelegramApplicationFacade { Task = task, QueuedTasks = [task] };
         var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
 
         var response = await handler.HandleAsync(
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.CompleteTask(task.Id)),
             CancellationToken.None);
 
-        Assert.Equal("Task completed: task-001", response.Text);
+        Assert.Equal("completed tasks:\n- task-001: Wire Telegram buttons", response.Text);
         Assert.Equal(RuntimeTaskStatus.Completed, task.Status);
         Assert.True(facade.CompleteTaskCalled);
-        Assert.Equal("View task", response.Buttons.Rows[0][0].Text);
+        Assert.Equal("Wire Telegram buttons", response.Buttons.Rows[0][0].Text);
+        Assert.Equal(TelegramCallbackData.ViewTask(task.Id), response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("Back", response.Buttons.Rows[1][0].Text);
+        Assert.Equal(TelegramCallbackData.TaskMenu, response.Buttons.Rows[1][0].CallbackData);
     }
 
     [Fact]

@@ -669,10 +669,7 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse($"{task.Error!.Code}: {task.Error.Message}", BackButtons());
         }
 
-        return new TelegramResponse(
-            $"Task completed: {task.Value!.Id}",
-            Buttons(Row(Button("View task", TelegramCallbackData.ViewTask(task.Value.Id))), Row(Button("Back", TelegramCallbackData.MainMenu))),
-            new TelegramResponseMetadata(TelegramResponseKind.TaskWatch, task.Value.Id));
+        return await ListTasksByStatusAsync(RuntimeTaskStatus.Completed, cancellationToken);
     }
 
     private async Task<TelegramResponse> ViewApprovalAsync(

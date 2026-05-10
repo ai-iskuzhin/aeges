@@ -83,9 +83,9 @@ approval, completed, failed, and cancelled.
 The `reviewing` bucket is the human confirmation step after a worker succeeds.
 Opening a reviewing task shows the latest iteration, runner exit status,
 registered artifacts, and a short runner response preview. Press `Complete` to
-confirm the result and move the task to `completed`, or press `Continue` and send
-follow-up feedback to store a `review` artifact and requeue the task for another
-bounded iteration.
+confirm the result, move the task to `completed`, and return to the completed
+task bucket. Press `Continue` and send follow-up feedback to store a `review`
+artifact and requeue the task for another bounded iteration.
 
 Artifact paths shown in Telegram are runtime artifact paths under the local
 Aeges artifact root, such as `~/.aeges/artifacts/...`; they are not saved inside

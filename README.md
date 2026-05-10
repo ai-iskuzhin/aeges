@@ -295,8 +295,9 @@ project's queued, running, reviewing, completed, failed, and cancelled work.
 Open a task in `reviewing` to see the latest runner response, runner exit
 status, and artifacts. Press `Complete` there to confirm the worker result, or
 press `Continue` and send follow-up feedback to requeue the task for another
-bounded iteration. Telegram starts the local agent after creating or continuing
-a task, so queued work can be picked up without a separate terminal step.
+bounded iteration. Completing a task returns Telegram to the completed task
+bucket. Telegram starts the local agent after creating or continuing a task, so
+queued work can be picked up without a separate terminal step.
 Artifact paths displayed in Telegram point at `~/.aeges/artifacts/...`, not the
 target project directory.
 
