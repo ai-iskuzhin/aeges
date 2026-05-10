@@ -259,6 +259,21 @@ public sealed class TelegramLongPollingServiceTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ApprovalRequest>>([]);
 
+        public Task<TelegramRunnerSettings> GetRunnerSettingsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(new TelegramRunnerSettings("workspace-write", CodexBypassApprovalsAndSandbox: false));
+
+        public Task<Aeges.Application.ApplicationResult<TelegramRunnerSettings>> SetCodexSandboxModeAsync(
+            string sandboxMode,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<TelegramRunnerSettings>.Success(
+                new TelegramRunnerSettings(sandboxMode, CodexBypassApprovalsAndSandbox: false)));
+
+        public Task<Aeges.Application.ApplicationResult<TelegramRunnerSettings>> SetCodexBypassApprovalsAndSandboxAsync(
+            bool enabled,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<TelegramRunnerSettings>.Success(
+                new TelegramRunnerSettings("workspace-write", enabled)));
+
         public Task<Aeges.Application.ApplicationResult<RuntimeTask>> CreateTaskAsync(
             ProjectId projectId,
             MachineId machineId,

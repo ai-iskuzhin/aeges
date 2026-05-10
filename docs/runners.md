@@ -105,6 +105,27 @@ explicit `--cd` pointing at the isolated task worktree. Aeges also sets Codex to
 non-interactive approval behavior for runner processes; approval checkpoints are
 owned by Aeges, not by the worker.
 
+Codex sandbox settings are stored in local configuration:
+
+```json
+{
+  "runners": {
+    "codex": {
+      "sandboxMode": "workspace-write",
+      "bypassApprovalsAndSandbox": false
+    }
+  }
+}
+```
+
+Supported sandbox modes are `read-only`, `workspace-write`, and
+`danger-full-access`. Setting `sandboxMode` to `danger-full-access` disables
+Codex's command sandbox for runner work. Setting
+`bypassApprovalsAndSandbox` to `true` uses Codex's explicit
+`--dangerously-bypass-approvals-and-sandbox` flag. This should be used only when
+the repository and machine context are trusted; Aeges still records the runner
+execution, artifacts, task state, and review checkpoint.
+
 Local configuration can set:
 
 ```json

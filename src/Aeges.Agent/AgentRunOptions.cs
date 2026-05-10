@@ -17,6 +17,8 @@ namespace Aeges.Agent;
 /// <param name="CodexExecutable">The Codex CLI executable name or path.</param>
 /// <param name="CodexModel">The Codex model override, when configured.</param>
 /// <param name="CodexReasoningEffort">The Codex reasoning effort override, when configured.</param>
+/// <param name="CodexSandboxMode">The Codex sandbox mode.</param>
+/// <param name="CodexBypassApprovalsAndSandbox">A value indicating whether Codex should bypass its approvals and sandbox.</param>
 public sealed record AgentRunOptions(
     string ConnectionString,
     string MachineId,
@@ -31,4 +33,6 @@ public sealed record AgentRunOptions(
     bool CreateWorktree = false,
     string CodexExecutable = "codex",
     string? CodexModel = null,
-    string? CodexReasoningEffort = null);
+    string? CodexReasoningEffort = null,
+    string CodexSandboxMode = "workspace-write",
+    bool CodexBypassApprovalsAndSandbox = false);

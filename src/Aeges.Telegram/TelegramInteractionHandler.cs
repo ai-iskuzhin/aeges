@@ -61,8 +61,13 @@ public sealed class TelegramInteractionHandler
             TelegramCallbackData.ListQueuedTasks => await ListQueuedTasksAsync(cancellationToken),
             TelegramCallbackData.TaskMenu => await TaskMenuAsync(cancellationToken),
             TelegramCallbackData.ListPendingApprovals => await ListPendingApprovalsAsync(cancellationToken),
+            TelegramCallbackData.SettingsMenu => await SettingsMenuAsync(cancellationToken),
             TelegramCallbackData.CreateTask => await StartTaskCreationAsync(update.ChatId, cancellationToken),
             TelegramCallbackData.CancelCreateTask => CancelTaskCreation(update.ChatId),
+            _ when TelegramCallbackData.TryParseSetCodexSandboxMode(callbackData, out var sandboxMode) =>
+                await SetCodexSandboxModeAsync(sandboxMode, cancellationToken),
+            _ when TelegramCallbackData.TryParseSetCodexBypassApprovalsAndSandbox(callbackData, out var bypassEnabled) =>
+                await SetCodexBypassApprovalsAndSandboxAsync(bypassEnabled, cancellationToken),
             _ when TelegramCallbackData.TryParseListTasksByStatus(callbackData, out var status) =>
                 await ListTasksByStatusAsync(status, cancellationToken),
             _ when TelegramCallbackData.TryParseSelectTaskProject(callbackData, out var projectId) =>
@@ -104,7 +109,8 @@ public sealed class TelegramInteractionHandler
                     Button($"Machines ({machines.Count})", TelegramCallbackData.ListMachines)),
                 Row(
                     Button($"Tasks ({CountBadge(queuedTasks.Count, MenuCountLimit)} queued)", TelegramCallbackData.TaskMenu),
-                    Button($"Approvals ({CountBadge(approvals.Count, MenuCountLimit)})", TelegramCallbackData.ListPendingApprovals))));
+                    Button($"Approvals ({CountBadge(approvals.Count, MenuCountLimit)})", TelegramCallbackData.ListPendingApprovals)),
+                Row(Button("Settings", TelegramCallbackData.SettingsMenu))));
     }
 
     private async Task<TelegramResponse> HandleTextAsync(
@@ -331,6 +337,35 @@ public sealed class TelegramInteractionHandler
             Buttons(buttons));
     }
 
+    private async Task<TelegramResponse> SettingsMenuAsync(CancellationToken cancellationToken)
+    {
+        var settings = await application.GetRunnerSettingsAsync(cancellationToken);
+
+        return RenderSettings(settings);
+    }
+
+    private async Task<TelegramResponse> SetCodexSandboxModeAsync(
+        string sandboxMode,
+        CancellationToken cancellationToken)
+    {
+        var result = await application.SetCodexSandboxModeAsync(sandboxMode, cancellationToken);
+
+        return result.IsSuccess
+            ? RenderSettings(result.Value!)
+            : new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+    }
+
+    private async Task<TelegramResponse> SetCodexBypassApprovalsAndSandboxAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        var result = await application.SetCodexBypassApprovalsAndSandboxAsync(enabled, cancellationToken);
+
+        return result.IsSuccess
+            ? RenderSettings(result.Value!)
+            : new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+    }
+
     public async Task<TelegramResponse> RenderTaskDetailsAsync(
         TaskId taskId,
         CancellationToken cancellationToken)
@@ -497,6 +532,31 @@ public sealed class TelegramInteractionHandler
 
     private static TelegramButtonMarkup CancelDraftButtons() =>
         Buttons(Row(Button("Cancel", TelegramCallbackData.CancelCreateTask)));
+
+    private static TelegramResponse RenderSettings(TelegramRunnerSettings settings)
+    {
+        var sandboxEnabled = settings.CodexSandboxMode != "danger-full-access";
+        var sandboxTarget = sandboxEnabled ? "danger-full-access" : "workspace-write";
+        var bypassTarget = !settings.CodexBypassApprovalsAndSandbox;
+
+        return new TelegramResponse(
+            $"""
+            Settings
+
+            Codex sandbox: {settings.CodexSandboxMode}
+            Codex bypass approvals and sandbox: {(settings.CodexBypassApprovalsAndSandbox ? "allowed" : "disallowed")}
+
+            Changes are saved to local config. Restart the agent before running new tasks.
+            """,
+            Buttons(
+                Row(Button(
+                    sandboxEnabled ? "🟢 Sandbox enabled" : "🔴 Sandbox disabled",
+                    TelegramCallbackData.SetCodexSandboxMode(sandboxTarget))),
+                Row(Button(
+                    settings.CodexBypassApprovalsAndSandbox ? "🟢 Bypass allowed" : "🔴 Bypass disallowed",
+                    TelegramCallbackData.SetCodexBypassApprovalsAndSandbox(bypassTarget))),
+                Row(Button("Back", TelegramCallbackData.MainMenu))));
+    }
 
     private static TelegramButtonMarkup TaskDetailButtons(RuntimeTask task)
     {

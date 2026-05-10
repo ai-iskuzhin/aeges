@@ -86,6 +86,18 @@ goals, approval reasons, failure reasons, and runner response previews is shown
 as block quotes so operator-provided text is visually distinct from runtime
 metadata.
 
+The main menu includes `Settings`. The settings view exposes Codex runner
+sandbox controls:
+
+- green buttons show currently allowed/enabled behavior
+- red buttons show currently disallowed/disabled behavior
+- `Sandbox enabled` toggles between `workspace-write` and
+  `danger-full-access`
+- `Bypass disallowed` toggles Codex's explicit approvals/sandbox bypass flag
+
+Settings are written to the local config file. Restart the local agent before
+running new tasks so the worker process reloads the updated runner policy.
+
 When a task watched by a chat changes status, the Telegram transport notifies
 that chat. If the chat's last bot message is the task details message, the
 transport edits that message in place. Otherwise it sends a compact

@@ -112,6 +112,40 @@ public sealed class CodexRunnerCommandBuilderTests
     }
 
     [Fact]
+    public void Build_allows_danger_full_access_sandbox_mode()
+    {
+        using var prompt = CreatePromptFile();
+        var command = new CodexRunnerCommandBuilder(
+            new CodexRunnerOptions(SandboxMode: "danger-full-access"),
+            new FakeCodexExecutableResolver("/usr/local/bin/codex"))
+            .Build(CreateRequest(prompt.Path));
+
+        Assert.Contains("danger-full-access", command.Arguments);
+        Assert.DoesNotContain("--dangerously-bypass-approvals-and-sandbox", command.Arguments);
+    }
+
+    [Fact]
+    public void Build_can_bypass_codex_approvals_and_sandbox()
+    {
+        using var prompt = CreatePromptFile();
+        var command = new CodexRunnerCommandBuilder(
+            new CodexRunnerOptions(BypassApprovalsAndSandbox: true),
+            new FakeCodexExecutableResolver("/usr/local/bin/codex"))
+            .Build(CreateRequest(prompt.Path));
+
+        Assert.Equal(
+            [
+                "--dangerously-bypass-approvals-and-sandbox",
+                "exec",
+                "--json",
+                "--cd",
+                "/tmp/aeges/worktrees/project-001/task-001",
+                "-",
+            ],
+            command.Arguments);
+    }
+
+    [Fact]
     public void Build_rejects_missing_codex_executable_with_installation_link()
     {
         using var prompt = CreatePromptFile();
@@ -146,6 +180,8 @@ public sealed class CodexRunnerCommandBuilderTests
         Assert.Throws<ArgumentException>(() => new CodexRunnerCommandBuilder(new CodexRunnerOptions(BaseArguments: ["exec", " "])));
         Assert.Throws<ArgumentException>(() => new CodexRunnerCommandBuilder(new CodexRunnerOptions(Model: " ")));
         Assert.Throws<ArgumentException>(() => new CodexRunnerCommandBuilder(new CodexRunnerOptions(ReasoningEffort: " ")));
+        Assert.Throws<ArgumentException>(() => new CodexRunnerCommandBuilder(new CodexRunnerOptions(SandboxMode: " ")));
+        Assert.Throws<ArgumentException>(() => new CodexRunnerCommandBuilder(new CodexRunnerOptions(SandboxMode: "invalid")));
         Assert.Throws<ArgumentException>(
             () => new CodexRunnerCommandBuilder(
                 new CodexRunnerOptions(

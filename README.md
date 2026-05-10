@@ -153,6 +153,10 @@ aeges agent run \
 The default Codex invocation uses Codex JSONL output and a `workspace-write`
 sandbox inside the isolated task worktree. Aeges still owns the worktree
 boundary and keeps runner output under `~/.aeges/artifacts/`.
+For local experiments, Codex sandboxing can be relaxed through config or the
+Telegram settings menu. Use that only for trusted repositories because
+`danger-full-access` and Codex's bypass flag let the worker operate without
+Codex's own sandbox/approval guardrails.
 
 Codex model and reasoning effort can be configured in `~/.aeges/config.json`:
 
@@ -164,6 +168,8 @@ Codex model and reasoning effort can be configured in `~/.aeges/config.json`:
       "executable": "codex",
       "model": "gpt-5.5",
       "reasoningEffort": "high",
+      "sandboxMode": "workspace-write",
+      "bypassApprovalsAndSandbox": false,
       "timeoutSeconds": 1800
     }
   }
@@ -260,6 +266,7 @@ The MVP Telegram UI includes buttons for:
 - task cancellation
 - pending approvals
 - approve/reject approval decisions
+- runner settings for Codex sandbox and bypass mode
 
 To run work from Telegram, start both background processes:
 

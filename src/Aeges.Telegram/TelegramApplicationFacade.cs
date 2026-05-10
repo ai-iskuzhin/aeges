@@ -1,6 +1,7 @@
 using Aeges.Application;
 using Aeges.Application.Approvals;
 using Aeges.Application.Artifacts;
+using Aeges.Application.Configuration;
 using Aeges.Application.Iterations;
 using Aeges.Application.Machines;
 using Aeges.Application.Projects;
@@ -8,6 +9,7 @@ using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
 using Aeges.Application.Tasks;
 using Aeges.Core;
+using System.Text.Json.Serialization;
 using System.Text.Json;
 
 namespace Aeges.Telegram;
@@ -25,6 +27,8 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     private readonly RunnerExecutionService runnerExecutionService;
     private readonly ApprovalService approvalService;
     private readonly RuntimeDirectoryLayout runtimeLayout;
+    private readonly AegesConfiguration configuration;
+    private readonly string configPath;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TelegramApplicationFacade"/> class.
@@ -36,6 +40,8 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     /// <param name="artifactService">The artifact application service.</param>
     /// <param name="runnerExecutionService">The runner execution application service.</param>
     /// <param name="approvalService">The approval application service.</param>
+    /// <param name="configuration">The loaded local runtime configuration.</param>
+    /// <param name="configPath">The configuration file path to update for settings changes.</param>
     /// <param name="runtimeLayout">The runtime directory layout used to resolve local artifact previews.</param>
     public TelegramApplicationFacade(
         ProjectService projectService,
@@ -45,6 +51,8 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         ArtifactService artifactService,
         RunnerExecutionService runnerExecutionService,
         ApprovalService approvalService,
+        AegesConfiguration configuration,
+        string configPath,
         RuntimeDirectoryLayout? runtimeLayout = null)
     {
         this.projectService = projectService;
@@ -54,6 +62,8 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         this.artifactService = artifactService;
         this.runnerExecutionService = runnerExecutionService;
         this.approvalService = approvalService;
+        this.configuration = configuration;
+        this.configPath = configPath;
         this.runtimeLayout = runtimeLayout ?? RuntimeDirectoryLayout.CreateDefault();
     }
 
@@ -83,6 +93,39 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         int limit,
         CancellationToken cancellationToken) =>
         await approvalService.ListPendingAsync(limit, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<TelegramRunnerSettings> GetRunnerSettingsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(CreateRunnerSettings());
+
+    /// <inheritdoc />
+    public async Task<ApplicationResult<TelegramRunnerSettings>> SetCodexSandboxModeAsync(
+        string sandboxMode,
+        CancellationToken cancellationToken)
+    {
+        if (sandboxMode is not ("workspace-write" or "danger-full-access"))
+        {
+            return ApplicationResult<TelegramRunnerSettings>.Failure(
+                "invalid_sandbox_mode",
+                "Telegram settings can switch Codex sandbox mode between 'workspace-write' and 'danger-full-access'.");
+        }
+
+        configuration.Runners.Codex.SandboxMode = sandboxMode;
+        await SaveConfigurationAsync(cancellationToken);
+
+        return ApplicationResult<TelegramRunnerSettings>.Success(CreateRunnerSettings());
+    }
+
+    /// <inheritdoc />
+    public async Task<ApplicationResult<TelegramRunnerSettings>> SetCodexBypassApprovalsAndSandboxAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        configuration.Runners.Codex.BypassApprovalsAndSandbox = enabled;
+        await SaveConfigurationAsync(cancellationToken);
+
+        return ApplicationResult<TelegramRunnerSettings>.Success(CreateRunnerSettings());
+    }
 
     /// <inheritdoc />
     public async Task<ApplicationResult<RuntimeTask>> CreateTaskAsync(
@@ -160,6 +203,35 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         string resolvedBy,
         CancellationToken cancellationToken) =>
         await approvalService.RejectAsync(new ResolveApprovalRequest(approvalId, resolvedBy), cancellationToken);
+
+    private TelegramRunnerSettings CreateRunnerSettings() =>
+        new(
+            configuration.Runners.Codex.SandboxMode,
+            configuration.Runners.Codex.BypassApprovalsAndSandbox);
+
+    private async Task SaveConfigurationAsync(CancellationToken cancellationToken)
+    {
+        var directory = Path.GetDirectoryName(configPath);
+
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        await using var stream = File.Create(configPath);
+        await JsonSerializer.SerializeAsync(
+            stream,
+            configuration,
+            new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            },
+            cancellationToken);
+
+        await stream.WriteAsync("\n"u8.ToArray(), cancellationToken);
+    }
 
     private string? TryReadLatestRunnerResponse(
         IReadOnlyList<RuntimeArtifact> artifacts,

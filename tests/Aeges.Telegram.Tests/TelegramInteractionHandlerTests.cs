@@ -39,7 +39,7 @@ public sealed class TelegramInteractionHandlerTests
         var response = await handler.HandleAsync(new TelegramUpdate(1001, Text: "hello"), CancellationToken.None);
 
         Assert.Equal("Aeges control", response.Text);
-        Assert.Equal(3, response.Buttons.Rows.Count);
+        Assert.Equal(4, response.Buttons.Rows.Count);
         Assert.Equal("New task", response.Buttons.Rows[0][0].Text);
         Assert.Equal(TelegramCallbackData.CreateTask, response.Buttons.Rows[0][0].CallbackData);
         Assert.Equal("Projects (1)", response.Buttons.Rows[1][0].Text);
@@ -50,6 +50,8 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Equal(TelegramCallbackData.TaskMenu, response.Buttons.Rows[2][0].CallbackData);
         Assert.Equal("Approvals (1)", response.Buttons.Rows[2][1].Text);
         Assert.Equal(TelegramCallbackData.ListPendingApprovals, response.Buttons.Rows[2][1].CallbackData);
+        Assert.Equal("Settings", response.Buttons.Rows[3][0].Text);
+        Assert.Equal(TelegramCallbackData.SettingsMenu, response.Buttons.Rows[3][0].CallbackData);
     }
 
     [Fact]
@@ -375,6 +377,46 @@ public sealed class TelegramInteractionHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_shows_runner_settings_menu()
+    {
+        var facade = new FakeTelegramApplicationFacade
+        {
+            RunnerSettings = new TelegramRunnerSettings("workspace-write", CodexBypassApprovalsAndSandbox: false),
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.SettingsMenu),
+            CancellationToken.None);
+
+        Assert.Contains("Codex sandbox: workspace-write", response.Text, StringComparison.Ordinal);
+        Assert.Contains("Codex bypass approvals and sandbox: disallowed", response.Text, StringComparison.Ordinal);
+        Assert.Equal("🟢 Sandbox enabled", response.Buttons.Rows[0][0].Text);
+        Assert.Equal("ae:s:sb:danger-full-access", response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("🔴 Bypass disallowed", response.Buttons.Rows[1][0].Text);
+        Assert.Equal("ae:s:bp:1", response.Buttons.Rows[1][0].CallbackData);
+    }
+
+    [Fact]
+    public async Task HandleAsync_updates_runner_settings_from_buttons()
+    {
+        var facade = new FakeTelegramApplicationFacade();
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var sandboxResponse = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.SetCodexSandboxMode("danger-full-access")),
+            CancellationToken.None);
+        var bypassResponse = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.SetCodexBypassApprovalsAndSandbox(true)),
+            CancellationToken.None);
+
+        Assert.Equal("danger-full-access", facade.RunnerSettings.CodexSandboxMode);
+        Assert.True(facade.RunnerSettings.CodexBypassApprovalsAndSandbox);
+        Assert.Contains("Codex sandbox: danger-full-access", sandboxResponse.Text, StringComparison.Ordinal);
+        Assert.Contains("Codex bypass approvals and sandbox: allowed", bypassResponse.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task HandleAsync_shows_approval_details_with_resolution_buttons()
     {
         var approval = ApprovalRequest.Create(
@@ -462,6 +504,9 @@ public sealed class TelegramInteractionHandlerTests
 
         public ApprovalRequest? Approval { get; init; }
 
+        public TelegramRunnerSettings RunnerSettings { get; set; } =
+            new("workspace-write", CodexBypassApprovalsAndSandbox: false);
+
         public int ListProjectsCallCount { get; private set; }
 
         public ProjectId? CreatedProjectId { get; private set; }
@@ -505,6 +550,33 @@ public sealed class TelegramInteractionHandlerTests
             int limit,
             CancellationToken cancellationToken) =>
             System.Threading.Tasks.Task.FromResult(PendingApprovals.Take(limit).ToArray() as IReadOnlyList<ApprovalRequest>);
+
+        public Task<TelegramRunnerSettings> GetRunnerSettingsAsync(CancellationToken cancellationToken) =>
+            System.Threading.Tasks.Task.FromResult(RunnerSettings);
+
+        public Task<ApplicationResult<TelegramRunnerSettings>> SetCodexSandboxModeAsync(
+            string sandboxMode,
+            CancellationToken cancellationToken)
+        {
+            RunnerSettings = RunnerSettings with
+            {
+                CodexSandboxMode = sandboxMode,
+            };
+
+            return System.Threading.Tasks.Task.FromResult(ApplicationResult<TelegramRunnerSettings>.Success(RunnerSettings));
+        }
+
+        public Task<ApplicationResult<TelegramRunnerSettings>> SetCodexBypassApprovalsAndSandboxAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            RunnerSettings = RunnerSettings with
+            {
+                CodexBypassApprovalsAndSandbox = enabled,
+            };
+
+            return System.Threading.Tasks.Task.FromResult(ApplicationResult<TelegramRunnerSettings>.Success(RunnerSettings));
+        }
 
         public Task<ApplicationResult<RuntimeTask>> CreateTaskAsync(
             ProjectId projectId,

@@ -51,7 +51,7 @@ public sealed class CodexRunnerCommandBuilder
         }
 
         var arguments = new List<string>();
-        arguments.AddRange(options.BaseArguments ?? CreateDefaultBaseArguments(request.WorktreePath));
+        arguments.AddRange(options.BaseArguments ?? CreateDefaultBaseArguments(request.WorktreePath, options));
 
         if (request.SessionPolicy == RunnerSessionPolicy.ResumeSession)
         {
@@ -132,6 +132,18 @@ public sealed class CodexRunnerCommandBuilder
             throw new ArgumentException("Reasoning effort must not be empty when configured.", nameof(options));
         }
 
+        if (string.IsNullOrWhiteSpace(options.SandboxMode))
+        {
+            throw new ArgumentException("Sandbox mode must not be empty.", nameof(options));
+        }
+
+        if (options.SandboxMode is not ("read-only" or "workspace-write" or "danger-full-access"))
+        {
+            throw new ArgumentException(
+                "Sandbox mode must be 'read-only', 'workspace-write', or 'danger-full-access'.",
+                nameof(options));
+        }
+
         if (options.EnvironmentVariables?.Any(pair => string.IsNullOrWhiteSpace(pair.Key)) == true)
         {
             throw new ArgumentException("Environment variable names must not be empty.", nameof(options));
@@ -156,15 +168,32 @@ public sealed class CodexRunnerCommandBuilder
     private static string ToTomlStringLiteral(string value) =>
         "\"" + value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
 
-    private static IReadOnlyList<string> CreateDefaultBaseArguments(string worktreePath) =>
-    [
-        "--ask-for-approval",
-        "never",
-        "exec",
-        "--json",
-        "--sandbox",
-        "workspace-write",
-        "--cd",
-        worktreePath,
-    ];
+    private static IReadOnlyList<string> CreateDefaultBaseArguments(
+        string worktreePath,
+        CodexRunnerOptions options)
+    {
+        if (options.BypassApprovalsAndSandbox)
+        {
+            return
+            [
+                "--dangerously-bypass-approvals-and-sandbox",
+                "exec",
+                "--json",
+                "--cd",
+                worktreePath,
+            ];
+        }
+
+        return
+        [
+            "--ask-for-approval",
+            "never",
+            "exec",
+            "--json",
+            "--sandbox",
+            options.SandboxMode,
+            "--cd",
+            worktreePath,
+        ];
+    }
 }

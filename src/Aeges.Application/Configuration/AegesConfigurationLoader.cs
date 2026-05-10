@@ -88,6 +88,7 @@ public sealed class AegesConfigurationLoader
         configuration.Runners.Codex.ReasoningEffort = NormalizeOptionalText(
             configuration.Runners.Codex.ReasoningEffort,
             nameof(configuration.Runners.Codex.ReasoningEffort));
+        configuration.Runners.Codex.SandboxMode = NormalizeSandboxMode(configuration.Runners.Codex.SandboxMode);
 
         if (configuration.Runners.Codex.TimeoutSeconds <= 0)
         {
@@ -132,5 +133,18 @@ public sealed class AegesConfigurationLoader
         }
 
         return RequireFullyQualifiedPath(path);
+    }
+
+    private static string NormalizeSandboxMode(string? value)
+    {
+        var sandboxMode = RequireText(value ?? "workspace-write", nameof(AegesCodexRunnerConfiguration.SandboxMode));
+
+        return sandboxMode switch
+        {
+            "read-only" or "workspace-write" or "danger-full-access" => sandboxMode,
+            _ => throw new ArgumentException(
+                "Codex sandbox mode must be 'read-only', 'workspace-write', or 'danger-full-access'.",
+                nameof(AegesCodexRunnerConfiguration.SandboxMode)),
+        };
     }
 }

@@ -18,6 +18,8 @@ public sealed class AegesConfigurationLoaderTests
         Assert.Equal("codex", configuration.Runners.Codex.Executable);
         Assert.Null(configuration.Runners.Codex.Model);
         Assert.Null(configuration.Runners.Codex.ReasoningEffort);
+        Assert.Equal("workspace-write", configuration.Runners.Codex.SandboxMode);
+        Assert.False(configuration.Runners.Codex.BypassApprovalsAndSandbox);
         Assert.Equal(1800, configuration.Runners.Codex.TimeoutSeconds);
         Assert.Empty(configuration.Projects);
     }
@@ -44,6 +46,8 @@ public sealed class AegesConfigurationLoaderTests
                   "executable": "codex-test",
                   "model": "gpt-5.5",
                   "reasoningEffort": "high",
+                  "sandboxMode": "danger-full-access",
+                  "bypassApprovalsAndSandbox": true,
                   "timeoutSeconds": 120
                 }
               },
@@ -69,6 +73,8 @@ public sealed class AegesConfigurationLoaderTests
         Assert.Equal("codex-test", configuration.Runners.Codex.Executable);
         Assert.Equal("gpt-5.5", configuration.Runners.Codex.Model);
         Assert.Equal("high", configuration.Runners.Codex.ReasoningEffort);
+        Assert.Equal("danger-full-access", configuration.Runners.Codex.SandboxMode);
+        Assert.True(configuration.Runners.Codex.BypassApprovalsAndSandbox);
         Assert.Equal(120, configuration.Runners.Codex.TimeoutSeconds);
         Assert.Single(configuration.Projects);
         Assert.Equal("aeges", configuration.Projects[0].Id);
@@ -171,6 +177,24 @@ public sealed class AegesConfigurationLoaderTests
               "runners": {
                 "codex": {
                   "model": " "
+                }
+              }
+            }
+            """);
+
+        Assert.Throws<ArgumentException>(
+            () => new AegesConfigurationLoader().Load(new AegesConfigurationLoaderOptions(path)));
+    }
+
+    [Fact]
+    public void Load_rejects_invalid_codex_sandbox_mode()
+    {
+        var path = CreateConfigFile(
+            """
+            {
+              "runners": {
+                "codex": {
+                  "sandboxMode": "disabled"
                 }
               }
             }

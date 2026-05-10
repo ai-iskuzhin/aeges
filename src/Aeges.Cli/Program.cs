@@ -370,6 +370,7 @@ internal static class AegesCli
         }
 
         var configuration = LoadConfiguration(options);
+        var configPath = ResolveConfigPath(options);
         if (!await TelegramCliSetup.EnsureTokenAsync(
             configuration.Telegram,
             input,
@@ -390,7 +391,9 @@ internal static class AegesCli
             new TaskIterationService(unitOfWork, clock),
             new ArtifactService(unitOfWork, clock),
             new RunnerExecutionService(unitOfWork, clock),
-            new ApprovalService(unitOfWork, clock));
+            new ApprovalService(unitOfWork, clock),
+            configuration,
+            configPath);
         var handler = new TelegramInteractionHandler(facade, configuration.Telegram);
         var pollingOptions = new TelegramLongPollingOptions(options.Limit, options.TimeoutSeconds);
 
@@ -942,7 +945,9 @@ internal static class AegesCli
             options.CreateWorktree,
             configuration.Runners.Codex.Executable,
             configuration.Runners.Codex.Model,
-            configuration.Runners.Codex.ReasoningEffort);
+            configuration.Runners.Codex.ReasoningEffort,
+            configuration.Runners.Codex.SandboxMode,
+            configuration.Runners.Codex.BypassApprovalsAndSandbox);
     }
 
     private static async Task WriteStatusAsync(

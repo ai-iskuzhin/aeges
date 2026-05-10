@@ -51,6 +51,33 @@ public interface ITelegramApplicationFacade
     Task<IReadOnlyList<ApprovalRequest>> ListPendingApprovalsAsync(int limit, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Gets runner settings exposed through the Telegram settings menu.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The current runner settings.</returns>
+    Task<TelegramRunnerSettings> GetRunnerSettingsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Updates the configured Codex sandbox mode.
+    /// </summary>
+    /// <param name="sandboxMode">The Codex sandbox mode.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The updated runner settings, or an expected failure.</returns>
+    Task<ApplicationResult<TelegramRunnerSettings>> SetCodexSandboxModeAsync(
+        string sandboxMode,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Updates whether Codex bypasses its approvals and sandbox.
+    /// </summary>
+    /// <param name="enabled">A value indicating whether bypass is enabled.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The updated runner settings, or an expected failure.</returns>
+    Task<ApplicationResult<TelegramRunnerSettings>> SetCodexBypassApprovalsAndSandboxAsync(
+        bool enabled,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Creates a queued runtime task.
     /// </summary>
     /// <param name="projectId">The project that owns the task.</param>

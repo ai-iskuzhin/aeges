@@ -26,6 +26,14 @@ Approval should be required for destructive git commands, dependency changes,
 database migrations, file deletion, deployment changes, CI/CD modifications, and
 force push operations.
 
+Codex runner sandbox settings are local machine policy. The default is
+`workspace-write` inside an isolated task worktree. Operators can set
+`runners.codex.sandboxMode` to `danger-full-access` or enable
+`runners.codex.bypassApprovalsAndSandbox` for trusted local experiments, but
+those settings remove Codex's own sandbox/approval guardrails. Aeges still
+records runner execution metadata, artifacts, and review state, but the machine
+owner is responsible for when those Codex-level protections are disabled.
+
 ## Governance Policy
 
 The initial runtime governance policy is evaluated before runner dispatch. It

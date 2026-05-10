@@ -21,6 +21,16 @@ public sealed class AegesCodexRunnerConfiguration
     public string? ReasoningEffort { get; set; }
 
     /// <summary>
+    /// Gets or sets the Codex sandbox mode used for worker commands.
+    /// </summary>
+    public string SandboxMode { get; set; } = "workspace-write";
+
+    /// <summary>
+    /// Gets or sets a value indicating whether Codex should bypass its own approvals and sandbox.
+    /// </summary>
+    public bool BypassApprovalsAndSandbox { get; set; }
+
+    /// <summary>
     /// Gets or sets the default Codex execution timeout in seconds.
     /// </summary>
     public int TimeoutSeconds { get; set; } = 1800;

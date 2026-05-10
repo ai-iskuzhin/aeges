@@ -38,6 +38,11 @@ public static class TelegramCallbackData
     public const string ListPendingApprovals = "ae:ap";
 
     /// <summary>
+    /// Gets the settings menu callback payload.
+    /// </summary>
+    public const string SettingsMenu = "ae:s";
+
+    /// <summary>
     /// Gets the task creation callback payload.
     /// </summary>
     public const string CreateTask = "ae:t:new";
@@ -81,6 +86,20 @@ public static class TelegramCallbackData
     /// <param name="taskId">The task identifier.</param>
     /// <returns>The callback payload.</returns>
     public static string CancelTask(TaskId taskId) => $"ae:t:x:{taskId.Value}";
+
+    /// <summary>
+    /// Creates a Codex sandbox mode settings callback payload.
+    /// </summary>
+    /// <param name="sandboxMode">The target sandbox mode.</param>
+    /// <returns>The callback payload.</returns>
+    public static string SetCodexSandboxMode(string sandboxMode) => $"ae:s:sb:{sandboxMode}";
+
+    /// <summary>
+    /// Creates a Codex approvals and sandbox bypass settings callback payload.
+    /// </summary>
+    /// <param name="enabled">A value indicating whether bypass should be enabled.</param>
+    /// <returns>The callback payload.</returns>
+    public static string SetCodexBypassApprovalsAndSandbox(bool enabled) => $"ae:s:bp:{(enabled ? "1" : "0")}";
 
     /// <summary>
     /// Creates a task completion callback payload.
@@ -163,6 +182,55 @@ public static class TelegramCallbackData
         }
 
         taskId = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to parse a Codex sandbox mode settings callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="sandboxMode">The parsed sandbox mode.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseSetCodexSandboxMode(string payload, out string sandboxMode)
+    {
+        const string prefix = "ae:s:sb:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length > prefix.Length)
+        {
+            sandboxMode = payload[prefix.Length..];
+            return sandboxMode is "workspace-write" or "danger-full-access";
+        }
+
+        sandboxMode = string.Empty;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to parse a Codex approvals and sandbox bypass settings callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="enabled">A value indicating whether bypass should be enabled.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseSetCodexBypassApprovalsAndSandbox(string payload, out bool enabled)
+    {
+        const string prefix = "ae:s:bp:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length == prefix.Length + 1)
+        {
+            if (payload[^1] == '1')
+            {
+                enabled = true;
+                return true;
+            }
+
+            if (payload[^1] == '0')
+            {
+                enabled = false;
+                return true;
+            }
+        }
+
+        enabled = false;
         return false;
     }
 

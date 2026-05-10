@@ -406,7 +406,9 @@ public sealed class LocalAgentRuntime
                 new CodexRunnerOptions(
                     options.CodexExecutable,
                     Model: NormalizeOptional(options.CodexModel),
-                    ReasoningEffort: NormalizeOptional(options.CodexReasoningEffort)));
+                    ReasoningEffort: NormalizeOptional(options.CodexReasoningEffort),
+                    SandboxMode: options.CodexSandboxMode,
+                    BypassApprovalsAndSandbox: options.CodexBypassApprovalsAndSandbox));
         }
 
         throw new InvalidOperationException(
