@@ -166,15 +166,16 @@ The wizard writes safe Telegram settings to `~/.aeges/config.json`, can store
 the bot token in a local secret file under `~/.aeges/secrets/`, and asks for
 allowed chat IDs. The token is never written to committed config or logs.
 
-You can also provide the token through an environment variable:
+You can also override the local token file with an environment variable when
+needed:
 
 ```bash
 export AEGES_TELEGRAM_BOT_TOKEN="replace-with-your-token"
 ```
 
-If the token environment variable is missing, `aeges telegram run` prompts for
-the token and loads it for the current process only, unless the wizard already
-configured a local token file.
+Environment variables are process/session scoped unless you persist them in your
+shell profile. For normal local use, the setup wizard's secret file is the more
+durable path.
 
 Run the transport:
 

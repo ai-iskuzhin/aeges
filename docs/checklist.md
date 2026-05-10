@@ -104,6 +104,7 @@ review, test, and document independently.
 - [x] Add interactive Telegram token setup for CLI runs.
 - [x] Add Telegram setup wizard with local secret-file support.
 - [x] Add Telegram token/config check command.
+- [x] Simplify Telegram setup to default to local secret files.
 - [x] Package CLI as a local .NET tool named `aeges`.
 - [x] Add install roadmap.
 
@@ -212,6 +213,7 @@ review, test, and document independently.
 - [x] Add current-process Telegram token prompt for `aeges telegram run`.
 - [x] Add `aeges telegram setup` wizard for config, token source, and chat IDs.
 - [x] Add `aeges telegram check` for bot identity preflight.
+- [x] Remove environment-variable-name prompt from Telegram setup wizard.
 
 ## Governance
 

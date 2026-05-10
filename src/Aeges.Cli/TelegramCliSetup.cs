@@ -4,6 +4,8 @@ using Aeges.Application.Runtime;
 
 internal static class TelegramCliSetup
 {
+    private const string DefaultBotTokenEnvironmentVariable = "AEGES_TELEGRAM_BOT_TOKEN";
+
     public static async Task<bool> EnsureTokenAsync(
         AegesTelegramConfiguration configuration,
         TextReader input,
@@ -64,32 +66,25 @@ internal static class TelegramCliSetup
         await output.WriteLineAsync($"Config: {configPath}");
         await output.WriteLineAsync();
 
-        configuration.Telegram.BotTokenEnvironmentVariable = await PromptTextAsync(
-            input,
-            output,
-            "Telegram bot token environment variable",
-            configuration.Telegram.BotTokenEnvironmentVariable,
-            cancellationToken);
+        configuration.Telegram.BotTokenEnvironmentVariable = DefaultBotTokenEnvironmentVariable;
+        await output.WriteLineAsync("Token source: local secret file.");
+        await output.WriteLineAsync(
+            $"Environment override remains available through {DefaultBotTokenEnvironmentVariable}.");
 
         var tokenFilePath = string.IsNullOrWhiteSpace(configuration.Telegram.BotTokenFilePath)
             ? defaultTokenFilePath
             : configuration.Telegram.BotTokenFilePath;
 
-        if (await PromptYesNoAsync(
+        tokenFilePath = await PromptAbsolutePathAsync(
             input,
             output,
-            "Store the bot token in a local secret file",
-            defaultValue: true,
-            cancellationToken))
-        {
-            tokenFilePath = await PromptAbsolutePathAsync(
-                input,
-                output,
-                "Telegram bot token file",
-                tokenFilePath,
-                cancellationToken);
+            "Telegram bot token file",
+            tokenFilePath,
+            cancellationToken);
 
-            var existingTokenFile = File.Exists(tokenFilePath);
+        var existingTokenFile = File.Exists(tokenFilePath);
+        while (true)
+        {
             await output.WriteAsync(existingTokenFile
                 ? "Enter Telegram bot token, or press Enter to keep the existing secret file: "
                 : "Enter Telegram bot token: ");
@@ -101,22 +96,19 @@ internal static class TelegramCliSetup
             {
                 WriteSecretFile(tokenFilePath, token);
                 await output.WriteLineAsync($"Saved Telegram bot token to local secret file: {tokenFilePath}");
+                break;
             }
-            else if (!existingTokenFile)
+
+            if (existingTokenFile)
             {
-                tokenFilePath = null;
-                await output.WriteLineAsync("No token file was written. `aeges telegram run` will prompt for a token if no environment token is set.");
+                await output.WriteLineAsync($"Keeping existing local secret file: {tokenFilePath}");
+                break;
             }
 
-            configuration.Telegram.BotTokenFilePath = tokenFilePath;
-        }
-        else
-        {
-            configuration.Telegram.BotTokenFilePath = null;
-            await output.WriteLineAsync(
-                $"Token file disabled. Set {configuration.Telegram.BotTokenEnvironmentVariable} before running Telegram.");
+            await output.WriteLineAsync("A token is required to create a new local secret file. Press Ctrl+C to cancel.");
         }
 
+        configuration.Telegram.BotTokenFilePath = tokenFilePath;
         configuration.Telegram.AllowedChatIds = await PromptAllowedChatIdsAsync(
             input,
             output,

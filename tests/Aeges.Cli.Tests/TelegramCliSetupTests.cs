@@ -125,8 +125,6 @@ public sealed class TelegramCliSetupTests
             new AegesConfiguration(),
             configPath,
             new StringReader($"""
-            AEGES_TEST_TELEGRAM_TOKEN
-            y
             {tokenPath}
             entered-token
             1001,1002
@@ -136,28 +134,30 @@ public sealed class TelegramCliSetupTests
             CancellationToken.None);
 
         Assert.Equal(configPath, result.ConfigPath);
-        Assert.Equal("AEGES_TEST_TELEGRAM_TOKEN", result.BotTokenEnvironmentVariable);
+        Assert.Equal("AEGES_TELEGRAM_BOT_TOKEN", result.BotTokenEnvironmentVariable);
         Assert.Equal(tokenPath, result.BotTokenFilePath);
         Assert.Equal([1001, 1002], result.AllowedChatIds);
         Assert.Equal("entered-token\n", await File.ReadAllTextAsync(tokenPath));
         Assert.DoesNotContain("entered-token", output.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Telegram bot token environment variable [", output.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task RunWizardAsync_allows_open_local_chat_mode()
     {
         var configPath = Path.Combine(CreateTemporaryDirectory(), "config.json");
+        var tokenPath = Path.Combine(CreateTemporaryDirectory(), "telegram-token");
         var output = new StringWriter();
 
         var result = await TelegramCliSetup.RunWizardAsync(
             new AegesConfiguration(),
             configPath,
-            new StringReader("\n" + "n\nempty\n"),
+            new StringReader($"{tokenPath}\nentered-token\nempty\n"),
             output,
             CancellationToken.None);
 
         Assert.Equal("AEGES_TELEGRAM_BOT_TOKEN", result.BotTokenEnvironmentVariable);
-        Assert.Null(result.BotTokenFilePath);
+        Assert.Equal(tokenPath, result.BotTokenFilePath);
         Assert.Empty(result.AllowedChatIds);
         Assert.Contains("open to any chat", output.ToString(), StringComparison.Ordinal);
     }
