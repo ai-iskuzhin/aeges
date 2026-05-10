@@ -189,6 +189,45 @@ diff.patch
 
 ---
 
+## Distribution Roadmap
+
+Status: In progress
+
+Goal:
+Make `aeges` easy to install while keeping runtime setup explicit and governed.
+
+### Stage 1: .NET Tool
+
+- package `Aeges.Cli` as a .NET tool
+- expose the command name `aeges`
+- support local checkout installation through `dotnet pack` and `dotnet tool install`
+- later publish the tool package to NuGet
+
+### Stage 2: Release Artifacts And Shell Installer
+
+- publish versioned GitHub release artifacts
+- publish checksums for release artifacts
+- add a macOS/Linux shell installer
+- avoid `sudo` by default
+- install into `~/.aeges/bin` or `~/.local/bin`
+
+### Stage 3: Homebrew
+
+- create a Homebrew tap
+- install from checksummed release archives
+- support macOS first and Linuxbrew where practical
+
+### Stage 4: Native Package Managers
+
+- Windows: winget, Scoop, and possibly MSI
+- Linux: deb/rpm packages after daemon/service behavior stabilizes
+- macOS: Homebrew plus launchd service helper
+
+The .NET tool remains the developer-friendly and cross-platform baseline even
+after native package managers are added.
+
+---
+
 # Phase 2 — Multi-Machine Runtime
 
 Status: Planned

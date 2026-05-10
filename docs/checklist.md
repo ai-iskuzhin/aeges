@@ -104,6 +104,8 @@ review, test, and document independently.
 - [x] Add interactive Telegram token setup for CLI runs.
 - [x] Add Telegram setup wizard with local secret-file support.
 - [x] Add Telegram token/config check command.
+- [x] Package CLI as a local .NET tool named `aeges`.
+- [x] Add install roadmap.
 
 ## Current Focus
 
@@ -175,6 +177,7 @@ review, test, and document independently.
 
 ## Runtime And CLI
 
+- [x] Package `Aeges.Cli` as a .NET global/local tool.
 - [x] Add runtime directory model for `~/.aeges`.
 - [x] Add config loading model.
 - [x] Add `aeges db status`.

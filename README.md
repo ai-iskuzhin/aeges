@@ -48,10 +48,19 @@ dotnet build --no-restore
 dotnet test --no-build
 ```
 
-For convenience while developing from source, define a shell function:
+Install the CLI from the local checkout:
 
 ```bash
-aeges() { dotnet run --project src/Aeges.Cli -- "$@"; }
+dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
+dotnet tool install --global Aeges.Cli \
+  --add-source "$PWD/.artifacts/packages" \
+  --version 0.1.0-alpha.1
+```
+
+If your shell cannot find `aeges`, add the .NET tools directory to `PATH`:
+
+```bash
+export PATH="$PATH:$HOME/.dotnet/tools"
 ```
 
 Create the schema and check migration status:
@@ -301,6 +310,7 @@ values.
 
 - [Architecture](docs/architecture.md)
 - [Runtime layout](docs/runtime-layout.md)
+- [Install roadmap](docs/install.md)
 - [SQLite storage](docs/sqlite.md)
 - [Task model](docs/task-model.md)
 - [Runners](docs/runners.md)
