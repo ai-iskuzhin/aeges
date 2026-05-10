@@ -92,6 +92,21 @@ internal static class AegesCli
             return await RunAgentRunAsync(agentRunArgs, output, error, cancellationToken);
         }
 
+        if (args is ["agent", "start", .. var agentStartArgs])
+        {
+            return await RunAgentStartAsync(agentStartArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["agent", "status", .. var agentStatusArgs])
+        {
+            return await RunAgentStatusAsync(agentStatusArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["agent", "stop", .. var agentStopArgs])
+        {
+            return await RunAgentStopAsync(agentStopArgs, output, error, cancellationToken);
+        }
+
         if (args is ["telegram", "run", .. var telegramRunArgs])
         {
             return await RunTelegramRunAsync(telegramRunArgs, input, output, error, cancellationToken);
@@ -192,6 +207,81 @@ internal static class AegesCli
             await output.WriteLineAsync("Agent stopped.");
             return 0;
         }
+    }
+
+    private static async Task<int> RunAgentStartAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = AgentProcessCliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var manager = new AgentProcessManager();
+        var result = await manager.StartAsync(
+            new AgentProcessStartRequest(
+                options.ConfigPath,
+                options.ConnectionString,
+                options.MachineId,
+                options.MachineName,
+                options.Platform,
+                options.RunnerId,
+                options.PollIntervalSeconds,
+                options.QueuePreviewLimit,
+                options.ClaimQueuedTask,
+                options.ExecuteRunner,
+                options.CreateWorktree),
+            cancellationToken);
+
+        await WriteAgentProcessStartResultAsync(result, options.Json, output);
+
+        return 0;
+    }
+
+    private static async Task<int> RunAgentStatusAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = CliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var status = await new AgentProcessManager().GetStatusAsync(cancellationToken);
+        await WriteAgentProcessStatusAsync(status, options.Json, output);
+
+        return 0;
+    }
+
+    private static async Task<int> RunAgentStopAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = CliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var result = await new AgentProcessManager().StopAsync(cancellationToken);
+        await WriteAgentProcessStopResultAsync(result, options.Json, output);
+
+        return 0;
     }
 
     private static async Task<int> RunDatabaseMigrateAsync(
@@ -968,6 +1058,91 @@ internal static class AegesCli
         await output.WriteLineAsync($"Heartbeat: {snapshot.HeartbeatAt:O}");
     }
 
+    private static async Task WriteAgentProcessStartResultAsync(
+        AgentProcessStartResult result,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                AgentProcessStatusOutput.From(result.Status),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync(result.AlreadyRunning
+            ? "Agent worker is already running."
+            : "Agent worker started.");
+        await WriteAgentProcessStatusLinesAsync(result.Status, output);
+    }
+
+    private static async Task WriteAgentProcessStatusAsync(
+        AgentProcessStatus status,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                AgentProcessStatusOutput.From(status),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await WriteAgentProcessStatusLinesAsync(status, output);
+    }
+
+    private static async Task WriteAgentProcessStopResultAsync(
+        AgentProcessStopResult result,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                AgentProcessStatusOutput.From(result.PreviousStatus),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync(result.Stopped
+            ? "Agent worker stopped."
+            : "Agent worker was not running.");
+        await output.WriteLineAsync($"Metadata: {result.PreviousStatus.MetadataPath}");
+    }
+
+    private static async Task WriteAgentProcessStatusLinesAsync(
+        AgentProcessStatus status,
+        TextWriter output)
+    {
+        var state = status.IsRunning ? "running" : status.IsStale ? "stale" : "stopped";
+        await output.WriteLineAsync($"Status: {state}");
+        await output.WriteLineAsync($"Metadata: {status.MetadataPath}");
+
+        if (status.Metadata is null)
+        {
+            return;
+        }
+
+        await output.WriteLineAsync($"PID: {status.Metadata.ProcessId}");
+        await output.WriteLineAsync($"Started: {status.Metadata.StartedAt:O}");
+        await output.WriteLineAsync($"Stdout: {status.Metadata.StdoutPath}");
+        await output.WriteLineAsync($"Stderr: {status.Metadata.StderrPath}");
+    }
+
     private static async Task WriteTelegramPollingResultAsync(
         TelegramLongPollingResult result,
         bool json,
@@ -1114,6 +1289,9 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task cancel <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--create-worktree] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges agent start [--machine-id <id>] [--runner-id <id>] [--no-claim] [--no-create-worktree] [--no-execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges agent status [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges agent stop [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges telegram setup [--config <path>]");
         await error.WriteLineAsync("  aeges telegram check [--config <path>] [--json]");
         await error.WriteLineAsync("  aeges telegram run [--once] [--no-interactive] [--poll-limit <int>] [--timeout-seconds <int>] [--config <path>] [--connection-string <value>] [--json]");
@@ -1722,6 +1900,149 @@ internal static class AegesCli
         private static AgentRunCliOptions ErrorResult(string error) => new() { Error = error };
     }
 
+    private sealed class AgentProcessCliOptions : CliOptions
+    {
+        public string? MachineId { get; private init; }
+
+        public string? MachineName { get; private init; }
+
+        public string? Platform { get; private init; }
+
+        public int PollIntervalSeconds { get; private init; } = 5;
+
+        public int QueuePreviewLimit { get; private init; } = 100;
+
+        public string? RunnerId { get; private init; }
+
+        public bool ClaimQueuedTask { get; private init; } = true;
+
+        public bool ExecuteRunner { get; private init; } = true;
+
+        public bool CreateWorktree { get; private init; } = true;
+
+        public new static AgentProcessCliOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? machineId = null;
+            string? machineName = null;
+            string? platform = null;
+            string? runnerId = null;
+            var json = false;
+            var pollIntervalSeconds = 5;
+            var queuePreviewLimit = 100;
+            var claimQueuedTask = true;
+            var executeRunner = true;
+            var createWorktree = true;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--no-claim":
+                        claimQueuedTask = false;
+                        break;
+                    case "--no-execute-runner":
+                        executeRunner = false;
+                        break;
+                    case "--no-create-worktree":
+                        createWorktree = false;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--machine-id":
+                        if (!TryReadValue(args, ref index, out machineId))
+                        {
+                            return ErrorResult("--machine-id requires a value.");
+                        }
+
+                        break;
+                    case "--machine-name":
+                        if (!TryReadValue(args, ref index, out machineName))
+                        {
+                            return ErrorResult("--machine-name requires a value.");
+                        }
+
+                        break;
+                    case "--platform":
+                        if (!TryReadValue(args, ref index, out platform))
+                        {
+                            return ErrorResult("--platform requires a value.");
+                        }
+
+                        break;
+                    case "--runner-id":
+                        if (!TryReadValue(args, ref index, out runnerId))
+                        {
+                            return ErrorResult("--runner-id requires a value.");
+                        }
+
+                        break;
+                    case "--poll-interval-seconds":
+                        if (!TryReadPositiveInt(args, ref index, out pollIntervalSeconds))
+                        {
+                            return ErrorResult("--poll-interval-seconds requires an integer value greater than zero.");
+                        }
+
+                        break;
+                    case "--queue-preview-limit":
+                        if (!TryReadPositiveInt(args, ref index, out queuePreviewLimit))
+                        {
+                            return ErrorResult("--queue-preview-limit requires an integer value greater than zero.");
+                        }
+
+                        break;
+                    default:
+                        return ErrorResult($"Unknown option '{args[index]}'.");
+                }
+            }
+
+            return new AgentProcessCliOptions
+            {
+                ConfigPath = configPath,
+                ConnectionString = connectionString,
+                Json = json,
+                MachineId = machineId,
+                MachineName = machineName,
+                Platform = platform,
+                PollIntervalSeconds = pollIntervalSeconds,
+                QueuePreviewLimit = queuePreviewLimit,
+                RunnerId = runnerId,
+                ClaimQueuedTask = claimQueuedTask,
+                ExecuteRunner = executeRunner,
+                CreateWorktree = createWorktree,
+            };
+        }
+
+        private static bool TryReadPositiveInt(string[] args, ref int index, out int value)
+        {
+            if (!TryReadValue(args, ref index, out var text) || !int.TryParse(text, out value))
+            {
+                value = 0;
+                return false;
+            }
+
+            return value > 0;
+        }
+
+        private static AgentProcessCliOptions ErrorResult(string error) => new() { Error = error };
+    }
+
     private sealed class TelegramRunCliOptions : CliOptions
     {
         public bool Once { get; private init; }
@@ -2011,6 +2332,24 @@ internal static class AegesCli
         string? StderrPath)
     {
         public static TelegramProcessStatusOutput From(TelegramProcessStatus status) =>
+            new(
+                status.IsRunning ? "running" : status.IsStale ? "stale" : "stopped",
+                status.MetadataPath,
+                status.Metadata?.ProcessId,
+                status.Metadata?.StartedAt,
+                status.Metadata?.StdoutPath,
+                status.Metadata?.StderrPath);
+    }
+
+    private sealed record AgentProcessStatusOutput(
+        string Status,
+        string MetadataPath,
+        int? ProcessId,
+        DateTimeOffset? StartedAt,
+        string? StdoutPath,
+        string? StderrPath)
+    {
+        public static AgentProcessStatusOutput From(AgentProcessStatus status) =>
             new(
                 status.IsRunning ? "running" : status.IsStale ? "stale" : "stopped",
                 status.MetadataPath,

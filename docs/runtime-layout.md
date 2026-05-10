@@ -65,6 +65,20 @@ not launched against the source checkout:
 aeges agent run --once --runner-id codex --create-worktree --execute-runner
 ```
 
+For normal local background operation, use:
+
+```text
+aeges agent start
+aeges agent status
+aeges agent stop
+```
+
+`agent start` launches the continuous `agent run` worker as a detached local
+process. By default it enables worktree creation and runner execution so tasks
+queued from Telegram can be processed automatically. Process metadata is stored
+in `~/.aeges/runs/agent.pid.json`, and output is redirected to
+`~/.aeges/logs/agent.stdout.log` and `~/.aeges/logs/agent.stderr.log`.
+
 The runner id for newly created iterations defaults to configured
 `runners.default` and can be overridden with:
 

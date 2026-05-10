@@ -44,6 +44,15 @@ the Telegram transport is running. A newly registered machine starts as
 `offline`; `aeges agent run --once --machine-id <id>` records a heartbeat and
 marks it `online`.
 
+Telegram does not execute queued tasks. It is the input and approval transport.
+The local agent worker owns queue processing and runner dispatch. For automatic
+local processing, run both:
+
+```text
+aeges telegram start
+aeges agent start
+```
+
 The bot token is read from the environment variable named by
 `telegram.botTokenEnvironmentVariable`, or from the local file configured by
 `telegram.botTokenFilePath`. The token value itself must not be stored in

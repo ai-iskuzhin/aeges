@@ -107,6 +107,20 @@ That pass claims at most one queued task, moves it into planning, creates the
 first iteration, writes a prompt artifact, and records planned artifact/worktree
 paths. It does not launch an AI worker unless you explicitly ask it to.
 
+For normal local use, start the background agent worker instead. It keeps
+polling the queue and, by default, creates an isolated worktree and executes the
+configured runner for assigned tasks:
+
+```bash
+aeges agent start
+aeges agent status
+aeges agent stop
+```
+
+Agent process metadata is stored in `~/.aeges/runs/agent.pid.json`. Agent logs
+are written to `~/.aeges/logs/agent.stdout.log` and
+`~/.aeges/logs/agent.stderr.log`.
+
 ## Runner Execution
 
 For a safe local dry run, use the mock runner:
@@ -201,12 +215,17 @@ Background process metadata is stored in `~/.aeges/runs/telegram.pid.json`.
 Transport logs are written to `~/.aeges/logs/telegram.stdout.log` and
 `~/.aeges/logs/telegram.stderr.log`.
 
-Machine status in Telegram comes from the local agent heartbeat. If a machine
-shows `offline`, run:
+Telegram queues tasks; the agent worker processes them. The usual local setup is
+therefore:
 
 ```bash
-aeges agent run --once --machine-id local
+aeges telegram start
+aeges agent start
 ```
+
+Machine status in Telegram comes from the local agent heartbeat. If a machine
+shows `offline`, start the agent worker or run a one-shot heartbeat with
+`aeges agent run --once --machine-id local --no-claim`.
 
 During local setup, an empty `allowedChatIds` list permits all chats. Before
 using a real bot, restrict access in `~/.aeges/config.json`:
@@ -284,6 +303,9 @@ aeges task create --project-id <id> --machine-id <id> --title <title> --goal <go
 aeges task status <task-id> [...]
 aeges task cancel <task-id> [...]
 aeges agent run [--once] [--runner-id <id>] [--create-worktree] [--execute-runner] [...]
+aeges agent start [--runner-id <id>] [--no-execute-runner] [--no-create-worktree] [...]
+aeges agent status [--json]
+aeges agent stop [--json]
 aeges telegram setup [...]
 aeges telegram check [...]
 aeges telegram run [--once] [--no-interactive] [--poll-limit <int>] [--timeout-seconds <int>] [...]

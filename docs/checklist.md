@@ -93,6 +93,8 @@ review, test, and document independently.
       paths for claimed iterations.
 - [x] Add opt-in local agent runner execution with durable runner execution
       records.
+- [x] Add `aeges agent start/status/stop` process wrapper for background queue
+      processing.
 - [x] Keep CLI usable without Telegram or a control plane.
 - [x] Add button-first Telegram interaction handler.
 - [x] Add Telegram application facade boundary.
@@ -193,6 +195,8 @@ review, test, and document independently.
 - [x] Add opt-in local agent Git worktree creation for claimed iterations.
 - [x] Add opt-in mock runner execution from the local agent.
 - [x] Add opt-in Codex runner resolution gated by worktree creation.
+- [x] Add `aeges agent start/status/stop` process wrapper for background queue
+      processing.
 - [x] Keep CLI usable without Telegram or a control plane.
 
 ## Telegram Transport
