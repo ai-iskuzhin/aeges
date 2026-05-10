@@ -37,16 +37,28 @@ The script installs or updates the CLI as a global .NET tool. It is intentionall
 thin: it does not install Codex, Telegram, background services, or machine-local
 configuration. Those remain explicit runtime setup steps.
 
+For a GitHub release download, specify a version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aeges-dev/aeges/main/scripts/install.sh | \
+  AEGES_VERSION=0.1.0-alpha.1 sh
+```
+
 Supported installer environment variables:
 
 ```text
 AEGES_VERSION=0.1.0-alpha.1
 AEGES_PACKAGE_SOURCE=/path/to/packages
+AEGES_DOWNLOAD_BASE_URL=https://github.com/aeges-dev/aeges/releases/latest/download
+AEGES_GITHUB_REPOSITORY=aeges-dev/aeges
 AEGES_TOOL_PACKAGE=Aeges.Cli
 AEGES_TOOL_COMMAND=aeges
 ```
 
 The script requires the .NET SDK to already be available on `PATH`.
+When `AEGES_VERSION` is set and no local package source is provided, it
+downloads `Aeges.Cli.<version>.nupkg` and `SHA256SUMS` from the GitHub release,
+verifies the checksum, then installs from the downloaded package directory.
 
 ## .NET Tool
 
@@ -91,8 +103,8 @@ Windows, macOS, and Linux for users who already have the .NET SDK.
 The release shell installer should keep the same `curl | sh` UX while adding
 release hardening:
 
-- download a versioned release artifact
-- verify a checksum
+- download a versioned release artifact from GitHub releases
+- verify the package with `SHA256SUMS`
 - install without `sudo` by default
 - add clear PATH guidance
 - support explicit version selection
@@ -105,6 +117,27 @@ curl -fsSL https://aeges.dev/install.sh | AEGES_VERSION=0.1.0 sh
 The initial checked-in script installs the .NET tool package. A later
 self-contained release installer can install into `~/.aeges/bin` or
 `~/.local/bin` after native archives are published.
+
+## Release Artifact Contract
+
+GitHub releases should publish:
+
+```text
+install.sh
+Aeges.Cli.<version>.nupkg
+SHA256SUMS
+```
+
+For tag `v0.1.0-alpha.1`, the default remote package URL is:
+
+```text
+https://github.com/aeges-dev/aeges/releases/download/v0.1.0-alpha.1/Aeges.Cli.0.1.0-alpha.1.nupkg
+```
+
+The release workflow builds, tests, packs the CLI tool, stages `install.sh`, and
+generates SHA-256 checksums. Tags named `v*` publish a GitHub release; manual
+workflow runs upload the same files as workflow artifacts without publishing a
+release.
 
 ## macOS And Linux: Homebrew
 
@@ -146,6 +179,6 @@ aeges agent start
 
 1. Keep the .NET tool package working in CI.
 2. Keep `scripts/install.sh` working for local package sources.
-3. Publish a signed/checksummed GitHub release artifact.
+3. Publish a checksummed GitHub release artifact from version tags.
 4. Add a Homebrew tap.
 5. Add platform service packages only after daemon behavior is stable.

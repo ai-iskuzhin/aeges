@@ -71,6 +71,14 @@ curl -fsSL https://aeges.dev/install.sh | sh
 wget -qO- https://aeges.dev/install.sh | sh
 ```
 
+Versioned GitHub releases are installed by passing `AEGES_VERSION`; the
+installer downloads the `.nupkg` and verifies `SHA256SUMS` before installing:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aeges-dev/aeges/main/scripts/install.sh | \
+  AEGES_VERSION=0.1.0-alpha.1 sh
+```
+
 Create the schema and check migration status:
 
 ```bash

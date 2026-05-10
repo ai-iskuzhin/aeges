@@ -5,6 +5,8 @@ TOOL_PACKAGE="${AEGES_TOOL_PACKAGE:-Aeges.Cli}"
 TOOL_COMMAND="${AEGES_TOOL_COMMAND:-aeges}"
 VERSION="${AEGES_VERSION:-}"
 PACKAGE_SOURCE="${AEGES_PACKAGE_SOURCE:-}"
+GITHUB_REPOSITORY="${AEGES_GITHUB_REPOSITORY:-aeges-dev/aeges}"
+DOWNLOAD_BASE_URL="${AEGES_DOWNLOAD_BASE_URL:-}"
 
 usage() {
     cat <<'EOF'
@@ -19,12 +21,18 @@ Usage:
 Options via environment variables:
   AEGES_VERSION=0.1.0-alpha.1
   AEGES_PACKAGE_SOURCE=/path/to/packages
+  AEGES_DOWNLOAD_BASE_URL=https://github.com/aeges-dev/aeges/releases/latest/download
+  AEGES_GITHUB_REPOSITORY=aeges-dev/aeges
   AEGES_TOOL_PACKAGE=Aeges.Cli
   AEGES_TOOL_COMMAND=aeges
 
 Local checkout example:
   dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
   AEGES_PACKAGE_SOURCE="$PWD/.artifacts/packages" AEGES_VERSION=0.1.0-alpha.1 sh scripts/install.sh
+
+Release example:
+  curl -fsSL https://raw.githubusercontent.com/aeges-dev/aeges/main/scripts/install.sh | sh
+  AEGES_VERSION=0.1.0-alpha.1 sh install.sh
 EOF
 }
 
@@ -41,7 +49,65 @@ if ! command -v dotnet >/dev/null 2>&1; then
 fi
 
 TOOLS_DIR="${HOME}/.dotnet/tools"
-mkdir -p "${HOME}/.aeges"
+DOWNLOAD_DIR="${HOME}/.aeges/tmp/install"
+mkdir -p "${HOME}/.aeges" "${DOWNLOAD_DIR}"
+
+fetch() {
+    url="$1"
+    output="$2"
+
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$url" -o "$output"
+        return
+    fi
+
+    if command -v wget >/dev/null 2>&1; then
+        wget -q "$url" -O "$output"
+        return
+    fi
+
+    echo "Neither curl nor wget was found on PATH." >&2
+    exit 1
+}
+
+resolve_package_source() {
+    if [ -n "${PACKAGE_SOURCE}" ]; then
+        return
+    fi
+
+    if [ -z "${VERSION}" ]; then
+        return
+    fi
+
+    if [ -z "${DOWNLOAD_BASE_URL}" ]; then
+        DOWNLOAD_BASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}"
+    fi
+
+    package_file="${TOOL_PACKAGE}.${VERSION}.nupkg"
+    package_path="${DOWNLOAD_DIR}/${package_file}"
+    sums_path="${DOWNLOAD_DIR}/SHA256SUMS"
+
+    echo "Downloading ${package_file}..."
+    fetch "${DOWNLOAD_BASE_URL}/${package_file}" "${package_path}"
+
+    if fetch "${DOWNLOAD_BASE_URL}/SHA256SUMS" "${sums_path}"; then
+        if command -v sha256sum >/dev/null 2>&1; then
+            (cd "${DOWNLOAD_DIR}" && grep "  ${package_file}\$" SHA256SUMS | sha256sum -c -)
+        elif command -v shasum >/dev/null 2>&1; then
+            (cd "${DOWNLOAD_DIR}" && grep "  ${package_file}\$" SHA256SUMS | shasum -a 256 -c -)
+        else
+            echo "Checksum file downloaded, but neither sha256sum nor shasum was found." >&2
+            exit 1
+        fi
+    else
+        echo "Checksum file was not available; refusing to install downloaded package." >&2
+        exit 1
+    fi
+
+    PACKAGE_SOURCE="${DOWNLOAD_DIR}"
+}
+
+resolve_package_source
 
 tool_update() {
     if [ -n "${VERSION}" ] && [ -n "${PACKAGE_SOURCE}" ]; then

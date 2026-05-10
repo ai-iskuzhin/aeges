@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version to build, for example 0.1.0-alpha.1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "value=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      - name: Test
+        run: dotnet test --no-build -c Release --verbosity normal
+
+      - name: Pack CLI tool
+        run: >
+          dotnet pack src/Aeges.Cli/Aeges.Cli.csproj
+          -c Release
+          -p:PackageVersion=${{ steps.version.outputs.value }}
+          -o .artifacts/release
+
+      - name: Stage installer
+        run: cp scripts/install.sh .artifacts/release/install.sh
+
+      - name: Write checksums
+        working-directory: .artifacts/release
+        run: sha256sum * > SHA256SUMS
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aeges-release-${{ steps.version.outputs.value }}
+          path: .artifacts/release/*
+
+      - name: Publish GitHub release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: .artifacts/release/*
+          generate_release_notes: true
