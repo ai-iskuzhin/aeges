@@ -72,6 +72,10 @@ public sealed class TelegramInteractionHandler
                 await SetCodexBypassApprovalsAndSandboxAsync(bypassEnabled, cancellationToken),
             _ when TelegramCallbackData.TryParseListTasksByStatus(callbackData, out var status) =>
                 await ListTasksByStatusAsync(status, cancellationToken),
+            _ when TelegramCallbackData.TryParseListProjectTasksByStatus(callbackData, out var projectId, out var status) =>
+                await ListProjectTasksByStatusAsync(projectId, status, cancellationToken),
+            _ when TelegramCallbackData.TryParseViewProject(callbackData, out var projectId) =>
+                await ViewProjectAsync(projectId, cancellationToken),
             _ when TelegramCallbackData.TryParseSelectTaskProject(callbackData, out var projectId) =>
                 await SelectTaskProjectAsync(update.ChatId, projectId, cancellationToken),
             _ when TelegramCallbackData.TryParseSelectTaskMachine(callbackData, out var machineId) =>
@@ -339,11 +343,96 @@ public sealed class TelegramInteractionHandler
     private async Task<TelegramResponse> ListProjectsAsync(CancellationToken cancellationToken)
     {
         var projects = await application.ListProjectsAsync(cancellationToken);
-        var text = projects.Count == 0
-            ? "No projects are registered."
-            : "Projects:\n" + string.Join('\n', projects.Select(project => $"- {project.Id}: {project.Name}"));
 
-        return new TelegramResponse(text, BackButtons());
+        if (projects.Count == 0)
+        {
+            return new TelegramResponse("No projects are registered.", BackButtons());
+        }
+
+        var rows = projects
+            .Select(project => Row(Button(project.Name, TelegramCallbackData.ViewProject(project.Id))))
+            .Append(Row(Button("Back", TelegramCallbackData.MainMenu)))
+            .ToArray();
+
+        return new TelegramResponse("Projects", Buttons(rows));
+    }
+
+    private async Task<TelegramResponse> ViewProjectAsync(
+        ProjectId projectId,
+        CancellationToken cancellationToken)
+    {
+        var project = await application.GetProjectAsync(projectId, cancellationToken);
+
+        if (!project.IsSuccess)
+        {
+            return new TelegramResponse($"{project.Error!.Code}: {project.Error.Message}", BackToProjectsButtons());
+        }
+
+        var rows = new List<IReadOnlyList<TelegramButton>>();
+
+        foreach (var status in TaskStatuses)
+        {
+            var tasks = await application.ListProjectTasksByStatusAsync(
+                projectId,
+                status,
+                MenuCountLimit,
+                cancellationToken);
+
+            rows.Add(Row(Button(
+                $"{FormatStatus(status)} ({CountBadge(tasks.Count, MenuCountLimit)})",
+                TelegramCallbackData.ListProjectTasksByStatus(projectId, status))));
+        }
+
+        rows.Add(Row(Button("Back", TelegramCallbackData.ListProjects)));
+
+        var metadata = string.Join(
+            '\n',
+            [
+                $"Project: {project.Value!.Id}",
+                $"Name: {project.Value.Name}",
+                $"Path: {project.Value.Path}",
+            ]);
+
+        return new TelegramResponse(
+            $"Project details:\n{TelegramMarkdown.Quote(metadata)}",
+            Buttons([.. rows]));
+    }
+
+    private async Task<TelegramResponse> ListProjectTasksByStatusAsync(
+        ProjectId projectId,
+        RuntimeTaskStatus status,
+        CancellationToken cancellationToken)
+    {
+        var project = await application.GetProjectAsync(projectId, cancellationToken);
+
+        if (!project.IsSuccess)
+        {
+            return new TelegramResponse($"{project.Error!.Code}: {project.Error.Message}", BackToProjectsButtons());
+        }
+
+        var tasks = await application.ListProjectTasksByStatusAsync(
+            projectId,
+            status,
+            DefaultTaskLimit,
+            cancellationToken);
+        var statusText = FormatStatus(status);
+
+        if (tasks.Count == 0)
+        {
+            return new TelegramResponse(
+                $"No {statusText} tasks for {project.Value!.Name}.",
+                ProjectButtons(projectId));
+        }
+
+        var buttons = tasks
+            .Select(task => Row(Button(task.Title, TelegramCallbackData.ViewTask(task.Id))))
+            .Append(Row(Button("Back", TelegramCallbackData.ViewProject(projectId))))
+            .ToArray();
+
+        return new TelegramResponse(
+            $"{project.Value!.Name} {statusText} tasks:\n"
+            + string.Join('\n', tasks.Select(task => $"- {task.Id}: {task.Title}")),
+            Buttons(buttons));
     }
 
     private async Task<TelegramResponse> ListMachinesAsync(CancellationToken cancellationToken)
@@ -644,6 +733,12 @@ public sealed class TelegramInteractionHandler
 
     private static TelegramButtonMarkup BackButtons() =>
         Buttons(Row(Button("Back", TelegramCallbackData.MainMenu)));
+
+    private static TelegramButtonMarkup BackToProjectsButtons() =>
+        Buttons(Row(Button("Back", TelegramCallbackData.ListProjects)));
+
+    private static TelegramButtonMarkup ProjectButtons(ProjectId projectId) =>
+        Buttons(Row(Button("Back", TelegramCallbackData.ViewProject(projectId))));
 
     private static TelegramButtonMarkup TaskMenuButtons() =>
         Buttons(Row(Button("Back", TelegramCallbackData.TaskMenu)));

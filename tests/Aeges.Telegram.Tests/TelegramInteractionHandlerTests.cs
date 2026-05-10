@@ -87,8 +87,83 @@ public sealed class TelegramInteractionHandlerTests
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ListProjects),
             CancellationToken.None);
 
-        Assert.Equal("Projects:\n- project-aeges: Aeges", response.Text);
-        AssertBackButton(response);
+        Assert.Equal("Projects", response.Text);
+        Assert.Equal("Aeges", response.Buttons.Rows[0][0].Text);
+        Assert.Equal(TelegramCallbackData.ViewProject(new ProjectId("project-aeges")), response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("Back", response.Buttons.Rows[1][0].Text);
+        Assert.Equal(TelegramCallbackData.MainMenu, response.Buttons.Rows[1][0].CallbackData);
+    }
+
+    [Fact]
+    public async Task HandleAsync_shows_project_details_with_task_status_buttons()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Queued work",
+            "Do the work.",
+            Now);
+        var facade = new FakeTelegramApplicationFacade
+        {
+            Projects = [RuntimeProject.Create(new ProjectId("project-aeges"), "Aeges", "/workspace/aeges", Now)],
+            QueuedTasks = [task],
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ViewProject(new ProjectId("project-aeges"))),
+            CancellationToken.None);
+
+        Assert.Contains("Project details:\n> Project: project-aeges", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Name: Aeges", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Path: /workspace/aeges", response.Text, StringComparison.Ordinal);
+        Assert.Equal("queued (1)", response.Buttons.Rows[0][0].Text);
+        Assert.Equal(
+            TelegramCallbackData.ListProjectTasksByStatus(new ProjectId("project-aeges"), RuntimeTaskStatus.Queued),
+            response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("planning (0)", response.Buttons.Rows[1][0].Text);
+        Assert.Equal("Back", response.Buttons.Rows[^1][0].Text);
+        Assert.Equal(TelegramCallbackData.ListProjects, response.Buttons.Rows[^1][0].CallbackData);
+    }
+
+    [Fact]
+    public async Task HandleAsync_lists_project_tasks_by_status()
+    {
+        var matchingTask = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Aeges queued work",
+            "Do the Aeges work.",
+            Now);
+        var otherProjectTask = RuntimeTask.Create(
+            new TaskId("task-002"),
+            new ProjectId("project-other"),
+            new MachineId("machine-local"),
+            "Other queued work",
+            "Do the other work.",
+            Now);
+        var facade = new FakeTelegramApplicationFacade
+        {
+            Projects = [RuntimeProject.Create(new ProjectId("project-aeges"), "Aeges", "/workspace/aeges", Now)],
+            QueuedTasks = [matchingTask, otherProjectTask],
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(
+                1001,
+                CallbackData: TelegramCallbackData.ListProjectTasksByStatus(
+                    new ProjectId("project-aeges"),
+                    RuntimeTaskStatus.Queued)),
+            CancellationToken.None);
+
+        Assert.Equal("Aeges queued tasks:\n- task-001: Aeges queued work", response.Text);
+        Assert.Equal("Aeges queued work", response.Buttons.Rows[0][0].Text);
+        Assert.Equal(TelegramCallbackData.ViewTask(matchingTask.Id), response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("Back", response.Buttons.Rows[1][0].Text);
+        Assert.Equal(TelegramCallbackData.ViewProject(new ProjectId("project-aeges")), response.Buttons.Rows[1][0].CallbackData);
     }
 
     [Fact]
@@ -587,6 +662,18 @@ public sealed class TelegramInteractionHandlerTests
             return System.Threading.Tasks.Task.FromResult(Projects);
         }
 
+        public Task<ApplicationResult<RuntimeProject>> GetProjectAsync(
+            ProjectId projectId,
+            CancellationToken cancellationToken)
+        {
+            var project = Projects.FirstOrDefault(project => project.Id == projectId);
+            var result = project is null
+                ? ApplicationResult<RuntimeProject>.Failure("project_not_found", $"Project '{projectId}' was not found.")
+                : ApplicationResult<RuntimeProject>.Success(project);
+
+            return System.Threading.Tasks.Task.FromResult(result);
+        }
+
         public Task<IReadOnlyList<RuntimeMachine>> ListMachinesAsync(CancellationToken cancellationToken) =>
             System.Threading.Tasks.Task.FromResult(Machines);
 
@@ -601,6 +688,17 @@ public sealed class TelegramInteractionHandlerTests
             CancellationToken cancellationToken) =>
             System.Threading.Tasks.Task.FromResult(
                 QueuedTasks.Where(task => task.Status == status).Take(limit).ToArray() as IReadOnlyList<RuntimeTask>);
+
+        public Task<IReadOnlyList<RuntimeTask>> ListProjectTasksByStatusAsync(
+            ProjectId projectId,
+            RuntimeTaskStatus status,
+            int limit,
+            CancellationToken cancellationToken) =>
+            System.Threading.Tasks.Task.FromResult(
+                QueuedTasks
+                    .Where(task => task.ProjectId == projectId && task.Status == status)
+                    .Take(limit)
+                    .ToArray() as IReadOnlyList<RuntimeTask>);
 
         public Task<IReadOnlyList<ApprovalRequest>> ListPendingApprovalsAsync(
             int limit,

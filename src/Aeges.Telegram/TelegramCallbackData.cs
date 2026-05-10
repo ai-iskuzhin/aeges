@@ -74,6 +74,22 @@ public static class TelegramCallbackData
     public static string ListTasksByStatus(RuntimeTaskStatus status) => $"ae:t:s:{status.ToStorageValue()}";
 
     /// <summary>
+    /// Creates a project details callback payload.
+    /// </summary>
+    /// <param name="projectId">The project identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string ViewProject(ProjectId projectId) => $"ae:p:{projectId.Value}";
+
+    /// <summary>
+    /// Creates a project-scoped task status list callback payload.
+    /// </summary>
+    /// <param name="projectId">The project identifier.</param>
+    /// <param name="status">The task lifecycle status.</param>
+    /// <returns>The callback payload.</returns>
+    public static string ListProjectTasksByStatus(ProjectId projectId, RuntimeTaskStatus status) =>
+        $"ae:p:{projectId.Value}:s:{ToStatusCode(status)}";
+
+    /// <summary>
     /// Creates a task details callback payload.
     /// </summary>
     /// <param name="taskId">The task identifier.</param>
@@ -387,6 +403,76 @@ public static class TelegramCallbackData
     }
 
     /// <summary>
+    /// Attempts to parse a project details callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="projectId">The parsed project identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseViewProject(string payload, out ProjectId projectId)
+    {
+        const string prefix = "ae:p:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal)
+            && payload.Length > prefix.Length
+            && !payload[prefix.Length..].Contains(":s:", StringComparison.Ordinal))
+        {
+            try
+            {
+                projectId = new ProjectId(payload[prefix.Length..]);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                projectId = default;
+                return false;
+            }
+        }
+
+        projectId = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to parse a project-scoped task status list callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="projectId">The parsed project identifier.</param>
+    /// <param name="status">The parsed task lifecycle status.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseListProjectTasksByStatus(
+        string payload,
+        out ProjectId projectId,
+        out RuntimeTaskStatus status)
+    {
+        const string prefix = "ae:p:";
+        const string delimiter = ":s:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            var delimiterIndex = payload.IndexOf(delimiter, prefix.Length, StringComparison.Ordinal);
+
+            if (delimiterIndex > prefix.Length && delimiterIndex + delimiter.Length < payload.Length)
+            {
+                try
+                {
+                    projectId = new ProjectId(payload[prefix.Length..delimiterIndex]);
+                    return TryParseStatusCode(payload[(delimiterIndex + delimiter.Length)..], out status);
+                }
+                catch (ArgumentException)
+                {
+                    projectId = default;
+                    status = default;
+                    return false;
+                }
+            }
+        }
+
+        projectId = default;
+        status = default;
+        return false;
+    }
+
+    /// <summary>
     /// Attempts to parse an approval details callback payload.
     /// </summary>
     /// <param name="payload">The callback payload.</param>
@@ -431,5 +517,36 @@ public static class TelegramCallbackData
 
         approvalId = default;
         return false;
+    }
+
+    private static string ToStatusCode(RuntimeTaskStatus status) => status switch
+    {
+        RuntimeTaskStatus.Queued => "q",
+        RuntimeTaskStatus.Planning => "p",
+        RuntimeTaskStatus.Running => "r",
+        RuntimeTaskStatus.Reviewing => "v",
+        RuntimeTaskStatus.WaitingApproval => "w",
+        RuntimeTaskStatus.Completed => "c",
+        RuntimeTaskStatus.Failed => "f",
+        RuntimeTaskStatus.Cancelled => "x",
+        _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unknown task status."),
+    };
+
+    private static bool TryParseStatusCode(string code, out RuntimeTaskStatus status)
+    {
+        status = code switch
+        {
+            "q" => RuntimeTaskStatus.Queued,
+            "p" => RuntimeTaskStatus.Planning,
+            "r" => RuntimeTaskStatus.Running,
+            "v" => RuntimeTaskStatus.Reviewing,
+            "w" => RuntimeTaskStatus.WaitingApproval,
+            "c" => RuntimeTaskStatus.Completed,
+            "f" => RuntimeTaskStatus.Failed,
+            "x" => RuntimeTaskStatus.Cancelled,
+            _ => default,
+        };
+
+        return code is "q" or "p" or "r" or "v" or "w" or "c" or "f" or "x";
     }
 }

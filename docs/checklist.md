@@ -217,6 +217,7 @@ review, test, and document independently.
 - [x] Add button-driven Telegram task creation flow.
 - [x] Add count badges to Telegram menu buttons.
 - [x] Add Telegram task status buckets and watched-task status notifications.
+- [x] Add project-scoped Telegram task browsing from the Projects page.
 - [x] Add Telegram reviewing-task continuation with durable review feedback.
 - [x] Start the local agent automatically after Telegram queues or continues a
       task.

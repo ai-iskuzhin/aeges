@@ -240,6 +240,13 @@ public sealed class TelegramLongPollingServiceTests
         public Task<IReadOnlyList<RuntimeProject>> ListProjectsAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RuntimeProject>>([]);
 
+        public Task<Aeges.Application.ApplicationResult<RuntimeProject>> GetProjectAsync(
+            ProjectId projectId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<RuntimeProject>.Failure(
+                "project_not_found",
+                $"Project '{projectId}' was not found."));
+
         public Task<IReadOnlyList<RuntimeMachine>> ListMachinesAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RuntimeMachine>>([]);
 
@@ -249,6 +256,13 @@ public sealed class TelegramLongPollingServiceTests
             Task.FromResult<IReadOnlyList<RuntimeTask>>([]);
 
         public Task<IReadOnlyList<RuntimeTask>> ListTasksByStatusAsync(
+            RuntimeTaskStatus status,
+            int limit,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeTask>>([]);
+
+        public Task<IReadOnlyList<RuntimeTask>> ListProjectTasksByStatusAsync(
+            ProjectId projectId,
             RuntimeTaskStatus status,
             int limit,
             CancellationToken cancellationToken) =>

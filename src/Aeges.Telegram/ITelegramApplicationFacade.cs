@@ -16,6 +16,16 @@ public interface ITelegramApplicationFacade
     Task<IReadOnlyList<RuntimeProject>> ListProjectsAsync(CancellationToken cancellationToken);
 
     /// <summary>
+    /// Gets a project by identifier.
+    /// </summary>
+    /// <param name="projectId">The project identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The project lookup result.</returns>
+    Task<ApplicationResult<RuntimeProject>> GetProjectAsync(
+        ProjectId projectId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Lists registered machines.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
@@ -38,6 +48,20 @@ public interface ITelegramApplicationFacade
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The matching tasks.</returns>
     Task<IReadOnlyList<RuntimeTask>> ListTasksByStatusAsync(
+        RuntimeTaskStatus status,
+        int limit,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Lists tasks for a project by lifecycle status.
+    /// </summary>
+    /// <param name="projectId">The project identifier.</param>
+    /// <param name="status">The lifecycle status to list.</param>
+    /// <param name="limit">The maximum number of tasks to return.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The matching project tasks.</returns>
+    Task<IReadOnlyList<RuntimeTask>> ListProjectTasksByStatusAsync(
+        ProjectId projectId,
         RuntimeTaskStatus status,
         int limit,
         CancellationToken cancellationToken);

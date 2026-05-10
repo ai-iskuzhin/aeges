@@ -13,12 +13,14 @@ Initial buttons:
 ```text
 New task      -> ae:t:new
 Projects      -> aeges:projects:list
+Project       -> ae:p:<project-id>
+Project tasks -> ae:p:<project-id>:s:<status-code>
 Machines      -> aeges:machines:list
 Tasks        -> ae:t
 Task status  -> ae:t:s:<status>
 Queued tasks -> aeges:tasks:queued
 Back          -> aeges:menu
-Project       -> ae:t:p:<project-id>
+Task project  -> ae:t:p:<project-id>
 Machine       -> ae:t:m:<machine-id>
 Cancel draft  -> ae:t:new:x
 Task details  -> aeges:task:<task-id>
@@ -73,8 +75,10 @@ will claim and process the task on its next polling pass.
 
 The main menu shows count badges for projects, machines, queued tasks, and
 pending approvals so operators can see queue shape without opening every view.
-The task menu groups tasks by lifecycle status: queued, planning, running,
-reviewing, waiting approval, completed, failed, and cancelled.
+The projects view lets operators select a project first, then browse that
+project's task buckets by lifecycle status. The global task menu still groups
+all tasks by lifecycle status: queued, planning, running, reviewing, waiting
+approval, completed, failed, and cancelled.
 
 The `reviewing` bucket is the human confirmation step after a worker succeeds.
 Opening a reviewing task shows the latest iteration, runner exit status,

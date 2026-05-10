@@ -75,6 +75,19 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         await projectService.ListAsync(cancellationToken);
 
     /// <inheritdoc />
+    public async Task<ApplicationResult<RuntimeProject>> GetProjectAsync(
+        ProjectId projectId,
+        CancellationToken cancellationToken)
+    {
+        var projects = await projectService.ListAsync(cancellationToken);
+        var project = projects.FirstOrDefault(project => project.Id == projectId);
+
+        return project is null
+            ? ApplicationResult<RuntimeProject>.Failure("project_not_found", $"Project '{projectId}' was not found.")
+            : ApplicationResult<RuntimeProject>.Success(project);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<RuntimeMachine>> ListMachinesAsync(CancellationToken cancellationToken) =>
         await machineService.ListAsync(cancellationToken);
 
@@ -90,6 +103,18 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         int limit,
         CancellationToken cancellationToken) =>
         await taskService.ListByStatusAsync(status, limit, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<RuntimeTask>> ListProjectTasksByStatusAsync(
+        ProjectId projectId,
+        RuntimeTaskStatus status,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var tasks = await taskService.ListByProjectAsync(projectId, cancellationToken);
+
+        return [.. tasks.Where(task => task.Status == status).Take(limit)];
+    }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<ApprovalRequest>> ListPendingApprovalsAsync(
