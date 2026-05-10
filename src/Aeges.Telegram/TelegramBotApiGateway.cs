@@ -130,9 +130,22 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
             return null;
         }
 
-        var rows = markup.Rows.Select(row =>
-            row.Select(button => InlineKeyboardButton.WithCallbackData(button.Text, button.CallbackData)));
+        var rows = markup.Rows.Select(row => row.Select(ToInlineKeyboardButton));
 
         return new InlineKeyboardMarkup(rows);
+    }
+
+    private static InlineKeyboardButton ToInlineKeyboardButton(TelegramButton button)
+    {
+        var inlineButton = InlineKeyboardButton.WithCallbackData(button.Text, button.CallbackData);
+        inlineButton.Style = button.Style switch
+        {
+            TelegramButtonStyle.Primary => KeyboardButtonStyle.Primary,
+            TelegramButtonStyle.Success => KeyboardButtonStyle.Success,
+            TelegramButtonStyle.Danger => KeyboardButtonStyle.Danger,
+            _ => null,
+        };
+
+        return inlineButton;
     }
 }

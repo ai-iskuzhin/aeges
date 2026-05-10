@@ -89,9 +89,8 @@ metadata.
 The main menu includes `Settings`. The settings view exposes Codex runner
 sandbox controls:
 
-- Telegram inline keyboards do not support real button colors
-- `Allowed:` labels show currently allowed/enabled behavior
-- `Blocked:` labels show currently disallowed/disabled behavior
+- green buttons show currently allowed/enabled behavior
+- red buttons show currently disallowed/disabled behavior
 - `Sandbox enabled` toggles between `workspace-write` and
   `danger-full-access`
 - `Bypass disabled` toggles Codex's explicit approvals/sandbox bypass flag

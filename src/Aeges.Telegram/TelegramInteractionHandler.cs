@@ -567,11 +567,13 @@ public sealed class TelegramInteractionHandler
             """,
             Buttons(
                 Row(Button(
-                    sandboxEnabled ? "Allowed: Sandbox enabled" : "Blocked: Sandbox disabled",
-                    TelegramCallbackData.SetCodexSandboxMode(sandboxTarget))),
+                    sandboxEnabled ? "Sandbox enabled" : "Sandbox disabled",
+                    TelegramCallbackData.SetCodexSandboxMode(sandboxTarget),
+                    sandboxEnabled ? TelegramButtonStyle.Success : TelegramButtonStyle.Danger)),
                 Row(Button(
-                    settings.CodexBypassApprovalsAndSandbox ? "Allowed: Bypass enabled" : "Blocked: Bypass disabled",
-                    TelegramCallbackData.SetCodexBypassApprovalsAndSandbox(bypassTarget))),
+                    settings.CodexBypassApprovalsAndSandbox ? "Bypass enabled" : "Bypass disabled",
+                    TelegramCallbackData.SetCodexBypassApprovalsAndSandbox(bypassTarget),
+                    settings.CodexBypassApprovalsAndSandbox ? TelegramButtonStyle.Success : TelegramButtonStyle.Danger)),
                 Row(Button("Back", TelegramCallbackData.MainMenu))));
     }
 
@@ -627,8 +629,11 @@ public sealed class TelegramInteractionHandler
     private static string FormatStatus(RuntimeTaskStatus status) =>
         status.ToStorageValue().Replace('_', ' ');
 
-    private static TelegramButton Button(string text, string callbackData) =>
-        new(text, callbackData);
+    private static TelegramButton Button(
+        string text,
+        string callbackData,
+        TelegramButtonStyle style = TelegramButtonStyle.Default) =>
+        new(text, callbackData, style);
 
     private static IReadOnlyList<TelegramButton> Row(params TelegramButton[] buttons) =>
         buttons;
