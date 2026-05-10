@@ -81,6 +81,11 @@ Opening a reviewing task shows the latest iteration, runner exit status,
 registered artifacts, and a short runner response preview. Press `Complete` to
 confirm the result and move the task to `completed`.
 
+Telegram messages are sent with MarkdownV2 enabled. User/task content such as
+goals, approval reasons, failure reasons, and runner response previews is shown
+as block quotes so operator-provided text is visually distinct from runtime
+metadata.
+
 When a task watched by a chat changes status, the Telegram transport notifies
 that chat. If the chat's last bot message is the task details message, the
 transport edits that message in place. Otherwise it sends a compact

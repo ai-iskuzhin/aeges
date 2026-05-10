@@ -159,6 +159,9 @@ public sealed class TelegramInteractionHandler
             Project: {result.Value.ProjectId}
             Machine: {result.Value.MachineId}
             Title: {result.Value.Title}
+
+            Goal:
+            {TelegramMarkdown.Quote(text)}
             """,
             Buttons(
             Row(Button("View task", TelegramCallbackData.ViewTask(result.Value.Id))),
@@ -371,10 +374,10 @@ public sealed class TelegramInteractionHandler
             Runner: {FormatRunnerExecution(latestExecution)}
 
             Goal:
-            {task.Goal}
+            {TelegramMarkdown.Quote(task.Goal)}
 
             Runner response:
-            {runnerResponse}
+            {TelegramMarkdown.Quote(runnerResponse)}
 
             Artifacts:
             {artifactLines}
@@ -451,7 +454,7 @@ public sealed class TelegramInteractionHandler
             Action: {value.RequestedAction}
 
             Reason:
-            {value.Reason}
+            {TelegramMarkdown.Quote(value.Reason)}
             """,
             Buttons(
                 Row(

@@ -62,7 +62,8 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
     {
         var message = await botClient.SendMessage(
             chatId,
-            response.Text,
+            TelegramMarkdown.EscapeResponseText(response.Text),
+            parseMode: ParseMode.MarkdownV2,
             replyMarkup: ToReplyMarkup(response.Buttons),
             cancellationToken: cancellationToken);
 
@@ -79,7 +80,8 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
         await botClient.EditMessageText(
             chatId,
             messageId,
-            response.Text,
+            TelegramMarkdown.EscapeResponseText(response.Text),
+            parseMode: ParseMode.MarkdownV2,
             replyMarkup: ToReplyMarkup(response.Buttons),
             cancellationToken: cancellationToken);
     }

@@ -235,7 +235,7 @@ public sealed class TelegramInteractionHandlerTests
             CancellationToken.None);
 
         Assert.Contains("Status: reviewing", response.Text, StringComparison.Ordinal);
-        Assert.Contains("Runner response:\nMock runner result: success.", response.Text, StringComparison.Ordinal);
+        Assert.Contains("Runner response:\n> Mock runner result: success.", response.Text, StringComparison.Ordinal);
         Assert.Contains("result: project-aeges/task-001/iteration-001/result.md", response.Text, StringComparison.Ordinal);
         Assert.Equal("Complete", response.Buttons.Rows[0][0].Text);
         Assert.Equal("ae:t:done:task-001", response.Buttons.Rows[0][0].CallbackData);

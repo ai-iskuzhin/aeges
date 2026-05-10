@@ -96,12 +96,14 @@ passed with Codex CLI's `--model` option. Reasoning effort is passed through the
 Codex configuration override mechanism:
 
 ```text
-codex exec --json --sandbox workspace-write --model gpt-5.5 --config model_reasoning_effort="high" -
+codex --ask-for-approval never exec --json --sandbox workspace-write --cd <worktree> --model gpt-5.5 --config model_reasoning_effort="high" -
 ```
 
 The prompt artifact is passed through standard input with `-`, not as a path
-argument. Default Codex execution uses JSONL output and a `workspace-write`
-sandbox inside the isolated task worktree.
+argument. Default Codex execution uses JSONL output, `workspace-write`, and an
+explicit `--cd` pointing at the isolated task worktree. Aeges also sets Codex to
+non-interactive approval behavior for runner processes; approval checkpoints are
+owned by Aeges, not by the worker.
 
 Local configuration can set:
 
@@ -127,7 +129,7 @@ later governed execution explicitly resumes that session, the Codex command
 builder emits:
 
 ```text
-codex exec --json --sandbox workspace-write resume 019e05e0-d00b-7182-8516-0d258c7993aa -
+codex --ask-for-approval never exec --json --sandbox workspace-write --cd <worktree> resume 019e05e0-d00b-7182-8516-0d258c7993aa -
 ```
 
 The runtime must not resume the most recent Codex session implicitly. Hidden

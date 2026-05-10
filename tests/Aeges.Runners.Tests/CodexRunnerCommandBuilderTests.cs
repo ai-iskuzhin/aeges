@@ -57,7 +57,19 @@ public sealed class CodexRunnerCommandBuilderTests
             executableResolver: new FakeCodexExecutableResolver("/usr/local/bin/codex")).Build(CreateRequest(prompt.Path));
 
         Assert.Equal("codex", command.Executable);
-        Assert.Equal(["exec", "--json", "--sandbox", "workspace-write", "-"], command.Arguments);
+        Assert.Equal(
+            [
+                "--ask-for-approval",
+                "never",
+                "exec",
+                "--json",
+                "--sandbox",
+                "workspace-write",
+                "--cd",
+                "/tmp/aeges/worktrees/project-001/task-001",
+                "-",
+            ],
+            command.Arguments);
         Assert.Equal(prompt.Text, command.StandardInput);
     }
 
@@ -75,10 +87,14 @@ public sealed class CodexRunnerCommandBuilderTests
 
         Assert.Equal(
             [
+                "--ask-for-approval",
+                "never",
                 "exec",
                 "--json",
                 "--sandbox",
                 "workspace-write",
+                "--cd",
+                "/tmp/aeges/worktrees/project-001/task-001",
                 "resume",
                 "--model",
                 "gpt-5.5",

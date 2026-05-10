@@ -176,6 +176,8 @@ public sealed class TelegramLongPollingService
                 Task updated: {task.Id}
                 Status: {task.Status.ToStorageValue()}
                 Iterations: {task.CurrentIteration}/{task.MaxIterations}
+                Failure:
+                {TelegramMarkdown.Quote(task.FailureReason ?? "(none)")}
                 """,
                 new TelegramButtonMarkup(
                 [

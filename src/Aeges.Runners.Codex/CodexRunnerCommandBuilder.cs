@@ -51,7 +51,7 @@ public sealed class CodexRunnerCommandBuilder
         }
 
         var arguments = new List<string>();
-        arguments.AddRange(options.BaseArguments ?? ["exec", "--json", "--sandbox", "workspace-write"]);
+        arguments.AddRange(options.BaseArguments ?? CreateDefaultBaseArguments(request.WorktreePath));
 
         if (request.SessionPolicy == RunnerSessionPolicy.ResumeSession)
         {
@@ -155,4 +155,16 @@ public sealed class CodexRunnerCommandBuilder
 
     private static string ToTomlStringLiteral(string value) =>
         "\"" + value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
+
+    private static IReadOnlyList<string> CreateDefaultBaseArguments(string worktreePath) =>
+    [
+        "--ask-for-approval",
+        "never",
+        "exec",
+        "--json",
+        "--sandbox",
+        "workspace-write",
+        "--cd",
+        worktreePath,
+    ];
 }
