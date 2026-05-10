@@ -135,6 +135,10 @@ aeges agent run \
   --execute-runner
 ```
 
+The default Codex invocation uses Codex JSONL output and a `workspace-write`
+sandbox inside the isolated task worktree. Aeges still owns the worktree
+boundary and keeps runner output under `~/.aeges/artifacts/`.
+
 Codex model and reasoning effort can be configured in `~/.aeges/config.json`:
 
 ```json

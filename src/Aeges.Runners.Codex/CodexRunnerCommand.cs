@@ -8,9 +8,11 @@ namespace Aeges.Runners.Codex;
 /// <param name="WorkingDirectory">The working directory used for execution.</param>
 /// <param name="Timeout">The maximum execution timeout.</param>
 /// <param name="EnvironmentVariables">Environment variables supplied to the process.</param>
+/// <param name="StandardInput">The optional standard input content supplied to the process.</param>
 public sealed record CodexRunnerCommand(
     string Executable,
     IReadOnlyList<string> Arguments,
     string WorkingDirectory,
     TimeSpan Timeout,
-    IReadOnlyDictionary<string, string> EnvironmentVariables);
+    IReadOnlyDictionary<string, string> EnvironmentVariables,
+    string? StandardInput = null);

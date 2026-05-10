@@ -35,6 +35,7 @@ public sealed class ProcessCodexCommandExecutor : ICodexCommandExecutor
         await using var stderr = new StreamWriter(File.Open(stderrPath, FileMode.Create, FileAccess.Write, FileShare.Read));
         var stdoutTask = CopyOutputAsync(process.StandardOutput, stdout, CancellationToken.None);
         var stderrTask = CopyOutputAsync(process.StandardError, stderr, CancellationToken.None);
+        await WriteStandardInputAsync(process, command.StandardInput, cancellationToken);
 
         try
         {
@@ -61,6 +62,7 @@ public sealed class ProcessCodexCommandExecutor : ICodexCommandExecutor
             WorkingDirectory = command.WorkingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            RedirectStandardInput = command.StandardInput is not null,
             UseShellExecute = false,
         };
 
@@ -75,6 +77,20 @@ public sealed class ProcessCodexCommandExecutor : ICodexCommandExecutor
         }
 
         return startInfo;
+    }
+
+    private static async Task WriteStandardInputAsync(
+        Process process,
+        string? standardInput,
+        CancellationToken cancellationToken)
+    {
+        if (standardInput is null)
+        {
+            return;
+        }
+
+        await process.StandardInput.WriteAsync(standardInput.AsMemory(), cancellationToken);
+        await process.StandardInput.DisposeAsync();
     }
 
     private static async Task CopyOutputAsync(

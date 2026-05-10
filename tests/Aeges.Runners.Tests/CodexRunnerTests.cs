@@ -15,7 +15,7 @@ public sealed class CodexRunnerTests
             """{"type":"thread.started","thread_id":"thread-001"}""");
         var runner = CreateRunner(executor);
 
-        var result = await runner.RunAsync(CreateRequest(artifacts.Path), CancellationToken.None);
+        var result = await runner.RunAsync(CreateRequest(artifacts.Path, artifacts.PromptPath), CancellationToken.None);
 
         Assert.Equal(new RunnerId("codex"), runner.Id);
         Assert.Equal(RunnerStatus.Succeeded, result.Status);
@@ -25,6 +25,7 @@ public sealed class CodexRunnerTests
         Assert.True(File.Exists(result.StderrPath));
         Assert.Contains(result.StdoutPath!, result.ProducedArtifactPaths);
         Assert.Equal("codex", executor.LastCommand?.Executable);
+        Assert.Equal(artifacts.PromptText, executor.LastCommand?.StandardInput);
     }
 
     [Fact]
@@ -33,7 +34,7 @@ public sealed class CodexRunnerTests
         using var artifacts = new TemporaryArtifactDirectory();
         var runner = CreateRunner(new FakeCodexCommandExecutor(CodexCommandExecutionResult.Exited(2)));
 
-        var result = await runner.RunAsync(CreateRequest(artifacts.Path), CancellationToken.None);
+        var result = await runner.RunAsync(CreateRequest(artifacts.Path, artifacts.PromptPath), CancellationToken.None);
 
         Assert.Equal(RunnerStatus.Failed, result.Status);
         Assert.Equal(2, result.ExitCode);
@@ -48,7 +49,7 @@ public sealed class CodexRunnerTests
         var runner = CreateRunner(new FakeCodexCommandExecutor(
             CodexCommandExecutionResult.Timeout("Codex runner exceeded its timeout.")));
 
-        var result = await runner.RunAsync(CreateRequest(artifacts.Path), CancellationToken.None);
+        var result = await runner.RunAsync(CreateRequest(artifacts.Path, artifacts.PromptPath), CancellationToken.None);
 
         Assert.Equal(RunnerStatus.TimedOut, result.Status);
         Assert.Equal("Codex runner exceeded its timeout.", result.ErrorSummary);
@@ -64,7 +65,7 @@ public sealed class CodexRunnerTests
             commandExecutor: executor,
             executableResolver: new FakeCodexExecutableResolver(resolvedPath: null));
 
-        var result = await runner.RunAsync(CreateRequest(artifacts.Path), CancellationToken.None);
+        var result = await runner.RunAsync(CreateRequest(artifacts.Path, artifacts.PromptPath), CancellationToken.None);
 
         Assert.Equal(RunnerStatus.Failed, result.Status);
         Assert.Contains(CodexRunnerAvailability.CodexProjectUrl, result.ErrorSummary, StringComparison.Ordinal);
@@ -76,14 +77,14 @@ public sealed class CodexRunnerTests
             commandExecutor: executor,
             executableResolver: new FakeCodexExecutableResolver("/usr/local/bin/codex"));
 
-    private static RunnerRequest CreateRequest(string artifactOutputDirectory) =>
+    private static RunnerRequest CreateRequest(string artifactOutputDirectory, string promptPath) =>
         new(
             new TaskId("task-001"),
             new IterationId("iteration-001"),
             new ProjectId("project-001"),
             "/work/aeges",
             "/tmp/aeges/worktrees/project-001/task-001",
-            "/tmp/aeges/artifacts/task-001/prompt.md",
+            promptPath,
             artifactOutputDirectory,
             TimeSpan.FromMinutes(30));
 
@@ -133,9 +134,15 @@ public sealed class CodexRunnerTests
         {
             Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"aeges-codex-{Guid.NewGuid():N}");
             Directory.CreateDirectory(Path);
+            PromptPath = System.IO.Path.Combine(Path, "prompt.md");
+            File.WriteAllText(PromptPath, PromptText);
         }
 
         public string Path { get; }
+
+        public string PromptPath { get; }
+
+        public string PromptText { get; } = "Run the governed Codex smoke task.";
 
         public void Dispose()
         {

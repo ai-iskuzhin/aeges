@@ -51,7 +51,7 @@ public sealed class CodexRunnerCommandBuilder
         }
 
         var arguments = new List<string>();
-        arguments.AddRange(options.BaseArguments ?? ["exec"]);
+        arguments.AddRange(options.BaseArguments ?? ["exec", "--json", "--sandbox", "workspace-write"]);
 
         if (request.SessionPolicy == RunnerSessionPolicy.ResumeSession)
         {
@@ -75,7 +75,8 @@ public sealed class CodexRunnerCommandBuilder
             arguments.Add(request.ExternalSessionId!);
         }
 
-        arguments.Add(request.PromptPath);
+        var promptText = File.ReadAllText(request.PromptPath);
+        arguments.Add("-");
 
         var environment = new Dictionary<string, string>(request.EnvironmentVariables);
 
@@ -105,7 +106,8 @@ public sealed class CodexRunnerCommandBuilder
             arguments,
             request.WorktreePath,
             request.Timeout,
-            environment);
+            environment,
+            promptText);
     }
 
     private static CodexRunnerOptions Validate(CodexRunnerOptions options)

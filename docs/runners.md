@@ -73,10 +73,10 @@ required without contacting a real AI backend.
 
 `Aeges.Runners.Codex` builds Codex CLI command descriptions from governed
 runner requests and can execute them through a local process shell. It records
-the executable, arguments, working directory, timeout, and environment
-variables, captures stdout and stderr into artifact files, maps process exit
-codes into runner results, and reports timeout or cancellation without mutating
-task lifecycle state directly.
+the executable, arguments, stdin prompt text, working directory, timeout, and
+environment variables, captures stdout and stderr into artifact files, maps
+process exit codes into runner results, and reports timeout or cancellation
+without mutating task lifecycle state directly.
 
 Before building a command, the Codex runner preflights the configured executable
 name or path. If Codex is not available on the machine, Aeges fails before
@@ -91,8 +91,12 @@ passed with Codex CLI's `--model` option. Reasoning effort is passed through the
 Codex configuration override mechanism:
 
 ```text
-codex exec --model gpt-5.5 --config model_reasoning_effort="high" <prompt>
+codex exec --json --sandbox workspace-write --model gpt-5.5 --config model_reasoning_effort="high" -
 ```
+
+The prompt artifact is passed through standard input with `-`, not as a path
+argument. Default Codex execution uses JSONL output and a `workspace-write`
+sandbox inside the isolated task worktree.
 
 Local configuration can set:
 
@@ -118,7 +122,7 @@ later governed execution explicitly resumes that session, the Codex command
 builder emits:
 
 ```text
-codex exec resume 019e05e0-d00b-7182-8516-0d258c7993aa <prompt>
+codex exec --json --sandbox workspace-write resume 019e05e0-d00b-7182-8516-0d258c7993aa -
 ```
 
 The runtime must not resume the most recent Codex session implicitly. Hidden

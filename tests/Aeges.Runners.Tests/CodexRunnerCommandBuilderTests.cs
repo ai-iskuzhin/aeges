@@ -9,6 +9,7 @@ public sealed class CodexRunnerCommandBuilderTests
     [Fact]
     public void Build_creates_codex_command_description()
     {
+        using var prompt = CreatePromptFile();
         var builder = new CodexRunnerCommandBuilder(
             new CodexRunnerOptions(
                 Executable: "codex-test",
@@ -21,7 +22,7 @@ public sealed class CodexRunnerCommandBuilderTests
                 }),
             new FakeCodexExecutableResolver("/usr/local/bin/codex-test"));
 
-        var command = builder.Build(CreateRequest());
+        var command = builder.Build(CreateRequest(prompt.Path));
 
         Assert.Equal("codex-test", command.Executable);
         Assert.Equal(
@@ -32,9 +33,10 @@ public sealed class CodexRunnerCommandBuilderTests
                 "gpt-5.5",
                 "--config",
                 "model_reasoning_effort=\"high\"",
-                "/tmp/aeges/artifacts/task-001/prompt.md",
+                "-",
             ],
             command.Arguments);
+        Assert.Equal(prompt.Text, command.StandardInput);
         Assert.Equal("/tmp/aeges/worktrees/project-001/task-001", command.WorkingDirectory);
         Assert.Equal(TimeSpan.FromMinutes(30), command.Timeout);
         Assert.Equal("/tmp/codex", command.EnvironmentVariables["CODEX_HOME"]);
@@ -50,35 +52,43 @@ public sealed class CodexRunnerCommandBuilderTests
     [Fact]
     public void Build_uses_default_codex_exec_contract()
     {
+        using var prompt = CreatePromptFile();
         var command = new CodexRunnerCommandBuilder(
-            executableResolver: new FakeCodexExecutableResolver("/usr/local/bin/codex")).Build(CreateRequest());
+            executableResolver: new FakeCodexExecutableResolver("/usr/local/bin/codex")).Build(CreateRequest(prompt.Path));
 
         Assert.Equal("codex", command.Executable);
-        Assert.Equal(["exec", "/tmp/aeges/artifacts/task-001/prompt.md"], command.Arguments);
+        Assert.Equal(["exec", "--json", "--sandbox", "workspace-write", "-"], command.Arguments);
+        Assert.Equal(prompt.Text, command.StandardInput);
     }
 
     [Fact]
     public void Build_creates_codex_resume_command_for_explicit_external_session()
     {
+        using var prompt = CreatePromptFile();
         var command = new CodexRunnerCommandBuilder(
             new CodexRunnerOptions(Model: "gpt-5.5", ReasoningEffort: "low"),
             new FakeCodexExecutableResolver("/usr/local/bin/codex"))
             .Build(CreateRequest(
+                prompt.Path,
                 sessionPolicy: RunnerSessionPolicy.ResumeSession,
                 externalSessionId: "019e05e0-d00b-7182-8516-0d258c7993aa"));
 
         Assert.Equal(
             [
                 "exec",
+                "--json",
+                "--sandbox",
+                "workspace-write",
                 "resume",
                 "--model",
                 "gpt-5.5",
                 "--config",
                 "model_reasoning_effort=\"low\"",
                 "019e05e0-d00b-7182-8516-0d258c7993aa",
-                "/tmp/aeges/artifacts/task-001/prompt.md",
+                "-",
             ],
             command.Arguments);
+        Assert.Equal(prompt.Text, command.StandardInput);
         Assert.Equal(RunnerSessionPolicy.ResumeSession.ToString(), command.EnvironmentVariables["AEGES_RUNNER_SESSION_POLICY"]);
         Assert.Equal(
             "019e05e0-d00b-7182-8516-0d258c7993aa",
@@ -88,10 +98,11 @@ public sealed class CodexRunnerCommandBuilderTests
     [Fact]
     public void Build_rejects_missing_codex_executable_with_installation_link()
     {
+        using var prompt = CreatePromptFile();
         var builder = new CodexRunnerCommandBuilder(
             executableResolver: new FakeCodexExecutableResolver(resolvedPath: null));
 
-        var exception = Assert.Throws<CodexRunnerUnavailableException>(() => builder.Build(CreateRequest()));
+        var exception = Assert.Throws<CodexRunnerUnavailableException>(() => builder.Build(CreateRequest(prompt.Path)));
 
         Assert.False(exception.Availability.IsAvailable);
         Assert.Equal("codex", exception.Availability.Executable);
@@ -165,6 +176,7 @@ public sealed class CodexRunnerCommandBuilderTests
     }
 
     private static RunnerRequest CreateRequest(
+        string? promptPath = null,
         RunnerSessionPolicy sessionPolicy = RunnerSessionPolicy.NewSession,
         string? externalSessionId = null) =>
         new(
@@ -173,7 +185,7 @@ public sealed class CodexRunnerCommandBuilderTests
             new ProjectId("project-001"),
             "/work/aeges",
             "/tmp/aeges/worktrees/project-001/task-001",
-            "/tmp/aeges/artifacts/task-001/prompt.md",
+            promptPath ?? "/tmp/aeges/artifacts/task-001/prompt.md",
             "/tmp/aeges/artifacts/task-001",
             TimeSpan.FromMinutes(30),
             environmentVariables: new Dictionary<string, string>
@@ -186,6 +198,41 @@ public sealed class CodexRunnerCommandBuilderTests
             },
             sessionPolicy: sessionPolicy,
             externalSessionId: externalSessionId);
+
+    private static PromptFile CreatePromptFile()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "aeges-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "prompt.md");
+        const string text = "Update notes/status.txt for the smoke task.";
+        File.WriteAllText(path, text);
+
+        return new PromptFile(directory, path, text);
+    }
+
+    private sealed class PromptFile : IDisposable
+    {
+        public PromptFile(string directory, string path, string text)
+        {
+            Directory = directory;
+            Path = path;
+            Text = text;
+        }
+
+        public string Directory { get; }
+
+        public string Path { get; }
+
+        public string Text { get; }
+
+        public void Dispose()
+        {
+            if (System.IO.Directory.Exists(Directory))
+            {
+                System.IO.Directory.Delete(Directory, recursive: true);
+            }
+        }
+    }
 
     private sealed class FakeCodexExecutableResolver : ICodexExecutableResolver
     {
