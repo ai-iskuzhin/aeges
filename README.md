@@ -94,6 +94,7 @@ Create the schema and check migration status:
 ```bash
 aeges db migrate
 aeges db status
+aeges status
 ```
 
 Register this repository as a project and this machine as an executor:
@@ -373,6 +374,7 @@ Useful options:
 ## CLI Commands
 
 ```text
+aeges status [--config <path>] [--connection-string <value>] [--json]
 aeges db status [--config <path>] [--connection-string <value>] [--json]
 aeges db migrate [--config <path>] [--connection-string <value>] [--json]
 aeges project add --name <name> --path <path> [--project-id <id>] [...]
@@ -396,6 +398,11 @@ aeges telegram restart [--poll-limit <int>] [--timeout-seconds <int>] [...]
 aeges telegram status [--json]
 aeges telegram stop [--json]
 ```
+
+`aeges status` is the quickest local health check. It reports the runtime
+directory, config path, database migration state, agent and Telegram process
+state, Codex CLI availability, project and machine counts, and task counts by
+status.
 
 Most commands support `--json` for deterministic machine-readable output.
 

@@ -15,6 +15,7 @@ using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
 using Aeges.Application.Tasks;
 using Aeges.Core;
+using Aeges.Runners.Codex;
 using Aeges.Storage.Sqlite;
 using Aeges.Telegram;
 using Microsoft.EntityFrameworkCore;
@@ -47,6 +48,11 @@ internal static class AegesCli
         TextWriter error,
         CancellationToken cancellationToken)
     {
+        if (args is ["status", .. var localStatusArgs])
+        {
+            return await RunLocalStatusAsync(localStatusArgs, output, error, cancellationToken);
+        }
+
         if (args is ["db", "status", .. var statusArgs])
         {
             return await RunDatabaseStatusAsync(statusArgs, output, error, cancellationToken);
@@ -160,6 +166,26 @@ internal static class AegesCli
         await WriteUsageAsync(error);
 
         return 2;
+    }
+
+    private static async Task<int> RunLocalStatusAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = CliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var status = await BuildLocalStatusAsync(options, cancellationToken);
+        await WriteLocalStatusAsync(status, options.Json, output);
+
+        return status.Database.IsUpToDate ? 0 : 1;
     }
 
     private static async Task<int> RunDatabaseStatusAsync(
@@ -1016,6 +1042,16 @@ internal static class AegesCli
         return context;
     }
 
+    private static async Task<AegesDbContext> CreateDbContextAsync(
+        CliOptions options,
+        CancellationToken cancellationToken)
+    {
+        var context = new AegesDbContext(AegesDbContextOptions.Create(ResolveConnectionString(options)));
+        await SqlitePragmas.ApplyAsync(context, cancellationToken);
+
+        return context;
+    }
+
     private static string ResolveConnectionString(CliOptions options)
     {
         if (!string.IsNullOrWhiteSpace(options.ConnectionString))
@@ -1043,6 +1079,58 @@ internal static class AegesCli
 
     private static AegesConfiguration LoadConfiguration(CliOptions options) =>
         new AegesConfigurationLoader().Load(new AegesConfigurationLoaderOptions(options.ConfigPath));
+
+    private static async Task<LocalRuntimeStatusOutput> BuildLocalStatusAsync(
+        CliOptions options,
+        CancellationToken cancellationToken)
+    {
+        var layout = RuntimeDirectoryLayout.CreateDefault();
+        var configuration = LoadConfiguration(options);
+        var database = await CreateMigrationService(options).GetStatusAsync(cancellationToken);
+        var agent = await new AgentProcessManager().GetStatusAsync(cancellationToken);
+        var telegram = await new TelegramProcessManager().GetStatusAsync(cancellationToken);
+        var codex = new CodexRunnerCommandBuilder(new CodexRunnerOptions(
+            configuration.Runners.Codex.Executable,
+            Model: configuration.Runners.Codex.Model,
+            ReasoningEffort: configuration.Runners.Codex.ReasoningEffort,
+            SandboxMode: configuration.Runners.Codex.SandboxMode,
+            BypassApprovalsAndSandbox: configuration.Runners.Codex.BypassApprovalsAndSandbox))
+            .CheckAvailability();
+
+        if (!database.IsUpToDate)
+        {
+            return LocalRuntimeStatusOutput.PendingDatabase(
+                layout,
+                ResolveConfigPath(options),
+                database,
+                agent,
+                telegram,
+                codex);
+        }
+
+        await using var context = await CreateDbContextAsync(options, cancellationToken);
+        var unitOfWork = new SqliteUnitOfWork(context);
+        var projectCount = (await unitOfWork.Projects.ListAsync(cancellationToken)).Count;
+        var machineCount = (await unitOfWork.Machines.ListAsync(cancellationToken)).Count;
+        var taskCounts = new List<TaskStatusCountOutput>();
+
+        foreach (var status in Enum.GetValues<RuntimeTaskStatus>())
+        {
+            var tasks = await unitOfWork.Tasks.ListByStatusAsync(status, int.MaxValue, cancellationToken);
+            taskCounts.Add(new TaskStatusCountOutput(status.ToStorageValue(), tasks.Count));
+        }
+
+        return LocalRuntimeStatusOutput.Ready(
+            layout,
+            ResolveConfigPath(options),
+            database,
+            agent,
+            telegram,
+            codex,
+            projectCount,
+            machineCount,
+            taskCounts);
+    }
 
     private static string ResolveConfigPath(CliOptions options)
     {
@@ -1139,6 +1227,58 @@ internal static class AegesCli
         foreach (var migration in status.PendingMigrations)
         {
             await output.WriteLineAsync($"  - {migration}");
+        }
+    }
+
+    private static async Task WriteLocalStatusAsync(
+        LocalRuntimeStatusOutput status,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                status,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync("Aeges local status");
+        await output.WriteLineAsync($"Runtime: {status.RuntimeRootPath}");
+        await output.WriteLineAsync($"Config: {status.ConfigPath}");
+        await output.WriteLineAsync($"Database: {status.Database.DatabasePath ?? "(unknown)"}");
+        await output.WriteLineAsync($"Database status: {(status.Database.IsUpToDate ? "up-to-date" : "pending migrations")}");
+        await output.WriteLineAsync($"Agent: {status.Agent.Status}");
+        await output.WriteLineAsync($"Telegram: {status.Telegram.Status}");
+        await output.WriteLineAsync($"Codex: {(status.Codex.IsAvailable ? "available" : "missing")}");
+
+        if (!string.IsNullOrWhiteSpace(status.Codex.ResolvedPath))
+        {
+            await output.WriteLineAsync($"Codex path: {status.Codex.ResolvedPath}");
+        }
+
+        if (!status.Codex.IsAvailable)
+        {
+            await output.WriteLineAsync($"Codex help: {status.Codex.InstallationUrl}");
+        }
+
+        if (!status.Database.IsUpToDate)
+        {
+            await output.WriteLineAsync("Next step: aeges db migrate");
+            return;
+        }
+
+        await output.WriteLineAsync($"Projects: {status.ProjectCount}");
+        await output.WriteLineAsync($"Machines: {status.MachineCount}");
+        await output.WriteLineAsync("Tasks:");
+
+        foreach (var count in status.TaskCounts)
+        {
+            await output.WriteLineAsync($"  - {count.Status}: {count.Count}");
         }
     }
 
@@ -1583,6 +1723,7 @@ internal static class AegesCli
     private static async Task WriteUsageAsync(TextWriter error)
     {
         await error.WriteLineAsync("Usage:");
+        await error.WriteLineAsync("  aeges status [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges db status [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges db migrate [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges project add --name <name> --path <path> [--project-id <id>] [--config <path>] [--connection-string <value>] [--json]");
@@ -2752,5 +2893,74 @@ internal static class AegesCli
                 status.Metadata?.StartedAt,
                 status.Metadata?.StdoutPath,
                 status.Metadata?.StderrPath);
+    }
+
+    private sealed record CodexAvailabilityOutput(
+        bool IsAvailable,
+        string Executable,
+        string? ResolvedPath,
+        string Message,
+        string InstallationUrl)
+    {
+        public static CodexAvailabilityOutput From(CodexRunnerAvailability availability) =>
+            new(
+                availability.IsAvailable,
+                availability.Executable,
+                availability.ResolvedPath,
+                availability.Message,
+                CodexRunnerAvailability.CodexProjectUrl);
+    }
+
+    private sealed record TaskStatusCountOutput(string Status, int Count);
+
+    private sealed record LocalRuntimeStatusOutput(
+        string RuntimeRootPath,
+        string ConfigPath,
+        SqliteMigrationStatus Database,
+        AgentProcessStatusOutput Agent,
+        TelegramProcessStatusOutput Telegram,
+        CodexAvailabilityOutput Codex,
+        int? ProjectCount,
+        int? MachineCount,
+        IReadOnlyList<TaskStatusCountOutput> TaskCounts)
+    {
+        public static LocalRuntimeStatusOutput PendingDatabase(
+            RuntimeDirectoryLayout layout,
+            string configPath,
+            SqliteMigrationStatus database,
+            AgentProcessStatus agent,
+            TelegramProcessStatus telegram,
+            CodexRunnerAvailability codex) =>
+            new(
+                layout.RootPath,
+                configPath,
+                database,
+                AgentProcessStatusOutput.From(agent),
+                TelegramProcessStatusOutput.From(telegram),
+                CodexAvailabilityOutput.From(codex),
+                null,
+                null,
+                []);
+
+        public static LocalRuntimeStatusOutput Ready(
+            RuntimeDirectoryLayout layout,
+            string configPath,
+            SqliteMigrationStatus database,
+            AgentProcessStatus agent,
+            TelegramProcessStatus telegram,
+            CodexRunnerAvailability codex,
+            int projectCount,
+            int machineCount,
+            IReadOnlyList<TaskStatusCountOutput> taskCounts) =>
+            new(
+                layout.RootPath,
+                configPath,
+                database,
+                AgentProcessStatusOutput.From(agent),
+                TelegramProcessStatusOutput.From(telegram),
+                CodexAvailabilityOutput.From(codex),
+                projectCount,
+                machineCount,
+                taskCounts);
     }
 }

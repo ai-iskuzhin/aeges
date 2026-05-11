@@ -239,6 +239,7 @@ review, test, and document independently.
 - [x] Edit Telegram callback messages in place to reduce menu spam.
 - [x] Add `aeges telegram start/status/stop` process wrapper with pid metadata.
 - [x] Add `aeges agent restart` and `aeges telegram restart` convenience commands.
+- [x] Add `aeges status` local runtime health summary.
 
 ## Governance
 
