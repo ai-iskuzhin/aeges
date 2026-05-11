@@ -13,29 +13,34 @@ production    stable public channel
 develop       preview integration channel
 ```
 
-`production` is the branch that backs public install snippets and eventually
+`production` is the branch that backs public install snippets and
 `get.aeges.top`. `develop` is for testing unreleased installer changes before
 they become public defaults. Versioned binaries still come from GitHub Releases,
 not from branch contents.
 
-Stable latest installer scripts should be linked from GitHub raw files until
-`get.aeges.top` is wired:
+Stable latest installer scripts are available through the static install site:
 
 ```text
-https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.sh
-https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.ps1
+https://get.aeges.top/install.sh
+https://get.aeges.top/install.ps1
+```
+
+The matching raw branch files are:
+
+```text
+https://raw.githubusercontent.com/ai-iskuzhin/aeges/production/scripts/install.sh
+https://raw.githubusercontent.com/ai-iskuzhin/aeges/production/scripts/install.ps1
 ```
 
 Preview latest installer scripts use:
 
 ```text
-https://raw.githubusercontent.com/aeges-dev/aeges/develop/scripts/install.sh
-https://raw.githubusercontent.com/aeges-dev/aeges/develop/scripts/install.ps1
+https://raw.githubusercontent.com/ai-iskuzhin/aeges/develop/scripts/install.sh
+https://raw.githubusercontent.com/ai-iskuzhin/aeges/develop/scripts/install.ps1
 ```
 
-The current `main` branch can remain the repository default while the project is
-being shaped, but public install commands should move to `production` once that
-branch exists.
+The repository default should be `production` for public stability. `develop`
+remains the preview integration branch.
 
 ## Static Install Site
 
@@ -76,8 +81,7 @@ curl -fsSL https://get.aeges.top/install.sh -o install.sh
 sh install.sh
 ```
 
-Until `get.aeges.top` and the `production` branch are wired, use the checked-in
-installer from a local checkout:
+For local development, use the checked-in installer from a local checkout:
 
 ```bash
 dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
@@ -93,8 +97,7 @@ configuration. Those remain explicit runtime setup steps.
 For a GitHub release download, specify a version:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.sh | \
-  AEGES_VERSION=0.1.0-alpha.1 sh
+curl -fsSL https://get.aeges.top/install.sh | AEGES_VERSION=0.1.0-alpha.1 sh
 ```
 
 Supported installer environment variables:
@@ -102,8 +105,8 @@ Supported installer environment variables:
 ```text
 AEGES_VERSION=0.1.0-alpha.1
 AEGES_PACKAGE_SOURCE=/path/to/packages
-AEGES_DOWNLOAD_BASE_URL=https://github.com/aeges-dev/aeges/releases/latest/download
-AEGES_GITHUB_REPOSITORY=aeges-dev/aeges
+AEGES_DOWNLOAD_BASE_URL=https://github.com/ai-iskuzhin/aeges/releases/latest/download
+AEGES_GITHUB_REPOSITORY=ai-iskuzhin/aeges
 AEGES_TOOL_PACKAGE=Aeges.Cli
 AEGES_TOOL_COMMAND=aeges
 ```
@@ -118,14 +121,14 @@ verifies the checksum, then installs from the downloaded package directory.
 Windows should use the same artifact contract through PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.ps1 | iex
+irm https://get.aeges.top/install.ps1 | iex
 ```
 
 For a versioned GitHub release:
 
 ```powershell
 $env:AEGES_VERSION = "0.1.0-alpha.1"
-irm https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.ps1 | iex
+irm https://get.aeges.top/install.ps1 | iex
 ```
 
 For a local checkout:
@@ -218,7 +221,7 @@ SHA256SUMS
 For tag `v0.1.0-alpha.1`, the default remote package URL is:
 
 ```text
-https://github.com/aeges-dev/aeges/releases/download/v0.1.0-alpha.1/Aeges.Cli.0.1.0-alpha.1.nupkg
+https://github.com/ai-iskuzhin/aeges/releases/download/v0.1.0-alpha.1/Aeges.Cli.0.1.0-alpha.1.nupkg
 ```
 
 The release workflow builds, tests, packs the CLI tool, stages `install.sh` and
@@ -232,7 +235,7 @@ Homebrew should be the friendly package-manager path once GitHub releases are
 stable:
 
 ```bash
-brew tap aeges-dev/tap
+brew tap ai-iskuzhin/tap
 brew install aeges
 ```
 

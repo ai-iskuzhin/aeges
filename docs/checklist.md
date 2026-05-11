@@ -120,9 +120,9 @@ review, test, and document independently.
 
 - [ ] Keep `Aeges.Core` infrastructure-free.
 - [ ] Add unit tests for future core lifecycle and value object rules.
-- [ ] Create `develop` and `production` branches when remote repository policy
+- [x] Create `develop` and `production` branches when remote repository policy
       is ready.
-- [ ] Push `aeges-static` and configure GitHub Pages custom domain.
+- [x] Push `aeges-static` and configure GitHub Pages custom domain.
 - [ ] Publish first version-tagged release and test remote installer URL.
 - [ ] Add Homebrew formula after release artifacts are stable.
 

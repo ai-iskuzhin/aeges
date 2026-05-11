@@ -64,7 +64,7 @@ If your shell cannot find `aeges`, add the .NET tools directory to `PATH`:
 export PATH="$PATH:$HOME/.dotnet/tools"
 ```
 
-The future public shell UX should be:
+The public shell UX is:
 
 ```bash
 curl -fsSL https://get.aeges.top/install.sh | sh
@@ -74,20 +74,19 @@ wget -qO- https://get.aeges.top/install.sh | sh
 On Windows, the matching PowerShell UX should be:
 
 ```powershell
-irm https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.ps1 | iex
+irm https://get.aeges.top/install.ps1 | iex
 ```
 
 Versioned GitHub releases are installed by passing `AEGES_VERSION`; the
 installer downloads the `.nupkg` and verifies `SHA256SUMS` before installing:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.sh | \
-  AEGES_VERSION=0.1.0-alpha.1 sh
+curl -fsSL https://get.aeges.top/install.sh | AEGES_VERSION=0.1.0-alpha.1 sh
 ```
 
 ```powershell
 $env:AEGES_VERSION = "0.1.0-alpha.1"
-irm https://raw.githubusercontent.com/aeges-dev/aeges/production/scripts/install.ps1 | iex
+irm https://get.aeges.top/install.ps1 | iex
 ```
 
 Create the schema and check migration status:
