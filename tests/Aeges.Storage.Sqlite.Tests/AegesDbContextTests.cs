@@ -35,6 +35,7 @@ public sealed class AegesDbContextTests
                 "machines",
                 "talk_sessions",
                 "talk_messages",
+                "transport_callback_actions",
             };
 
             Assert.True(expectedTableNames.IsSubsetOf(tableNames));
@@ -76,6 +77,7 @@ public sealed class AegesDbContextTests
             "machines",
             "talk_sessions",
             "talk_messages",
+            "transport_callback_actions",
         };
 
         Assert.True(expectedTableNames.SetEquals(tableNames));

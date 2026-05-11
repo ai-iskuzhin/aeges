@@ -27,6 +27,7 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
         RunnerExecutions = new SqliteRunnerExecutionRepository(context);
         TalkSessions = new SqliteTalkSessionRepository(context);
         TalkMessages = new SqliteTalkMessageRepository(context);
+        TransportCallbackActions = new SqliteTransportCallbackActionRepository(context);
     }
 
     /// <inheritdoc />
@@ -58,6 +59,9 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
 
     /// <inheritdoc />
     public ITalkMessageRepository TalkMessages { get; }
+
+    /// <inheritdoc />
+    public ITransportCallbackActionRepository TransportCallbackActions { get; }
 
     /// <inheritdoc />
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken) =>

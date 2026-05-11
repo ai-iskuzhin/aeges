@@ -15,6 +15,7 @@ using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
 using Aeges.Application.Talk;
 using Aeges.Application.Tasks;
+using Aeges.Application.Transports;
 using Aeges.Core;
 using Aeges.Runners.Codex;
 using Aeges.Storage;
@@ -512,7 +513,11 @@ internal static class AegesCli
             CreateTalkService(unitOfWork, clock, configuration),
             configuration,
             configPath);
-        var handler = new TelegramInteractionHandler(facade, configuration.Telegram);
+        var callbackActions = new TransportCallbackActionService(unitOfWork, clock);
+        var handler = new TelegramInteractionHandler(
+            facade,
+            configuration.Telegram,
+            new TelegramCallbackRegistry(callbackActions, clock));
         var pollingOptions = new TelegramLongPollingOptions(options.Limit, options.TimeoutSeconds);
 
         try

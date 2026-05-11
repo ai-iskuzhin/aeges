@@ -39,6 +39,8 @@ public sealed class AegesDbContext : DbContext
 
     internal DbSet<TalkMessageRecord> TalkMessages => Set<TalkMessageRecord>();
 
+    internal DbSet<TransportCallbackActionRecord> TransportCallbackActions => Set<TransportCallbackActionRecord>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -10,6 +10,14 @@ Button callbacks edit the existing Telegram message when Telegram provides an
 editable message id, so navigation does not spam a chat with repeated menus.
 Button menus are laid out as compact grids with at most two columns.
 
+Telegram callback data is limited by the Bot API, while Aeges logical callback
+payloads may contain project IDs, task IDs, and status filters. The live
+transport rewrites outgoing button callbacks into short durable tokens such as
+`a:<token>`, scoped to the originating chat. The original logical callback is
+stored in SQLite as a transport callback action and is resolved before the
+handler dispatches the action. Legacy direct callback payloads are still
+accepted for tests and existing messages.
+
 Initial buttons:
 
 ```text

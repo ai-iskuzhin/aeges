@@ -56,6 +56,11 @@ public interface IUnitOfWork
     ITalkMessageRepository TalkMessages { get; }
 
     /// <summary>
+    /// Gets the transport callback action repository.
+    /// </summary>
+    ITransportCallbackActionRepository TransportCallbackActions { get; }
+
+    /// <summary>
     /// Persists pending changes.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the operation.</param>

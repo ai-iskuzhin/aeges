@@ -14,6 +14,7 @@ public sealed class TelegramInteractionHandler
     private const int MenuCountLimit = 100;
     private const int ButtonGridColumns = 2;
     private readonly ITelegramApplicationFacade application;
+    private readonly ITelegramCallbackRegistry? callbackRegistry;
     private readonly HashSet<long> allowedChatIds;
     private readonly ConcurrentDictionary<long, TaskDraft> drafts = new();
     private readonly ConcurrentDictionary<long, TaskId> continuationDrafts = new();
@@ -23,11 +24,14 @@ public sealed class TelegramInteractionHandler
     /// </summary>
     /// <param name="application">The Telegram application facade.</param>
     /// <param name="configuration">The Telegram configuration.</param>
+    /// <param name="callbackRegistry">The optional callback registry used to shorten Telegram callback payloads.</param>
     public TelegramInteractionHandler(
         ITelegramApplicationFacade application,
-        AegesTelegramConfiguration configuration)
+        AegesTelegramConfiguration configuration,
+        ITelegramCallbackRegistry? callbackRegistry = null)
     {
         this.application = application;
+        this.callbackRegistry = callbackRegistry;
         allowedChatIds = [.. configuration.AllowedChatIds];
     }
 
@@ -48,14 +52,14 @@ public sealed class TelegramInteractionHandler
                 TelegramButtonMarkup.Empty);
         }
 
-        var callbackData = update.CallbackData?.Trim();
+        var callbackData = await ResolveCallbackDataAsync(update.ChatId, update.CallbackData?.Trim(), cancellationToken);
 
         if (callbackData is null or "")
         {
-            return await HandleTextAsync(update, cancellationToken);
+            return await TokenizeResponseAsync(update.ChatId, await HandleTextAsync(update, cancellationToken), cancellationToken);
         }
 
-        return callbackData switch
+        var response = callbackData switch
         {
             TelegramCallbackData.MainMenu => await MainMenuAsync(cancellationToken),
             TelegramCallbackData.ListProjects => await ListProjectsAsync(cancellationToken),
@@ -99,6 +103,38 @@ public sealed class TelegramInteractionHandler
                 await ViewApprovalAsync(approvalId, cancellationToken),
             _ => UnknownAction(),
         };
+
+        return await TokenizeResponseAsync(update.ChatId, response, cancellationToken);
+    }
+
+    /// <summary>
+    /// Rewrites response button callbacks into short transport-safe tokens when a registry is configured.
+    /// </summary>
+    /// <param name="chatId">The Telegram chat identifier.</param>
+    /// <param name="response">The response to tokenize.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The response with tokenized callbacks.</returns>
+    public async Task<TelegramResponse> TokenizeResponseAsync(
+        long chatId,
+        TelegramResponse response,
+        CancellationToken cancellationToken) =>
+        callbackRegistry is null
+            ? response
+            : await callbackRegistry.TokenizeAsync(chatId, response, cancellationToken);
+
+    private async Task<string?> ResolveCallbackDataAsync(
+        long chatId,
+        string? callbackData,
+        CancellationToken cancellationToken)
+    {
+        if (callbackData is null or "")
+        {
+            return callbackData;
+        }
+
+        return callbackRegistry is null
+            ? callbackData
+            : await callbackRegistry.ResolveAsync(chatId, callbackData, cancellationToken);
     }
 
     private bool IsAuthorized(long chatId) =>

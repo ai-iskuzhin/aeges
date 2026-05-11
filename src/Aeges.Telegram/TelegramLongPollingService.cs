@@ -161,7 +161,10 @@ public sealed class TelegramLongPollingService
 
             if (pair.Value.LastBotMessageIsTaskDetails && pair.Value.DetailMessageId is not null)
             {
-                var response = await handler.RenderTaskDetailsAsync(task.Id, cancellationToken);
+                var response = await handler.TokenizeResponseAsync(
+                    pair.Key.ChatId,
+                    await handler.RenderTaskDetailsAsync(task.Id, cancellationToken),
+                    cancellationToken);
                 await gateway.EditResponseAsync(pair.Key.ChatId, pair.Value.DetailMessageId.Value, response, cancellationToken);
                 taskWatches[pair.Key] = pair.Value with
                 {
@@ -171,19 +174,22 @@ public sealed class TelegramLongPollingService
                 continue;
             }
 
-            var notification = new TelegramResponse(
-                $"""
-                Task updated: {task.Id}
-                Status: {task.Status.ToStorageValue()}
-                Iterations: {task.CurrentIteration}/{task.MaxIterations}
-                Failure:
-                {TelegramMarkdown.Quote(task.FailureReason ?? "(none)")}
-                """,
-                new TelegramButtonMarkup(
-                [
-                    [new TelegramButton("View task", TelegramCallbackData.ViewTask(task.Id))],
-                ]),
-                new TelegramResponseMetadata(TelegramResponseKind.TaskWatch, task.Id));
+            var notification = await handler.TokenizeResponseAsync(
+                pair.Key.ChatId,
+                new TelegramResponse(
+                    $"""
+                    Task updated: {task.Id}
+                    Status: {task.Status.ToStorageValue()}
+                    Iterations: {task.CurrentIteration}/{task.MaxIterations}
+                    Failure:
+                    {TelegramMarkdown.Quote(task.FailureReason ?? "(none)")}
+                    """,
+                    new TelegramButtonMarkup(
+                    [
+                        [new TelegramButton("View task", TelegramCallbackData.ViewTask(task.Id))],
+                    ]),
+                    new TelegramResponseMetadata(TelegramResponseKind.TaskWatch, task.Id)),
+                cancellationToken);
             await gateway.SendResponseAsync(pair.Key.ChatId, notification, cancellationToken);
 
             taskWatches[pair.Key] = pair.Value with

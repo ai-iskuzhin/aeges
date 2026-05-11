@@ -17,6 +17,7 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
         RunnerExecutions = new RunnerExecutionRepository();
         TalkSessions = new TalkSessionRepository();
         TalkMessages = new TalkMessageRepository();
+        TransportCallbackActions = new TransportCallbackActionRepository();
     }
 
     public ITaskRepository Tasks { get; }
@@ -38,6 +39,8 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
     public ITalkSessionRepository TalkSessions { get; }
 
     public ITalkMessageRepository TalkMessages { get; }
+
+    public ITransportCallbackActionRepository TransportCallbackActions { get; }
 
     public int SaveChangesCount { get; private set; }
 
@@ -171,6 +174,46 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
                     .Where(message => message.SessionId == sessionId)
                     .OrderBy(message => message.CreatedAt)
                     .ToArray());
+    }
+
+    private sealed class TransportCallbackActionRepository : ITransportCallbackActionRepository
+    {
+        private readonly Dictionary<(string Transport, string Token), RuntimeTransportCallbackAction> actions = [];
+
+        public Task AddAsync(RuntimeTransportCallbackAction action, CancellationToken cancellationToken)
+        {
+            actions.Add((action.Transport, action.Token), action);
+
+            return Task.CompletedTask;
+        }
+
+        public Task<RuntimeTransportCallbackAction?> GetAsync(
+            string transport,
+            string token,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(actions.GetValueOrDefault((transport, token)));
+
+        public Task UpdateAsync(RuntimeTransportCallbackAction action, CancellationToken cancellationToken)
+        {
+            actions[(action.Transport, action.Token)] = action;
+
+            return Task.CompletedTask;
+        }
+
+        public Task<int> PruneExpiredAsync(DateTimeOffset now, CancellationToken cancellationToken)
+        {
+            var expired = actions
+                .Where(pair => pair.Value.IsExpired(now))
+                .Select(pair => pair.Key)
+                .ToArray();
+
+            foreach (var key in expired)
+            {
+                actions.Remove(key);
+            }
+
+            return Task.FromResult(expired.Length);
+        }
     }
 
     private sealed class TaskRepository : ITaskRepository

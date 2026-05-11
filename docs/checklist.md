@@ -243,6 +243,8 @@ review, test, and document independently.
 - [x] Add `aeges telegram start/status/stop` process wrapper with pid metadata.
 - [x] Add `aeges agent restart` and `aeges telegram restart` convenience commands.
 - [x] Add `aeges status` local runtime health summary.
+- [x] Add durable short-token Telegram callback registry to keep inline button
+      payloads within Telegram limits.
 
 ## Talk Mode
 

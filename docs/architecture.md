@@ -49,6 +49,9 @@ infrastructure slices.
 `Aeges.Storage` defines provider-neutral repository and unit-of-work contracts
 over core domain models. EF Core and SQLite implementation details belong only
 to `Aeges.Storage.Sqlite`.
+Transport callback actions are also persisted through this boundary. They let a
+transport store short-lived UI callback tokens without putting navigation state
+inside process memory or conversation history.
 
 ## Application Boundary
 
@@ -79,6 +82,9 @@ routed to talk mode when no draft is active. Normal navigation uses inline
 button callbacks for projects, machines, queued tasks, and task details. The
 transport delegates data access through an application facade so callback
 handling does not become hidden workflow orchestration.
+When callback payloads would be too long for Telegram, the transport stores the
+logical action as a durable transport callback action and sends only a scoped
+short token to Telegram.
 
 ## Dependency Direction
 

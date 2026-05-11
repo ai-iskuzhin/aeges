@@ -15,6 +15,10 @@ The initial storage contracts include:
 - `IProjectRepository`
 - `IMachineRepository`
 - `ILockRepository`
+- `IRunnerExecutionRepository`
+- `ITalkSessionRepository`
+- `ITalkMessageRepository`
+- `ITransportCallbackActionRepository`
 
 Repository methods are asynchronous and accept `CancellationToken`.
 
@@ -44,6 +48,10 @@ Implemented SQLite repositories:
 - `SqliteArtifactRepository`
 - `SqliteApprovalRepository`
 - `SqliteLockRepository`
+- `SqliteRunnerExecutionRepository`
+- `SqliteTalkSessionRepository`
+- `SqliteTalkMessageRepository`
+- `SqliteTransportCallbackActionRepository`
 - `SqliteUnitOfWork`
 
 SQLite repositories follow the same adapter pattern: map EF records to core
