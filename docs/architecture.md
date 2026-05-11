@@ -23,15 +23,18 @@ persistence, and bounded execution.
 
 The initial core model includes strongly typed identifiers plus durable models
 for tasks, iterations, artifacts, approvals, projects, machines, and
-path-based locks. These types describe runtime state and validation rules only;
-they do not depend on persistence, transports, runners, or operating-system
-services.
+path-based locks. It also includes talk sessions and talk messages for direct
+governed discussion with a coding-agent runner outside the task lifecycle.
+These types describe runtime state and validation rules only; they do not
+depend on persistence, transports, runners, or operating-system services.
 
 ## Runner Boundary
 
 `Aeges.Runners` defines replaceable worker contracts in terms of core runtime
 identifiers. Runner implementations report execution results and artifacts; they
 do not own task lifecycle transitions or orchestration decisions.
+Task execution and direct talk use separate runner contracts so discussion does
+not have to masquerade as a task or iteration.
 
 ## Git Boundary
 
@@ -64,14 +67,18 @@ violations, are returned as structured application results instead of being
 hidden in transport-specific responses. The application layer coordinates
 repositories through `IUnitOfWork`; it does not depend on SQLite or any runner
 implementation.
+Talk use cases persist the operator message before runner dispatch, execute a
+bounded runner turn, then persist the assistant response. Talk is durable and
+auditable, but it does not create tasks, worktrees, approvals, or reviews.
 
 ## Telegram Boundary
 
 `Aeges.Telegram` is a transport layer over application use cases. The MVP
-Telegram surface is button-first: text opens the main menu, and normal
-navigation uses inline button callbacks for projects, machines, queued tasks,
-and task details. The transport delegates data access through an application
-facade so callback handling does not become hidden workflow orchestration.
+Telegram navigation surface is button-first, while ordinary free-form text is
+routed to talk mode when no draft is active. Normal navigation uses inline
+button callbacks for projects, machines, queued tasks, and task details. The
+transport delegates data access through an application facade so callback
+handling does not become hidden workflow orchestration.
 
 ## Dependency Direction
 

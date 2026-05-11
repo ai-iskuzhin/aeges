@@ -17,6 +17,8 @@ It stores durable runtime state and metadata:
 - runtime events
 - runner executions
 - machines
+- talk sessions
+- talk messages
 
 Large artifact contents should live on disk. SQLite stores artifact identifiers,
 relative paths, size, checksum, type, and timestamps.
@@ -47,6 +49,7 @@ The current EF Core foundation includes:
 - `AegesDbContextFactory` for `dotnet ef`
 - an initial `InitialCreate` migration
 - `AddProjectArchiveState` for non-destructive project archiving
+- `AddTalkSessions` for durable direct discussion state
 - SQLite pragma application for WAL, foreign keys, and busy timeout
 - SQLite project, machine, task, iteration, artifact, approval, and lock
   repositories backed by temporary-file tests

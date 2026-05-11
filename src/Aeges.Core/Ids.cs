@@ -233,6 +233,64 @@ public readonly record struct RunnerExecutionId
 }
 
 /// <summary>
+/// Identifies a durable discussion session with a coding agent.
+/// </summary>
+public readonly record struct TalkSessionId
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TalkSessionId"/> struct.
+    /// </summary>
+    /// <param name="value">The stable talk session identifier value.</param>
+    public TalkSessionId(string value)
+    {
+        Value = IdValue.Require(value);
+    }
+
+    /// <summary>
+    /// Gets the stable identifier value.
+    /// </summary>
+    public string Value { get; }
+
+    /// <summary>
+    /// Creates a new talk session identifier.
+    /// </summary>
+    /// <returns>A generated talk session identifier.</returns>
+    public static TalkSessionId New() => new(IdValue.New("talk"));
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+}
+
+/// <summary>
+/// Identifies one durable discussion message.
+/// </summary>
+public readonly record struct TalkMessageId
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TalkMessageId"/> struct.
+    /// </summary>
+    /// <param name="value">The stable talk message identifier value.</param>
+    public TalkMessageId(string value)
+    {
+        Value = IdValue.Require(value);
+    }
+
+    /// <summary>
+    /// Gets the stable identifier value.
+    /// </summary>
+    public string Value { get; }
+
+    /// <summary>
+    /// Creates a new talk message identifier.
+    /// </summary>
+    /// <returns>A generated talk message identifier.</returns>
+    public static TalkMessageId New() => new(IdValue.New("talk-message"));
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+}
+
+/// <summary>
 /// Identifies a repository lock held for governed task execution.
 /// </summary>
 public readonly record struct LockId

@@ -25,6 +25,8 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
         Machines = new SqliteMachineRepository(context);
         Locks = new SqliteLockRepository(context);
         RunnerExecutions = new SqliteRunnerExecutionRepository(context);
+        TalkSessions = new SqliteTalkSessionRepository(context);
+        TalkMessages = new SqliteTalkMessageRepository(context);
     }
 
     /// <inheritdoc />
@@ -50,6 +52,12 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
 
     /// <inheritdoc />
     public IRunnerExecutionRepository RunnerExecutions { get; }
+
+    /// <inheritdoc />
+    public ITalkSessionRepository TalkSessions { get; }
+
+    /// <inheritdoc />
+    public ITalkMessageRepository TalkMessages { get; }
 
     /// <inheritdoc />
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken) =>

@@ -7,6 +7,7 @@ using Aeges.Application.Machines;
 using Aeges.Application.Projects;
 using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
+using Aeges.Application.Talk;
 using Aeges.Application.Tasks;
 using Aeges.Core;
 using System.Diagnostics;
@@ -29,6 +30,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     private readonly ArtifactService artifactService;
     private readonly RunnerExecutionService runnerExecutionService;
     private readonly ApprovalService approvalService;
+    private readonly TalkService talkService;
     private readonly RuntimeDirectoryLayout runtimeLayout;
     private readonly AegesConfiguration configuration;
     private readonly string configPath;
@@ -43,6 +45,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     /// <param name="artifactService">The artifact application service.</param>
     /// <param name="runnerExecutionService">The runner execution application service.</param>
     /// <param name="approvalService">The approval application service.</param>
+    /// <param name="talkService">The governed talk application service.</param>
     /// <param name="configuration">The loaded local runtime configuration.</param>
     /// <param name="configPath">The configuration file path to update for settings changes.</param>
     /// <param name="runtimeLayout">The runtime directory layout used to resolve local artifact previews.</param>
@@ -54,6 +57,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         ArtifactService artifactService,
         RunnerExecutionService runnerExecutionService,
         ApprovalService approvalService,
+        TalkService talkService,
         AegesConfiguration configuration,
         string configPath,
         RuntimeDirectoryLayout? runtimeLayout = null)
@@ -65,6 +69,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         this.artifactService = artifactService;
         this.runnerExecutionService = runnerExecutionService;
         this.approvalService = approvalService;
+        this.talkService = talkService;
         this.configuration = configuration;
         this.configPath = configPath;
         this.runtimeLayout = runtimeLayout ?? RuntimeDirectoryLayout.CreateDefault();
@@ -89,6 +94,15 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         ProjectId projectId,
         CancellationToken cancellationToken) =>
         await projectService.ArchiveAsync(projectId, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<ApplicationResult<TalkExchange>> SendTalkMessageAsync(
+        long chatId,
+        string message,
+        CancellationToken cancellationToken) =>
+        await talkService.SendAsync(
+            new SendTalkMessageRequest($"telegram:{chatId}", message),
+            cancellationToken);
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<RuntimeMachine>> ListMachinesAsync(CancellationToken cancellationToken) =>

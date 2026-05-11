@@ -3,8 +3,9 @@
 Telegram is a transport layer for supervised Aeges operations. It must not own
 workflow lifecycle, runner dispatch, approval policy, or domain rules.
 
-The MVP interaction model is button-first. Inbound text opens the main menu, and
-all normal navigation uses inline buttons with stable callback payloads.
+The MVP interaction model is button-first for navigation. Free-form inbound
+text goes to talk mode when no task draft is active, and all normal navigation
+uses inline buttons with stable callback payloads.
 Button callbacks edit the existing Telegram message when Telegram provides an
 editable message id, so navigation does not spam a chat with repeated menus.
 Button menus are laid out as compact grids with at most two columns.
@@ -65,7 +66,7 @@ aeges agent start
 
 To create work from Telegram:
 
-1. Open the bot menu by sending any message.
+1. Tap `Menu` from a talk response or use an existing navigation message.
 2. Tap `New task`.
 3. Choose a project.
 4. Choose the machine that should process the task.
@@ -74,6 +75,12 @@ To create work from Telegram:
 
 The task is created in `queued` state. If the local agent worker is running, it
 will claim and process the task on its next polling pass.
+
+When no task creation or task-continuation draft is active, ordinary Telegram
+text is sent to talk mode. Talk mode creates or continues a durable discussion
+session for the chat source, asks the configured runner for a response, and
+stores both the operator message and assistant response outside the task
+lifecycle.
 
 The main menu shows count badges for projects, machines, queued tasks, and
 pending approvals so operators can see queue shape without opening every view.

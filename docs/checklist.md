@@ -244,6 +244,15 @@ review, test, and document independently.
 - [x] Add `aeges agent restart` and `aeges telegram restart` convenience commands.
 - [x] Add `aeges status` local runtime health summary.
 
+## Talk Mode
+
+- [x] Add first-class talk session and message domain models.
+- [x] Add SQLite talk session and message persistence with EF migration.
+- [x] Add `ITalkRunner` and Codex talk runner.
+- [x] Add `aeges talk` for direct CLI discussion.
+- [x] Route ordinary Telegram text to governed talk mode when no draft is
+      active.
+
 ## Governance
 
 - [x] Add governance policy model.

@@ -15,6 +15,11 @@ Runner implementations expose:
 - a `RunnerRequest` describing the governed execution context
 - a `RunnerResult` describing durable result metadata
 
+Discussion runners expose the separate `ITalkRunner` contract. Talk runner
+requests are session-scoped rather than task-scoped, and they are used for
+governed direct discussion where no project, task, iteration, or worktree is
+created.
+
 Runner requests include task, iteration, and project identifiers, project and
 worktree paths, prompt path, artifact output directory, timeout, environment
 variables, policy hints, and an explicit runner session policy. Session
@@ -52,8 +57,11 @@ path.
 
 The local agent can execute a prepared request when explicitly requested. The
 deterministic mock runner lets runner execution records and lifecycle
-transitions be tested without real AI credentials. Codex execution is available
-as an explicit opt-in path and is gated behind Git worktree creation.
+transitions be tested without real AI credentials. Codex task execution is
+available as an explicit opt-in path and is gated behind Git worktree creation.
+Codex talk execution is available separately for direct discussion and uses a
+read-only sandbox by default so talk cannot silently mutate repositories or
+local runtime state.
 
 Git worktree creation is now available through the Git runtime layer. The agent
 can use `--create-worktree` before runner execution so the worker starts from an

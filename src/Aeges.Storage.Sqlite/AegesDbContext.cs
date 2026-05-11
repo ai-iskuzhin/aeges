@@ -35,6 +35,10 @@ public sealed class AegesDbContext : DbContext
 
     internal DbSet<MachineRecord> Machines => Set<MachineRecord>();
 
+    internal DbSet<TalkSessionRecord> TalkSessions => Set<TalkSessionRecord>();
+
+    internal DbSet<TalkMessageRecord> TalkMessages => Set<TalkMessageRecord>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

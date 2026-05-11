@@ -1,4 +1,5 @@
 using Aeges.Application;
+using Aeges.Application.Talk;
 using Aeges.Core;
 
 namespace Aeges.Telegram;
@@ -40,6 +41,18 @@ public interface ITelegramApplicationFacade
     /// <returns>The archive result.</returns>
     Task<ApplicationResult<RuntimeProject>> ArchiveProjectAsync(
         ProjectId projectId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sends free-form text into the governed talk session for a Telegram chat.
+    /// </summary>
+    /// <param name="chatId">The Telegram chat identifier.</param>
+    /// <param name="message">The operator message.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The talk exchange result.</returns>
+    Task<ApplicationResult<TalkExchange>> SendTalkMessageAsync(
+        long chatId,
+        string message,
         CancellationToken cancellationToken);
 
     /// <summary>

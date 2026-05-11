@@ -10,48 +10,19 @@ public sealed class TelegramInteractionHandlerTests
     private static readonly DateTimeOffset Now = new(2026, 5, 8, 10, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task HandleAsync_returns_button_menu_for_plain_text_messages()
+    public async Task HandleAsync_sends_plain_text_to_talk_session()
     {
-        var machine = RuntimeMachine.Create(new MachineId("machine-local"), "Local", "macOS", Now);
-        var task = RuntimeTask.Create(
-            new TaskId("task-001"),
-            new ProjectId("project-aeges"),
-            new MachineId("machine-local"),
-            "Queued work",
-            "Do the work.",
-            Now);
-        var approval = ApprovalRequest.Create(
-            new ApprovalId("approval-001"),
-            task.Id,
-            iterationId: null,
-            "Needs approval.",
-            "Approve something.",
-            Now);
-        var facade = new FakeTelegramApplicationFacade
-        {
-            Projects = [RuntimeProject.Create(new ProjectId("project-aeges"), "Aeges", "/workspace/aeges", Now)],
-            Machines = [machine],
-            QueuedTasks = [task],
-            PendingApprovals = [approval],
-        };
+        var facade = new FakeTelegramApplicationFacade();
         var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
 
         var response = await handler.HandleAsync(new TelegramUpdate(1001, Text: "hello"), CancellationToken.None);
 
-        Assert.Equal("Aeges control", response.Text);
-        Assert.Equal(3, response.Buttons.Rows.Count);
-        Assert.Equal("New task", response.Buttons.Rows[0][0].Text);
-        Assert.Equal(TelegramCallbackData.CreateTask, response.Buttons.Rows[0][0].CallbackData);
-        Assert.Equal("Settings", response.Buttons.Rows[0][1].Text);
-        Assert.Equal(TelegramCallbackData.SettingsMenu, response.Buttons.Rows[0][1].CallbackData);
-        Assert.Equal("Projects (1)", response.Buttons.Rows[1][0].Text);
-        Assert.Equal(TelegramCallbackData.ListProjects, response.Buttons.Rows[1][0].CallbackData);
-        Assert.Equal("Machines (1)", response.Buttons.Rows[1][1].Text);
-        Assert.Equal(TelegramCallbackData.ListMachines, response.Buttons.Rows[1][1].CallbackData);
-        Assert.Equal("Tasks (1 queued)", response.Buttons.Rows[2][0].Text);
-        Assert.Equal(TelegramCallbackData.TaskMenu, response.Buttons.Rows[2][0].CallbackData);
-        Assert.Equal("Approvals (1)", response.Buttons.Rows[2][1].Text);
-        Assert.Equal(TelegramCallbackData.ListPendingApprovals, response.Buttons.Rows[2][1].CallbackData);
+        Assert.Contains("Talk response to: hello", response.Text, StringComparison.Ordinal);
+        Assert.Equal("Menu", response.Buttons.Rows[0][0].Text);
+        Assert.Equal(TelegramCallbackData.MainMenu, response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("New task", response.Buttons.Rows[0][1].Text);
+        Assert.Equal(TelegramCallbackData.CreateTask, response.Buttons.Rows[0][1].CallbackData);
+        Assert.Equal("hello", facade.TalkMessage);
     }
 
     [Fact]
@@ -678,6 +649,8 @@ public sealed class TelegramInteractionHandlerTests
 
         public string? CreatedGoal { get; private set; }
 
+        public string? TalkMessage { get; private set; }
+
         public bool ApproveCalled { get; private set; }
 
         public bool CancelTaskCalled { get; private set; }
@@ -732,6 +705,36 @@ public sealed class TelegramInteractionHandlerTests
             project.Archive(Now);
 
             return System.Threading.Tasks.Task.FromResult(ApplicationResult<RuntimeProject>.Success(project));
+        }
+
+        public Task<ApplicationResult<Aeges.Application.Talk.TalkExchange>> SendTalkMessageAsync(
+            long chatId,
+            string message,
+            CancellationToken cancellationToken)
+        {
+            TalkMessage = message;
+            var session = RuntimeTalkSession.Create(
+                new TalkSessionId("talk-001"),
+                $"telegram:{chatId}",
+                "Test talk",
+                new RunnerId("codex"),
+                Now);
+            var userMessage = RuntimeTalkMessage.Create(
+                new TalkMessageId("talk-message-user"),
+                session.Id,
+                TalkMessageRole.User,
+                message,
+                Now);
+            var assistantMessage = RuntimeTalkMessage.Create(
+                new TalkMessageId("talk-message-assistant"),
+                session.Id,
+                TalkMessageRole.Assistant,
+                $"Talk response to: {message}",
+                Now);
+
+            return System.Threading.Tasks.Task.FromResult(
+                ApplicationResult<Aeges.Application.Talk.TalkExchange>.Success(
+                    new Aeges.Application.Talk.TalkExchange(session, userMessage, assistantMessage)));
         }
 
         public Task<IReadOnlyList<RuntimeMachine>> ListMachinesAsync(CancellationToken cancellationToken) =>

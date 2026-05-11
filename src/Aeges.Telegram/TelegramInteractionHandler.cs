@@ -140,7 +140,7 @@ public sealed class TelegramInteractionHandler
 
         if (!drafts.TryGetValue(update.ChatId, out var draft))
         {
-            return await MainMenuAsync(cancellationToken);
+            return await SendTalkMessageAsync(update.ChatId, text, cancellationToken);
         }
 
         if (string.IsNullOrWhiteSpace(text))
@@ -218,6 +218,39 @@ public sealed class TelegramInteractionHandler
             .ToArray();
 
         return new TelegramResponse("Choose a project for the task.", Buttons(rows));
+    }
+
+    private async Task<TelegramResponse> SendTalkMessageAsync(
+        long chatId,
+        string? text,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return await MainMenuAsync(cancellationToken);
+        }
+
+        var result = await application.SendTalkMessageAsync(chatId, text, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return new TelegramResponse(
+                $"{result.Error!.Code}: {result.Error.Message}",
+                Buttons(Row(
+                    Button("Menu", TelegramCallbackData.MainMenu),
+                    Button("New task", TelegramCallbackData.CreateTask))));
+        }
+
+        return new TelegramResponse(
+            $"""
+            {result.Value!.AssistantMessage.Content}
+
+            Talk:
+            {TelegramMarkdown.Quote($"Session: {result.Value.Session.Id}\nRunner: {result.Value.Session.RunnerId}")}
+            """,
+            Buttons(Row(
+                Button("Menu", TelegramCallbackData.MainMenu),
+                Button("New task", TelegramCallbackData.CreateTask))));
     }
 
     private async Task<TelegramResponse> SelectTaskProjectAsync(

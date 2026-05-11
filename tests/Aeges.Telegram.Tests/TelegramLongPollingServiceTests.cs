@@ -66,7 +66,7 @@ public sealed class TelegramLongPollingServiceTests
         Assert.Equal(1, result.ProcessedUpdates);
         Assert.Empty(gateway.EditedResponses);
         Assert.Single(gateway.SentResponses);
-        Assert.Equal("Aeges control", gateway.SentResponses[0].Response.Text);
+        Assert.Equal("talk_unavailable: Talk is not available in this test facade.", gateway.SentResponses[0].Response.Text);
     }
 
     [Fact]
@@ -305,6 +305,14 @@ public sealed class TelegramLongPollingServiceTests
             Task.FromResult(Aeges.Application.ApplicationResult<RuntimeProject>.Failure(
                 "project_not_found",
                 $"Project '{projectId}' was not found."));
+
+        public Task<Aeges.Application.ApplicationResult<Aeges.Application.Talk.TalkExchange>> SendTalkMessageAsync(
+            long chatId,
+            string message,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<Aeges.Application.Talk.TalkExchange>.Failure(
+                "talk_unavailable",
+                "Talk is not available in this test facade."));
 
         public Task<IReadOnlyList<RuntimeMachine>> ListMachinesAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RuntimeMachine>>([]);

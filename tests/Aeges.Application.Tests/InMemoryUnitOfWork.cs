@@ -15,6 +15,8 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
         Machines = new MachineRepository();
         Locks = new LockRepository();
         RunnerExecutions = new RunnerExecutionRepository();
+        TalkSessions = new TalkSessionRepository();
+        TalkMessages = new TalkMessageRepository();
     }
 
     public ITaskRepository Tasks { get; }
@@ -32,6 +34,10 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
     public ILockRepository Locks { get; }
 
     public IRunnerExecutionRepository RunnerExecutions { get; }
+
+    public ITalkSessionRepository TalkSessions { get; }
+
+    public ITalkMessageRepository TalkMessages { get; }
 
     public int SaveChangesCount { get; private set; }
 
@@ -108,6 +114,63 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
 
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class TalkSessionRepository : ITalkSessionRepository
+    {
+        private readonly Dictionary<TalkSessionId, RuntimeTalkSession> sessions = [];
+
+        public Task AddAsync(RuntimeTalkSession session, CancellationToken cancellationToken)
+        {
+            sessions.Add(session.Id, session);
+
+            return Task.CompletedTask;
+        }
+
+        public Task<RuntimeTalkSession?> GetByIdAsync(TalkSessionId id, CancellationToken cancellationToken) =>
+            Task.FromResult(sessions.GetValueOrDefault(id));
+
+        public Task<RuntimeTalkSession?> GetLatestOpenBySourceAsync(string source, CancellationToken cancellationToken) =>
+            Task.FromResult(
+                sessions.Values
+                    .Where(session => session.Source == source && session.Status == TalkSessionStatus.Open)
+                    .OrderByDescending(session => session.UpdatedAt)
+                    .FirstOrDefault());
+
+        public Task<IReadOnlyList<RuntimeTalkSession>> ListRecentAsync(int limit, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeTalkSession>>(
+                sessions.Values
+                    .OrderByDescending(session => session.UpdatedAt)
+                    .Take(limit)
+                    .ToArray());
+
+        public Task UpdateAsync(RuntimeTalkSession session, CancellationToken cancellationToken)
+        {
+            sessions[session.Id] = session;
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class TalkMessageRepository : ITalkMessageRepository
+    {
+        private readonly Dictionary<TalkMessageId, RuntimeTalkMessage> messages = [];
+
+        public Task AddAsync(RuntimeTalkMessage message, CancellationToken cancellationToken)
+        {
+            messages.Add(message.Id, message);
+
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<RuntimeTalkMessage>> ListBySessionAsync(
+            TalkSessionId sessionId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeTalkMessage>>(
+                messages.Values
+                    .Where(message => message.SessionId == sessionId)
+                    .OrderBy(message => message.CreatedAt)
+                    .ToArray());
     }
 
     private sealed class TaskRepository : ITaskRepository

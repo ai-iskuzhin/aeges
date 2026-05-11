@@ -46,6 +46,16 @@ public interface IUnitOfWork
     IRunnerExecutionRepository RunnerExecutions { get; }
 
     /// <summary>
+    /// Gets the talk session repository.
+    /// </summary>
+    ITalkSessionRepository TalkSessions { get; }
+
+    /// <summary>
+    /// Gets the talk message repository.
+    /// </summary>
+    ITalkMessageRepository TalkMessages { get; }
+
+    /// <summary>
     /// Persists pending changes.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the operation.</param>

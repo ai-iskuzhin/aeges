@@ -18,6 +18,7 @@ Yes, as an MVP for local governed execution. Today you can:
 
 - create and migrate the local SQLite database
 - register projects and machines
+- talk directly with the configured coding-agent runner without creating a task
 - create, inspect, and cancel durable tasks
 - run a local agent pass that heartbeats, claims one queued task, creates an
   iteration, writes prompt artifacts, and records runner paths
@@ -318,6 +319,12 @@ Then send any message to the bot, tap `New task`, choose the project and
 machine, then send the title and goal as chat messages. The task is queued
 durably and the local agent worker will pick it up on its next poll.
 
+When no task draft is active, ordinary Telegram text goes to talk mode. Talk is
+direct discussion with the configured runner, stored as durable Aeges discussion
+state, but it does not create a task, choose a project, or create a worktree.
+Talk replies include `Menu` and `New task` buttons so you can move from
+conversation into governed work.
+
 The `Tasks` button opens status buckets for queued, planning, running,
 reviewing, waiting approval, completed, failed, and cancelled tasks. When a
 watched task changes, Telegram edits the open task-details message when
@@ -382,6 +389,7 @@ Useful options:
 ```text
 aeges init [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [...]
 aeges status [--config <path>] [--connection-string <value>] [--json]
+aeges talk [message] [--new] [--session-id <id>] [...]
 aeges db status [--config <path>] [--connection-string <value>] [--json]
 aeges db migrate [--config <path>] [--connection-string <value>] [--json]
 aeges project add --name <name> --path <path> [--project-id <id>] [...]
@@ -461,6 +469,7 @@ values.
 - [Architecture](docs/architecture.md)
 - [Runtime layout](docs/runtime-layout.md)
 - [Install roadmap](docs/install.md)
+- [Talk mode](docs/talk.md)
 - [SQLite storage](docs/sqlite.md)
 - [Task model](docs/task-model.md)
 - [Runners](docs/runners.md)

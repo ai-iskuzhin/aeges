@@ -13,9 +13,11 @@ using Aeges.Application.Machines;
 using Aeges.Application.Projects;
 using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
+using Aeges.Application.Talk;
 using Aeges.Application.Tasks;
 using Aeges.Core;
 using Aeges.Runners.Codex;
+using Aeges.Storage;
 using Aeges.Storage.Sqlite;
 using Aeges.Telegram;
 using Microsoft.EntityFrameworkCore;
@@ -56,6 +58,11 @@ internal static class AegesCli
         if (args is ["status", .. var localStatusArgs])
         {
             return await RunLocalStatusAsync(localStatusArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["talk", .. var talkArgs])
+        {
+            return await RunTalkAsync(talkArgs, input, output, error, cancellationToken);
         }
 
         if (args is ["db", "status", .. var statusArgs])
@@ -211,6 +218,58 @@ internal static class AegesCli
         await WriteLocalStatusAsync(status, options.Json, output);
 
         return status.Database.IsUpToDate ? 0 : 1;
+    }
+
+    private static async Task<int> RunTalkAsync(
+        string[] args,
+        TextReader input,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = TalkCliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var message = options.Message;
+
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            message = (await input.ReadToEndAsync(cancellationToken)).Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            await error.WriteLineAsync("talk requires a message argument or stdin content.");
+            return 2;
+        }
+
+        var configuration = LoadConfiguration(options);
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var unitOfWork = new SqliteUnitOfWork(context);
+        var clock = new SystemClock();
+        var service = CreateTalkService(unitOfWork, clock, configuration);
+        var result = await service.SendAsync(
+            new SendTalkMessageRequest(
+                "cli",
+                message,
+                options.SessionId is null ? null : new TalkSessionId(options.SessionId),
+                options.StartNewSession),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            await error.WriteLineAsync($"{result.Error!.Code}: {result.Error.Message}");
+            return 1;
+        }
+
+        await WriteTalkExchangeAsync(result.Value!, options.Json, output);
+
+        return 0;
     }
 
     private static async Task<int> RunDatabaseStatusAsync(
@@ -450,6 +509,7 @@ internal static class AegesCli
             new ArtifactService(unitOfWork, clock),
             new RunnerExecutionService(unitOfWork, clock),
             new ApprovalService(unitOfWork, clock),
+            CreateTalkService(unitOfWork, clock, configuration),
             configuration,
             configPath);
         var handler = new TelegramInteractionHandler(facade, configuration.Telegram);
@@ -1105,6 +1165,33 @@ internal static class AegesCli
     private static AegesConfiguration LoadConfiguration(CliOptions options) =>
         new AegesConfigurationLoader().Load(new AegesConfigurationLoaderOptions(options.ConfigPath));
 
+    private static TalkService CreateTalkService(
+        IUnitOfWork unitOfWork,
+        IClock clock,
+        AegesConfiguration configuration)
+    {
+        var layout = RuntimeDirectoryLayout.CreateDefault();
+
+        foreach (var directory in layout.RequiredDirectories)
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var runner = new CodexTalkRunner(new CodexRunnerOptions(
+            configuration.Runners.Codex.Executable,
+            Model: configuration.Runners.Codex.Model,
+            ReasoningEffort: configuration.Runners.Codex.ReasoningEffort,
+            SandboxMode: "read-only",
+            BypassApprovalsAndSandbox: false));
+
+        return new TalkService(
+            unitOfWork,
+            clock,
+            runner,
+            layout,
+            TimeSpan.FromSeconds(configuration.Runners.Codex.TimeoutSeconds));
+    }
+
     private static async Task<LocalRuntimeStatusOutput> BuildLocalStatusAsync(
         CliOptions options,
         CancellationToken cancellationToken)
@@ -1423,6 +1510,29 @@ internal static class AegesCli
         {
             await output.WriteLineAsync($"  - {command}");
         }
+    }
+
+    private static async Task WriteTalkExchangeAsync(
+        TalkExchange exchange,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                TalkExchangeOutput.From(exchange),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync(exchange.AssistantMessage.Content);
+        await output.WriteLineAsync();
+        await output.WriteLineAsync($"Talk session: {exchange.Session.Id}");
+        await output.WriteLineAsync($"Runner: {exchange.Session.RunnerId}");
     }
 
     private static async Task WriteTaskAsync(
@@ -1874,6 +1984,7 @@ internal static class AegesCli
         await error.WriteLineAsync("Usage:");
         await error.WriteLineAsync("  aeges init [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges status [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges talk [message] [--new] [--session-id <id>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges db status [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges db migrate [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges project add --name <name> --path <path> [--project-id <id>] [--config <path>] [--connection-string <value>] [--json]");
@@ -1961,6 +2072,92 @@ internal static class AegesCli
 
             return true;
         }
+    }
+
+    private sealed class TalkCliOptions : CliOptions
+    {
+        public string? Message { get; private init; }
+
+        public string? SessionId { get; private init; }
+
+        public bool StartNewSession { get; private init; }
+
+        public new static TalkCliOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? message = null;
+            string? sessionId = null;
+            var startNewSession = false;
+            var json = false;
+            var messageParts = new List<string>();
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--new":
+                        startNewSession = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--session-id":
+                        if (!TryReadValue(args, ref index, out sessionId))
+                        {
+                            return ErrorResult("--session-id requires a value.");
+                        }
+
+                        break;
+                    case "--message":
+                        if (!TryReadValue(args, ref index, out message))
+                        {
+                            return ErrorResult("--message requires a value.");
+                        }
+
+                        break;
+                    default:
+                        if (args[index].StartsWith("--", StringComparison.Ordinal))
+                        {
+                            return ErrorResult($"Unknown option '{args[index]}'.");
+                        }
+
+                        messageParts.Add(args[index]);
+                        break;
+                }
+            }
+
+            if (message is not null && messageParts.Count > 0)
+            {
+                return ErrorResult("Use either positional message text or --message, not both.");
+            }
+
+            return new TalkCliOptions
+            {
+                ConfigPath = configPath,
+                ConnectionString = connectionString,
+                Json = json,
+                Message = message ?? (messageParts.Count == 0 ? null : string.Join(' ', messageParts)),
+                SessionId = sessionId,
+                StartNewSession = startNewSession,
+            };
+        }
+
+        private static TalkCliOptions ErrorResult(string error) => new() { Error = error };
     }
 
     private sealed class InitOptions : CliOptions
@@ -3084,6 +3281,24 @@ internal static class AegesCli
                 task.CompletedAt,
                 task.CancelledAt,
                 task.FailureReason);
+    }
+
+    private sealed record TalkExchangeOutput(
+        string SessionId,
+        string Source,
+        string RunnerId,
+        string UserMessageId,
+        string AssistantMessageId,
+        string Response)
+    {
+        public static TalkExchangeOutput From(TalkExchange exchange) =>
+            new(
+                exchange.Session.Id.Value,
+                exchange.Session.Source,
+                exchange.Session.RunnerId.Value,
+                exchange.UserMessage.Id.Value,
+                exchange.AssistantMessage.Id.Value,
+                exchange.AssistantMessage.Content);
     }
 
     private sealed record AgentSnapshotOutput(

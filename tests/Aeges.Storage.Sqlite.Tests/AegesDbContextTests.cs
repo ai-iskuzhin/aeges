@@ -33,6 +33,8 @@ public sealed class AegesDbContextTests
                 "runtime_events",
                 "runner_executions",
                 "machines",
+                "talk_sessions",
+                "talk_messages",
             };
 
             Assert.True(expectedTableNames.IsSubsetOf(tableNames));
@@ -72,6 +74,8 @@ public sealed class AegesDbContextTests
             "runtime_events",
             "runner_executions",
             "machines",
+            "talk_sessions",
+            "talk_messages",
         };
 
         Assert.True(expectedTableNames.SetEquals(tableNames));
