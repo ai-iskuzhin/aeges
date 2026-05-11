@@ -26,6 +26,24 @@ public sealed class TelegramInteractionHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_explains_pending_text_cancellation_limit()
+    {
+        var handler = new TelegramInteractionHandler(
+            new FakeTelegramApplicationFacade(),
+            new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.CancelPendingTextResponse),
+            CancellationToken.None);
+
+        Assert.Contains("already finished", response.Text, StringComparison.Ordinal);
+        Assert.Equal("Menu", response.Buttons.Rows[0][0].Text);
+        Assert.Equal(TelegramCallbackData.MainMenu, response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("New task", response.Buttons.Rows[0][1].Text);
+        Assert.Equal(TelegramCallbackData.CreateTask, response.Buttons.Rows[0][1].CallbackData);
+    }
+
+    [Fact]
     public async Task HandleAsync_rejects_unauthorized_chats_without_calling_application()
     {
         var facade = new FakeTelegramApplicationFacade();

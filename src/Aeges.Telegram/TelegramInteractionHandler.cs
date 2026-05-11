@@ -68,6 +68,7 @@ public sealed class TelegramInteractionHandler
             TelegramCallbackData.TaskMenu => await TaskMenuAsync(cancellationToken),
             TelegramCallbackData.ListPendingApprovals => await ListPendingApprovalsAsync(cancellationToken),
             TelegramCallbackData.SettingsMenu => await SettingsMenuAsync(cancellationToken),
+            TelegramCallbackData.CancelPendingTextResponse => PendingTextResponseAlreadyFinished(),
             TelegramCallbackData.CreateTask => await StartTaskCreationAsync(update.ChatId, cancellationToken),
             TelegramCallbackData.CancelCreateTask => CancelTaskCreation(update.ChatId),
             TelegramCallbackData.CancelContinueTask => CancelTaskContinuation(update.ChatId),
@@ -136,6 +137,21 @@ public sealed class TelegramInteractionHandler
             ? callbackData
             : await callbackRegistry.ResolveAsync(chatId, callbackData, cancellationToken);
     }
+
+    /// <summary>
+    /// Renders the temporary response shown while an inbound text message is being processed.
+    /// </summary>
+    /// <param name="message">The inbound operator message.</param>
+    /// <returns>The pending response with a cancellation button.</returns>
+    public static TelegramResponse RenderPendingTextResponse(string? message) =>
+        new(
+            $"""
+            Working on your message...
+
+            Message:
+            {TelegramMarkdown.Quote(string.IsNullOrWhiteSpace(message) ? "(empty)" : message.Trim())}
+            """,
+            Buttons(Row(Button("Cancel", TelegramCallbackData.CancelPendingTextResponse))));
 
     private bool IsAuthorized(long chatId) =>
         allowedChatIds.Count == 0 || allowedChatIds.Contains(chatId);
@@ -848,6 +864,13 @@ public sealed class TelegramInteractionHandler
 
     private static TelegramResponse UnknownAction() =>
         new("Unknown action. Send any message to open the Aeges menu.", TelegramButtonMarkup.Empty);
+
+    private static TelegramResponse PendingTextResponseAlreadyFinished() =>
+        new(
+            "This message is already finished, or cancellation is not available for this processing step.",
+            Buttons(Row(
+                Button("Menu", TelegramCallbackData.MainMenu),
+                Button("New task", TelegramCallbackData.CreateTask))));
 
     private static TelegramButtonMarkup BackButtons() =>
         Buttons(Row(Button("Back", TelegramCallbackData.MainMenu)));

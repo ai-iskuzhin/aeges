@@ -245,6 +245,9 @@ review, test, and document independently.
 - [x] Add `aeges status` local runtime health summary.
 - [x] Add durable short-token Telegram callback registry to keep inline button
       payloads within Telegram limits.
+- [x] Show a pending Telegram text response with a cancel button, then edit it
+      with the final response.
+- [ ] Add true mid-turn Telegram cancellation for long-running talk responses.
 
 ## Talk Mode
 

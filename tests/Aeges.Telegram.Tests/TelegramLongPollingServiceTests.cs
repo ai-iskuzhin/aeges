@@ -41,7 +41,7 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
-    public async Task PollOnceAsync_sends_response_for_text_message()
+    public async Task PollOnceAsync_sends_pending_message_then_edits_it_for_text_response()
     {
         var gateway = new FakeTelegramBotGateway
         {
@@ -64,9 +64,13 @@ public sealed class TelegramLongPollingServiceTests
 
         Assert.Equal(42, result.NextOffset);
         Assert.Equal(1, result.ProcessedUpdates);
-        Assert.Empty(gateway.EditedResponses);
         Assert.Single(gateway.SentResponses);
-        Assert.Equal("talk_unavailable: Talk is not available in this test facade.", gateway.SentResponses[0].Response.Text);
+        Assert.Contains("Working on your message", gateway.SentResponses[0].Response.Text, StringComparison.Ordinal);
+        Assert.Equal("Cancel", gateway.SentResponses[0].Response.Buttons.Rows[0][0].Text);
+        Assert.Equal(TelegramCallbackData.CancelPendingTextResponse, gateway.SentResponses[0].Response.Buttons.Rows[0][0].CallbackData);
+        Assert.Single(gateway.EditedResponses);
+        Assert.Equal(1, gateway.EditedResponses[0].MessageId);
+        Assert.Equal("talk_unavailable: Talk is not available in this test facade.", gateway.EditedResponses[0].Response.Text);
     }
 
     [Fact]
@@ -231,14 +235,16 @@ public sealed class TelegramLongPollingServiceTests
                     CallbackQueryId: null),
             ],
         };
-        gateway.ResponseSent += (_, _) => cancellation.Cancel();
+        gateway.ResponseEdited += (_, _) => cancellation.Cancel();
         var service = CreateService(gateway, transientErrorDelay: TimeSpan.Zero);
 
         await service.RunAsync(new TelegramLongPollingOptions(), cancellation.Token);
 
         Assert.Equal(2, gateway.GetUpdatesCallCount);
         Assert.Single(gateway.SentResponses);
-        Assert.Equal("talk_unavailable: Talk is not available in this test facade.", gateway.SentResponses[0].Response.Text);
+        Assert.Single(gateway.EditedResponses);
+        Assert.Contains("Working on your message", gateway.SentResponses[0].Response.Text, StringComparison.Ordinal);
+        Assert.Equal("talk_unavailable: Talk is not available in this test facade.", gateway.EditedResponses[0].Response.Text);
     }
 
     [Fact]
@@ -277,6 +283,8 @@ public sealed class TelegramLongPollingServiceTests
         public event EventHandler? BeforeGetUpdates;
 
         public event EventHandler? ResponseSent;
+
+        public event EventHandler? ResponseEdited;
 
         public List<string> AnsweredCallbackQueryIds { get; } = [];
 
@@ -330,6 +338,7 @@ public sealed class TelegramLongPollingServiceTests
             CancellationToken cancellationToken)
         {
             EditedResponses.Add((chatId, messageId, response));
+            ResponseEdited?.Invoke(this, EventArgs.Empty);
             return Task.CompletedTask;
         }
 

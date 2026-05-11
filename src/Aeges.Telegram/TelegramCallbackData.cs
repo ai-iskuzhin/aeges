@@ -43,6 +43,11 @@ public static class TelegramCallbackData
     public const string SettingsMenu = "ae:s";
 
     /// <summary>
+    /// Gets the pending text response cancellation callback payload.
+    /// </summary>
+    public const string CancelPendingTextResponse = "ae:m:x";
+
+    /// <summary>
     /// Gets the task creation callback payload.
     /// </summary>
     public const string CreateTask = "ae:t:new";

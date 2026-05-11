@@ -84,16 +84,50 @@ public sealed class TelegramLongPollingService
 
         foreach (var update in updates)
         {
-            if (!string.IsNullOrWhiteSpace(update.CallbackQueryId))
+            var callbackQueryId = update.CallbackQueryId;
+            var isCallback = !string.IsNullOrWhiteSpace(callbackQueryId);
+
+            if (isCallback)
             {
-                await gateway.AnswerCallbackQueryAsync(update.CallbackQueryId, cancellationToken);
+                await gateway.AnswerCallbackQueryAsync(callbackQueryId!, cancellationToken);
+            }
+
+            if (!isCallback && update.Text is not null)
+            {
+                var pendingResponse = await handler.TokenizeResponseAsync(
+                    update.ChatId,
+                    TelegramInteractionHandler.RenderPendingTextResponse(update.Text),
+                    cancellationToken);
+                var pendingMessageId = await gateway.SendResponseAsync(update.ChatId, pendingResponse, cancellationToken);
+                var finalResponse = await handler.HandleAsync(
+                    new TelegramUpdate(update.ChatId, update.Text, update.CallbackData),
+                    cancellationToken);
+
+                if (pendingMessageId is not null)
+                {
+                    await gateway.EditResponseAsync(
+                        update.ChatId,
+                        pendingMessageId.Value,
+                        finalResponse,
+                        cancellationToken);
+                    await TrackResponseAsync(update.ChatId, pendingMessageId, finalResponse, cancellationToken);
+                }
+                else
+                {
+                    var finalMessageId = await gateway.SendResponseAsync(update.ChatId, finalResponse, cancellationToken);
+                    await TrackResponseAsync(update.ChatId, finalMessageId, finalResponse, cancellationToken);
+                }
+
+                nextOffset = Math.Max(nextOffset ?? 0, update.UpdateId + 1);
+                processed++;
+                continue;
             }
 
             var response = await handler.HandleAsync(
                 new TelegramUpdate(update.ChatId, update.Text, update.CallbackData),
                 cancellationToken);
 
-            if (!string.IsNullOrWhiteSpace(update.CallbackQueryId) && update.MessageId is not null)
+            if (isCallback && update.MessageId is not null)
             {
                 await gateway.EditResponseAsync(
                     update.ChatId,
@@ -107,7 +141,7 @@ public sealed class TelegramLongPollingService
                 await TrackResponseAsync(update.ChatId, sentMessageId, response, cancellationToken);
             }
 
-            if (!string.IsNullOrWhiteSpace(update.CallbackQueryId) && update.MessageId is not null)
+            if (isCallback && update.MessageId is not null)
             {
                 await TrackResponseAsync(update.ChatId, update.MessageId, response, cancellationToken);
             }

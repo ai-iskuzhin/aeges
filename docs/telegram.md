@@ -90,6 +90,13 @@ session for the chat source, asks the configured runner for a response, and
 stores both the operator message and assistant response outside the task
 lifecycle.
 
+For inbound text messages, the transport first sends a temporary working
+message with a `Cancel` button, then edits that same message with the final
+response. This keeps the chat responsive while a runner turn is executing. The
+current cancel button is a visible transport affordance; true mid-turn runner
+cancellation will require the polling loop to process callback updates while
+the original text turn is still running.
+
 The main menu shows count badges for projects, machines, queued tasks, and
 pending approvals so operators can see queue shape without opening every view.
 The projects view lets operators select a project first, then browse that
