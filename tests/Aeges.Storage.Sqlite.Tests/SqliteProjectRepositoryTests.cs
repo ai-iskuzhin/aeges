@@ -26,6 +26,8 @@ public sealed class SqliteProjectRepositoryTests
         Assert.Equal(project.Path, stored.Path);
         Assert.Equal(project.CreatedAt, stored.CreatedAt);
         Assert.Equal(project.UpdatedAt, stored.UpdatedAt);
+        Assert.False(stored.IsArchived);
+        Assert.Null(stored.ArchivedAt);
     }
 
     [Fact]
@@ -68,6 +70,29 @@ public sealed class SqliteProjectRepositoryTests
         Assert.Equal("Aeges Runtime", stored.Name);
         Assert.Equal("/work/aeges-runtime", stored.Path);
         Assert.Equal(updatedAt, stored.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task Update_persists_project_archive_state()
+    {
+        await using var database = await TemporarySqliteDatabase.CreateAsync();
+        await using var context = database.CreateContext();
+        var repository = new SqliteProjectRepository(context);
+        var project = RuntimeProject.Create(new ProjectId("project-001"), "Aeges", "/work/aeges", CreatedAt);
+        await repository.AddAsync(project, CancellationToken.None);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        var archivedAt = CreatedAt.AddMinutes(5);
+        project.Archive(archivedAt);
+        await repository.UpdateAsync(project, CancellationToken.None);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        var stored = await repository.GetByIdAsync(new ProjectId("project-001"), CancellationToken.None);
+
+        Assert.NotNull(stored);
+        Assert.True(stored.IsArchived);
+        Assert.Equal(archivedAt, stored.ArchivedAt);
+        Assert.Equal(archivedAt, stored.UpdatedAt);
     }
 
     [Fact]

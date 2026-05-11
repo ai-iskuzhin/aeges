@@ -16,7 +16,10 @@ internal sealed class ProjectRecordConfiguration : IEntityTypeConfiguration<Proj
         builder.Property(project => project.Path).HasColumnName("path").IsRequired();
         builder.Property(project => project.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(project => project.UpdatedAt).HasColumnName("updated_at").IsRequired();
+        builder.Property(project => project.IsArchived).HasColumnName("is_archived").IsRequired().HasDefaultValue(false);
+        builder.Property(project => project.ArchivedAt).HasColumnName("archived_at");
 
         builder.HasIndex(project => project.Path).IsUnique();
+        builder.HasIndex(project => project.IsArchived);
     }
 }

@@ -15,6 +15,7 @@ Initial buttons:
 New task      -> ae:t:new
 Projects      -> aeges:projects:list
 Project       -> ae:p:<project-id>
+Archive       -> ae:p:x:<project-id>
 Project tasks -> ae:p:<project-id>:s:<status-code>
 Machines      -> aeges:machines:list
 Tasks        -> ae:t
@@ -80,6 +81,11 @@ The projects view lets operators select a project first, then browse that
 project's task buckets by lifecycle status. The global task menu still groups
 all tasks by lifecycle status: queued, planning, running, reviewing, waiting
 approval, completed, failed, and cancelled.
+
+Project details include an `Archive` action for active projects. Archiving is a
+non-destructive operator action: tasks, artifacts, and history remain visible in
+project task buckets, while archived projects are excluded from the `New task`
+project picker.
 
 The `reviewing` bucket is the human confirmation step after a worker succeeds.
 Opening a reviewing task shows the latest iteration, runner exit status,

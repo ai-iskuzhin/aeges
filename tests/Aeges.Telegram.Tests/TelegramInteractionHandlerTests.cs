@@ -117,14 +117,40 @@ public sealed class TelegramInteractionHandlerTests
 
         Assert.Contains("Project details:\n> Project: project-aeges", response.Text, StringComparison.Ordinal);
         Assert.Contains("> Name: Aeges", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Status: active", response.Text, StringComparison.Ordinal);
         Assert.Contains("> Path: /workspace/aeges", response.Text, StringComparison.Ordinal);
         Assert.Equal("queued (1)", response.Buttons.Rows[0][0].Text);
         Assert.Equal(
             TelegramCallbackData.ListProjectTasksByStatus(new ProjectId("project-aeges"), RuntimeTaskStatus.Queued),
             response.Buttons.Rows[0][0].CallbackData);
         Assert.Equal("planning (0)", response.Buttons.Rows[0][1].Text);
+        Assert.Equal("Archive", response.Buttons.Rows[^2][0].Text);
+        Assert.Equal(TelegramCallbackData.ArchiveProject(new ProjectId("project-aeges")), response.Buttons.Rows[^2][0].CallbackData);
         Assert.Equal("Back", response.Buttons.Rows[^1][0].Text);
         Assert.Equal(TelegramCallbackData.ListProjects, response.Buttons.Rows[^1][0].CallbackData);
+    }
+
+    [Fact]
+    public async Task HandleAsync_archives_project_from_detail_menu()
+    {
+        var project = RuntimeProject.Create(new ProjectId("project-aeges"), "Aeges", "/workspace/aeges", Now);
+        var facade = new FakeTelegramApplicationFacade
+        {
+            Projects = [project],
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ArchiveProject(project.Id)),
+            CancellationToken.None);
+
+        Assert.Equal(project.Id, facade.ArchivedProjectId);
+        Assert.True(project.IsArchived);
+        Assert.Contains("Project archived.", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Status: archived", response.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            response.Buttons.Rows.SelectMany(row => row),
+            button => button.CallbackData == TelegramCallbackData.ArchiveProject(project.Id));
     }
 
     [Fact]
@@ -417,11 +443,13 @@ public sealed class TelegramInteractionHandlerTests
     public async Task HandleAsync_creates_task_from_button_guided_flow()
     {
         var project = RuntimeProject.Create(new ProjectId("project-aeges"), "Aeges", "/workspace/aeges", Now);
+        var archivedProject = RuntimeProject.Create(new ProjectId("project-old"), "Old", "/workspace/old", Now);
+        archivedProject.Archive(Now.AddMinutes(1));
         var machine = RuntimeMachine.Create(new MachineId("machine-local"), "Local", "macOS", Now);
         machine.MarkOnline(Now);
         var facade = new FakeTelegramApplicationFacade
         {
-            Projects = [project],
+            Projects = [project, archivedProject],
             Machines = [machine],
         };
         var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
@@ -444,6 +472,9 @@ public sealed class TelegramInteractionHandlerTests
 
         Assert.Equal("Choose a project for the task.", projectResponse.Text);
         Assert.Equal("Aeges", projectResponse.Buttons.Rows[0][0].Text);
+        Assert.DoesNotContain(
+            projectResponse.Buttons.Rows.SelectMany(row => row),
+            button => button.CallbackData == TelegramCallbackData.SelectTaskProject(archivedProject.Id));
         Assert.Equal("Choose the machine that should process the task.", machineResponse.Text);
         Assert.Equal("Local (online)", machineResponse.Buttons.Rows[0][0].Text);
         Assert.Equal("Send the task title.", titleResponse.Text);
@@ -639,6 +670,8 @@ public sealed class TelegramInteractionHandlerTests
 
         public ProjectId? CreatedProjectId { get; private set; }
 
+        public ProjectId? ArchivedProjectId { get; private set; }
+
         public MachineId? CreatedMachineId { get; private set; }
 
         public string? CreatedTitle { get; private set; }
@@ -667,6 +700,10 @@ public sealed class TelegramInteractionHandlerTests
             return System.Threading.Tasks.Task.FromResult(Projects);
         }
 
+        public Task<IReadOnlyList<RuntimeProject>> ListActiveProjectsAsync(CancellationToken cancellationToken) =>
+            System.Threading.Tasks.Task.FromResult(
+                Projects.Where(project => !project.IsArchived).ToArray() as IReadOnlyList<RuntimeProject>);
+
         public Task<ApplicationResult<RuntimeProject>> GetProjectAsync(
             ProjectId projectId,
             CancellationToken cancellationToken)
@@ -677,6 +714,24 @@ public sealed class TelegramInteractionHandlerTests
                 : ApplicationResult<RuntimeProject>.Success(project);
 
             return System.Threading.Tasks.Task.FromResult(result);
+        }
+
+        public Task<ApplicationResult<RuntimeProject>> ArchiveProjectAsync(
+            ProjectId projectId,
+            CancellationToken cancellationToken)
+        {
+            ArchivedProjectId = projectId;
+            var project = Projects.FirstOrDefault(project => project.Id == projectId);
+
+            if (project is null)
+            {
+                return System.Threading.Tasks.Task.FromResult(
+                    ApplicationResult<RuntimeProject>.Failure("project_not_found", $"Project '{projectId}' was not found."));
+            }
+
+            project.Archive(Now);
+
+            return System.Threading.Tasks.Task.FromResult(ApplicationResult<RuntimeProject>.Success(project));
         }
 
         public Task<IReadOnlyList<RuntimeMachine>> ListMachinesAsync(CancellationToken cancellationToken) =>

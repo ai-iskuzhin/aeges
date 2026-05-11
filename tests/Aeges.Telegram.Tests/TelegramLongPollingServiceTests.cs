@@ -289,7 +289,17 @@ public sealed class TelegramLongPollingServiceTests
         public Task<IReadOnlyList<RuntimeProject>> ListProjectsAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RuntimeProject>>([]);
 
+        public Task<IReadOnlyList<RuntimeProject>> ListActiveProjectsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeProject>>([]);
+
         public Task<Aeges.Application.ApplicationResult<RuntimeProject>> GetProjectAsync(
+            ProjectId projectId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<RuntimeProject>.Failure(
+                "project_not_found",
+                $"Project '{projectId}' was not found."));
+
+        public Task<Aeges.Application.ApplicationResult<RuntimeProject>> ArchiveProjectAsync(
             ProjectId projectId,
             CancellationToken cancellationToken) =>
             Task.FromResult(Aeges.Application.ApplicationResult<RuntimeProject>.Failure(

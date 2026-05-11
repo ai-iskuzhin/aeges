@@ -75,17 +75,20 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         await projectService.ListAsync(cancellationToken);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<RuntimeProject>> ListActiveProjectsAsync(CancellationToken cancellationToken) =>
+        await projectService.ListActiveAsync(cancellationToken);
+
+    /// <inheritdoc />
     public async Task<ApplicationResult<RuntimeProject>> GetProjectAsync(
         ProjectId projectId,
-        CancellationToken cancellationToken)
-    {
-        var projects = await projectService.ListAsync(cancellationToken);
-        var project = projects.FirstOrDefault(project => project.Id == projectId);
+        CancellationToken cancellationToken) =>
+        await projectService.GetAsync(projectId, cancellationToken);
 
-        return project is null
-            ? ApplicationResult<RuntimeProject>.Failure("project_not_found", $"Project '{projectId}' was not found.")
-            : ApplicationResult<RuntimeProject>.Success(project);
-    }
+    /// <inheritdoc />
+    public async Task<ApplicationResult<RuntimeProject>> ArchiveProjectAsync(
+        ProjectId projectId,
+        CancellationToken cancellationToken) =>
+        await projectService.ArchiveAsync(projectId, cancellationToken);
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<RuntimeMachine>> ListMachinesAsync(CancellationToken cancellationToken) =>

@@ -16,12 +16,29 @@ public interface ITelegramApplicationFacade
     Task<IReadOnlyList<RuntimeProject>> ListProjectsAsync(CancellationToken cancellationToken);
 
     /// <summary>
+    /// Lists registered projects that can accept new tasks.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The active registered projects.</returns>
+    Task<IReadOnlyList<RuntimeProject>> ListActiveProjectsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
     /// Gets a project by identifier.
     /// </summary>
     /// <param name="projectId">The project identifier.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The project lookup result.</returns>
     Task<ApplicationResult<RuntimeProject>> GetProjectAsync(
+        ProjectId projectId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Archives a project while keeping its tasks and artifacts available for review.
+    /// </summary>
+    /// <param name="projectId">The project identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The archive result.</returns>
+    Task<ApplicationResult<RuntimeProject>> ArchiveProjectAsync(
         ProjectId projectId,
         CancellationToken cancellationToken);
 

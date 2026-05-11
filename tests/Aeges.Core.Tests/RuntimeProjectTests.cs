@@ -20,6 +20,8 @@ public sealed class RuntimeProjectTests
         Assert.Equal("/work/aeges", project.Path);
         Assert.Equal(CreatedAt, project.CreatedAt);
         Assert.Equal(CreatedAt, project.UpdatedAt);
+        Assert.False(project.IsArchived);
+        Assert.Null(project.ArchivedAt);
     }
 
     [Fact]
@@ -39,6 +41,27 @@ public sealed class RuntimeProjectTests
         Assert.Equal("/work/aeges", project.Path);
         Assert.Equal(CreatedAt, project.CreatedAt);
         Assert.Equal(updatedAt, project.UpdatedAt);
+        Assert.False(project.IsArchived);
+        Assert.Null(project.ArchivedAt);
+    }
+
+    [Fact]
+    public void Rehydrate_restores_archive_state()
+    {
+        var archivedAt = CreatedAt.AddMinutes(10);
+
+        var project = RuntimeProject.Rehydrate(
+            new ProjectId("project-001"),
+            "Aeges",
+            "/work/aeges",
+            CreatedAt,
+            archivedAt,
+            isArchived: true,
+            archivedAt: archivedAt);
+
+        Assert.True(project.IsArchived);
+        Assert.Equal(archivedAt, project.ArchivedAt);
+        Assert.Equal(archivedAt, project.UpdatedAt);
     }
 
     [Fact]
@@ -56,6 +79,23 @@ public sealed class RuntimeProjectTests
         Assert.Equal("Aeges Runtime", project.Name);
         Assert.Equal("/work/aeges-runtime", project.Path);
         Assert.Equal(updatedAt, project.UpdatedAt);
+    }
+
+    [Fact]
+    public void Archive_marks_project_archived_and_updates_timestamp()
+    {
+        var project = RuntimeProject.Create(
+            new ProjectId("project-001"),
+            "Aeges",
+            "/work/aeges",
+            CreatedAt);
+        var archivedAt = CreatedAt.AddMinutes(2);
+
+        project.Archive(archivedAt);
+
+        Assert.True(project.IsArchived);
+        Assert.Equal(archivedAt, project.ArchivedAt);
+        Assert.Equal(archivedAt, project.UpdatedAt);
     }
 
     [Theory]

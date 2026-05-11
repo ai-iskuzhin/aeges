@@ -57,6 +57,8 @@ public sealed class SqliteProjectRepository : IProjectRepository
         record.Name = project.Name;
         record.Path = project.Path;
         record.UpdatedAt = project.UpdatedAt;
+        record.IsArchived = project.IsArchived;
+        record.ArchivedAt = project.ArchivedAt;
     }
 
     private static ProjectRecord ToRecord(RuntimeProject project) =>
@@ -67,6 +69,8 @@ public sealed class SqliteProjectRepository : IProjectRepository
             Path = project.Path,
             CreatedAt = project.CreatedAt,
             UpdatedAt = project.UpdatedAt,
+            IsArchived = project.IsArchived,
+            ArchivedAt = project.ArchivedAt,
         };
 
     private static RuntimeProject ToDomain(ProjectRecord record) =>
@@ -75,5 +79,7 @@ public sealed class SqliteProjectRepository : IProjectRepository
             record.Name,
             record.Path,
             record.CreatedAt,
-            record.UpdatedAt);
+            record.UpdatedAt,
+            record.IsArchived,
+            record.ArchivedAt);
 }

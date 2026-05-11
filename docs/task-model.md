@@ -35,6 +35,8 @@ The application layer exposes these lifecycle changes as task use cases. It
 loads the task from storage, delegates transition validation to the core domain
 model, persists only accepted transitions, and returns structured expected
 failures for missing tasks, invalid transitions, or exceeded iteration limits.
+Archived projects cannot accept new tasks. Archiving preserves existing tasks,
+iterations, and artifacts for audit and review.
 
 Initial allowed transitions:
 

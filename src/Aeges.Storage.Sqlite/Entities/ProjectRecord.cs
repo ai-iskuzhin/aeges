@@ -31,6 +31,16 @@ internal sealed class ProjectRecord
     public DateTimeOffset UpdatedAt { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the project is archived.
+    /// </summary>
+    public bool IsArchived { get; set; }
+
+    /// <summary>
+    /// Gets or sets the timestamp when the project was archived.
+    /// </summary>
+    public DateTimeOffset? ArchivedAt { get; set; }
+
+    /// <summary>
     /// Gets the tasks belonging to this project.
     /// </summary>
     public ICollection<TaskRecord> Tasks { get; } = [];

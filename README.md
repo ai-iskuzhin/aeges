@@ -293,7 +293,7 @@ using a real bot, restrict access in `~/.aeges/config.json`:
 The MVP Telegram UI includes buttons for:
 
 - creating a new task
-- projects and project-scoped task buckets
+- projects, project archive state, and project-scoped task buckets
 - machines
 - tasks grouped by lifecycle status
 - task details
@@ -324,6 +324,9 @@ watched task changes, Telegram edits the open task-details message when
 possible; otherwise it sends a short notification with a `View task` button.
 The `Projects` button lets you pick a project first and then inspect only that
 project's queued, running, reviewing, completed, failed, and cancelled work.
+Project details include an `Archive` button for active projects. Archiving is
+non-destructive: existing tasks, artifacts, and audit history remain visible,
+but archived projects are hidden from the `New task` project picker.
 Open a task in `reviewing` to see the latest runner response, runner exit
 status, and artifacts. Press `Complete` there to confirm the worker result, or
 press `Continue` and send follow-up feedback to requeue the task for another

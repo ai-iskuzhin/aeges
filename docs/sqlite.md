@@ -46,6 +46,7 @@ The current EF Core foundation includes:
 - explicit entity configuration
 - `AegesDbContextFactory` for `dotnet ef`
 - an initial `InitialCreate` migration
+- `AddProjectArchiveState` for non-destructive project archiving
 - SQLite pragma application for WAL, foreign keys, and busy timeout
 - SQLite project, machine, task, iteration, artifact, approval, and lock
   repositories backed by temporary-file tests

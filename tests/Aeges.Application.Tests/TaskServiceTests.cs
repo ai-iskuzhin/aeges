@@ -56,6 +56,23 @@ public sealed class TaskServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_returns_failure_when_project_is_archived()
+    {
+        var unitOfWork = new InMemoryUnitOfWork();
+        var clock = new FixedClock(Now);
+        await SeedProjectAndMachineAsync(unitOfWork, clock);
+        await new ProjectService(unitOfWork, clock).ArchiveAsync(new ProjectId("project-001"), CancellationToken.None);
+        var service = new TaskService(unitOfWork, clock);
+
+        var result = await service.CreateAsync(
+            new CreateTaskRequest(new ProjectId("project-001"), new MachineId("machine-001"), "Build CLI", "Create commands."),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("project_archived", result.Error?.Code);
+    }
+
+    [Fact]
     public async Task CreateAsync_returns_failure_when_machine_is_missing()
     {
         var unitOfWork = new InMemoryUnitOfWork();

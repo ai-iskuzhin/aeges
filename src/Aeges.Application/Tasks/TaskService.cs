@@ -41,6 +41,13 @@ public sealed class TaskService
                 $"Project '{request.ProjectId}' was not found.");
         }
 
+        if (project.IsArchived)
+        {
+            return ApplicationResult<RuntimeTask>.Failure(
+                "project_archived",
+                $"Project '{request.ProjectId}' is archived and cannot accept new tasks.");
+        }
+
         var machine = await unitOfWork.Machines.GetByIdAsync(request.MachineId, cancellationToken);
 
         if (machine is null)

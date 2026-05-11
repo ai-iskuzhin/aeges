@@ -12,6 +12,8 @@ public sealed class RuntimeProject
         Path = RequireText(path, nameof(path));
         CreatedAt = createdAt;
         UpdatedAt = createdAt;
+        IsArchived = false;
+        ArchivedAt = null;
     }
 
     /// <summary>
@@ -40,6 +42,16 @@ public sealed class RuntimeProject
     public DateTimeOffset UpdatedAt { get; private set; }
 
     /// <summary>
+    /// Gets a value indicating whether the project is archived and unavailable for new work.
+    /// </summary>
+    public bool IsArchived { get; private set; }
+
+    /// <summary>
+    /// Gets the timestamp when the project was archived.
+    /// </summary>
+    public DateTimeOffset? ArchivedAt { get; private set; }
+
+    /// <summary>
     /// Creates a new registered project.
     /// </summary>
     /// <param name="id">The project identifier.</param>
@@ -58,17 +70,33 @@ public sealed class RuntimeProject
     /// <param name="path">The project root path.</param>
     /// <param name="createdAt">The registration timestamp.</param>
     /// <param name="updatedAt">The last update timestamp.</param>
+    /// <param name="isArchived">A value indicating whether the project is archived.</param>
+    /// <param name="archivedAt">The archive timestamp.</param>
     /// <returns>A rehydrated runtime project.</returns>
     public static RuntimeProject Rehydrate(
         ProjectId id,
         string name,
         string path,
         DateTimeOffset createdAt,
-        DateTimeOffset updatedAt)
+        DateTimeOffset updatedAt,
+        bool isArchived = false,
+        DateTimeOffset? archivedAt = null)
     {
+        if (isArchived && archivedAt is null)
+        {
+            throw new ArgumentException("Archived projects must include an archive timestamp.", nameof(archivedAt));
+        }
+
+        if (!isArchived && archivedAt is not null)
+        {
+            throw new ArgumentException("Active projects must not include an archive timestamp.", nameof(archivedAt));
+        }
+
         var project = new RuntimeProject(id, name, path, createdAt)
         {
             UpdatedAt = updatedAt,
+            IsArchived = isArchived,
+            ArchivedAt = archivedAt,
         };
 
         return project;
@@ -84,6 +112,22 @@ public sealed class RuntimeProject
     {
         Name = RequireText(name, nameof(name));
         Path = RequireText(path, nameof(path));
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Archives the project so its history remains visible but no new tasks should be created for it.
+    /// </summary>
+    /// <param name="now">The archive timestamp.</param>
+    public void Archive(DateTimeOffset now)
+    {
+        if (IsArchived)
+        {
+            return;
+        }
+
+        IsArchived = true;
+        ArchivedAt = now;
         UpdatedAt = now;
     }
 

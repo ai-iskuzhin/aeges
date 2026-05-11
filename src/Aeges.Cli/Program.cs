@@ -1479,9 +1479,14 @@ internal static class AegesCli
 
         await output.WriteLineAsync($"{heading}: {project.Id}");
         await output.WriteLineAsync($"Name: {project.Name}");
+        await output.WriteLineAsync($"Status: {(project.IsArchived ? "archived" : "active")}");
         await output.WriteLineAsync($"Path: {project.Path}");
         await output.WriteLineAsync($"Created: {project.CreatedAt:O}");
         await output.WriteLineAsync($"Updated: {project.UpdatedAt:O}");
+        if (project.ArchivedAt is not null)
+        {
+            await output.WriteLineAsync($"Archived: {project.ArchivedAt:O}");
+        }
     }
 
     private static async Task WriteProjectsAsync(
@@ -1505,7 +1510,8 @@ internal static class AegesCli
 
         foreach (var project in projects)
         {
-            await output.WriteLineAsync($"  - {project.Id} | {project.Name} | {project.Path}");
+            await output.WriteLineAsync(
+                $"  - {project.Id} | {project.Name} | {(project.IsArchived ? "archived" : "active")} | {project.Path}");
         }
     }
 
@@ -3008,6 +3014,8 @@ internal static class AegesCli
         string Id,
         string Name,
         string Path,
+        bool IsArchived,
+        DateTimeOffset? ArchivedAt,
         DateTimeOffset CreatedAt,
         DateTimeOffset UpdatedAt)
     {
@@ -3016,6 +3024,8 @@ internal static class AegesCli
                 project.Id.Value,
                 project.Name,
                 project.Path,
+                project.IsArchived,
+                project.ArchivedAt,
                 project.CreatedAt,
                 project.UpdatedAt);
     }

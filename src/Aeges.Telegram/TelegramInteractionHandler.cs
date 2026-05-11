@@ -75,6 +75,8 @@ public sealed class TelegramInteractionHandler
                 await ListTasksByStatusAsync(status, cancellationToken),
             _ when TelegramCallbackData.TryParseListProjectTasksByStatus(callbackData, out var projectId, out var status) =>
                 await ListProjectTasksByStatusAsync(projectId, status, cancellationToken),
+            _ when TelegramCallbackData.TryParseArchiveProject(callbackData, out var projectId) =>
+                await ArchiveProjectAsync(projectId, cancellationToken),
             _ when TelegramCallbackData.TryParseViewProject(callbackData, out var projectId) =>
                 await ViewProjectAsync(projectId, cancellationToken),
             _ when TelegramCallbackData.TryParseSelectTaskProject(callbackData, out var projectId) =>
@@ -202,11 +204,11 @@ public sealed class TelegramInteractionHandler
         long chatId,
         CancellationToken cancellationToken)
     {
-        var projects = await application.ListProjectsAsync(cancellationToken);
+        var projects = await application.ListActiveProjectsAsync(cancellationToken);
 
         if (projects.Count == 0)
         {
-            return new TelegramResponse("No projects are registered. Add a project from the CLI first.", BackButtons());
+            return new TelegramResponse("No active projects are registered. Add a project from the CLI first.", BackButtons());
         }
 
         drafts.TryRemove(chatId, out _);
@@ -223,11 +225,16 @@ public sealed class TelegramInteractionHandler
         ProjectId projectId,
         CancellationToken cancellationToken)
     {
-        var projects = await application.ListProjectsAsync(cancellationToken);
+        var project = await application.GetProjectAsync(projectId, cancellationToken);
 
-        if (!projects.Any(project => project.Id == projectId))
+        if (!project.IsSuccess)
         {
             return new TelegramResponse($"Project '{projectId}' was not found.", BackButtons());
+        }
+
+        if (project.Value!.IsArchived)
+        {
+            return new TelegramResponse($"Project '{projectId}' is archived and cannot accept new tasks.", BackButtons());
         }
 
         var machines = await application.ListMachinesAsync(cancellationToken);
@@ -353,7 +360,7 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse("No projects are registered.", BackButtons());
         }
 
-        var rows = Grid(projects.Select(project => Button(project.Name, TelegramCallbackData.ViewProject(project.Id))))
+        var rows = Grid(projects.Select(project => Button(ProjectButtonText(project), TelegramCallbackData.ViewProject(project.Id))))
             .Append(Row(Button("Back", TelegramCallbackData.MainMenu)))
             .ToArray();
 
@@ -371,35 +378,71 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse($"{project.Error!.Code}: {project.Error.Message}", BackToProjectsButtons());
         }
 
+        return await RenderProjectDetailsAsync(project.Value!, notice: null, cancellationToken);
+    }
+
+    private async Task<TelegramResponse> ArchiveProjectAsync(
+        ProjectId projectId,
+        CancellationToken cancellationToken)
+    {
+        var archived = await application.ArchiveProjectAsync(projectId, cancellationToken);
+
+        if (!archived.IsSuccess)
+        {
+            return new TelegramResponse($"{archived.Error!.Code}: {archived.Error.Message}", BackToProjectsButtons());
+        }
+
+        return await RenderProjectDetailsAsync(archived.Value!, "Project archived.", cancellationToken);
+    }
+
+    private async Task<TelegramResponse> RenderProjectDetailsAsync(
+        RuntimeProject project,
+        string? notice,
+        CancellationToken cancellationToken)
+    {
         var buttons = new List<TelegramButton>();
 
         foreach (var status in TaskStatuses)
         {
             var tasks = await application.ListProjectTasksByStatusAsync(
-                projectId,
+                project.Id,
                 status,
                 MenuCountLimit,
                 cancellationToken);
 
             buttons.Add(Button(
                 $"{FormatStatus(status)} ({CountBadge(tasks.Count, MenuCountLimit)})",
-                TelegramCallbackData.ListProjectTasksByStatus(projectId, status)));
+                TelegramCallbackData.ListProjectTasksByStatus(project.Id, status)));
         }
 
-        var rows = Grid(buttons)
+        IReadOnlyList<TelegramButton> actionButtons = project.IsArchived
+            ? []
+            : [Button("Archive", TelegramCallbackData.ArchiveProject(project.Id))];
+        var rows = Grid(buttons.Concat(actionButtons))
             .Append(Row(Button("Back", TelegramCallbackData.ListProjects)))
             .ToArray();
 
-        var metadata = string.Join(
-            '\n',
-            [
-                $"Project: {project.Value!.Id}",
-                $"Name: {project.Value.Name}",
-                $"Path: {project.Value.Path}",
-            ]);
+        List<string> metadataLines =
+        [
+            $"Project: {project.Id}",
+            $"Name: {project.Name}",
+            $"Status: {(project.IsArchived ? "archived" : "active")}",
+            $"Path: {project.Path}",
+        ];
+
+        if (project.ArchivedAt is not null)
+        {
+            metadataLines.Add($"Archived: {project.ArchivedAt:O}");
+        }
+
+        var metadata = string.Join('\n', metadataLines);
+
+        var prefix = string.IsNullOrWhiteSpace(notice)
+            ? "Project details:"
+            : $"{notice}\n\nProject details:";
 
         return new TelegramResponse(
-            $"Project details:\n{TelegramMarkdown.Quote(metadata)}",
+            $"{prefix}\n{TelegramMarkdown.Quote(metadata)}",
             Buttons([.. rows]));
     }
 
@@ -846,6 +889,9 @@ public sealed class TelegramInteractionHandler
 
     private static string FormatStatus(RuntimeTaskStatus status) =>
         status.ToStorageValue().Replace('_', ' ');
+
+    private static string ProjectButtonText(RuntimeProject project) =>
+        project.IsArchived ? $"{project.Name} (archived)" : project.Name;
 
     private static TelegramButton Button(
         string text,
