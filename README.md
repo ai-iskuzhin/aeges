@@ -89,17 +89,20 @@ $env:AEGES_VERSION = "0.1.0-alpha.1"
 irm https://get.aeges.top/install.ps1 | iex
 ```
 
-Create the schema and check migration status:
+Initialize the local runtime from the project you want Aeges to manage:
 
 ```bash
-aeges db migrate
-aeges db status
+aeges init
 aeges status
 ```
 
-Register this repository as a project and this machine as an executor:
+`aeges init` creates the local runtime directories, applies SQLite migrations,
+registers the current directory as a project, and registers the local machine.
+You can still perform those steps explicitly:
 
 ```bash
+aeges db migrate
+
 aeges project add \
   --project-id aeges \
   --name Aeges \
@@ -374,6 +377,7 @@ Useful options:
 ## CLI Commands
 
 ```text
+aeges init [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [...]
 aeges status [--config <path>] [--connection-string <value>] [--json]
 aeges db status [--config <path>] [--connection-string <value>] [--json]
 aeges db migrate [--config <path>] [--connection-string <value>] [--json]
@@ -403,6 +407,9 @@ aeges telegram stop [--json]
 directory, config path, database migration state, agent and Telegram process
 state, Codex CLI availability, project and machine counts, and task counts by
 status.
+
+`aeges init` is idempotent. Re-running it keeps existing project and machine
+registrations when the selected IDs already exist.
 
 Most commands support `--json` for deterministic machine-readable output.
 

@@ -48,6 +48,11 @@ internal static class AegesCli
         TextWriter error,
         CancellationToken cancellationToken)
     {
+        if (args is ["init", .. var initArgs])
+        {
+            return await RunInitAsync(initArgs, output, error, cancellationToken);
+        }
+
         if (args is ["status", .. var localStatusArgs])
         {
             return await RunLocalStatusAsync(localStatusArgs, output, error, cancellationToken);
@@ -166,6 +171,26 @@ internal static class AegesCli
         await WriteUsageAsync(error);
 
         return 2;
+    }
+
+    private static async Task<int> RunInitAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = InitOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        var result = await InitializeRuntimeAsync(options, cancellationToken);
+        await WriteInitResultAsync(result, options.Json, output);
+
+        return 0;
     }
 
     private static async Task<int> RunLocalStatusAsync(
@@ -1132,6 +1157,91 @@ internal static class AegesCli
             taskCounts);
     }
 
+    private static async Task<InitResultOutput> InitializeRuntimeAsync(
+        InitOptions options,
+        CancellationToken cancellationToken)
+    {
+        var layout = RuntimeDirectoryLayout.CreateDefault();
+        var configuration = LoadConfiguration(options);
+        var projectPath = Path.GetFullPath(options.ProjectPath ?? Environment.CurrentDirectory);
+        var projectName = options.ProjectName ?? new DirectoryInfo(projectPath).Name;
+        var projectId = new ProjectId(options.ProjectId ?? CreateStableIdentifier(projectName));
+        var machineId = new MachineId(options.MachineId ?? configuration.MachineId);
+        var machineName = options.MachineName ?? Environment.MachineName;
+        var platform = options.Platform ?? RuntimeInformation.OSDescription;
+
+        foreach (var directory in layout.RequiredDirectories)
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var database = await CreateMigrationService(options).MigrateAsync(cancellationToken);
+        await using var context = await CreateDbContextAsync(options, cancellationToken);
+        var unitOfWork = new SqliteUnitOfWork(context);
+        var clock = new SystemClock();
+        var projectCreated = false;
+        var machineCreated = false;
+
+        var project = await unitOfWork.Projects.GetByIdAsync(projectId, cancellationToken);
+        if (project is null)
+        {
+            project = RuntimeProject.Create(projectId, projectName, projectPath, clock.Now);
+            await unitOfWork.Projects.AddAsync(project, cancellationToken);
+            projectCreated = true;
+        }
+
+        var machine = await unitOfWork.Machines.GetByIdAsync(machineId, cancellationToken);
+        if (machine is null)
+        {
+            machine = RuntimeMachine.Create(machineId, machineName, platform, clock.Now);
+            await unitOfWork.Machines.AddAsync(machine, cancellationToken);
+            machineCreated = true;
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return new InitResultOutput(
+            layout.RootPath,
+            ResolveConfigPath(options),
+            database.DatabasePath,
+            database.IsUpToDate,
+            ProjectOutput.From(project),
+            projectCreated,
+            MachineOutput.From(machine),
+            machineCreated,
+            [
+                "aeges status",
+                "aeges telegram setup",
+                "aeges telegram start",
+                "aeges agent start",
+            ]);
+    }
+
+    private static string CreateStableIdentifier(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+
+        foreach (var character in value.Trim().ToLowerInvariant())
+        {
+            if (char.IsAsciiLetterOrDigit(character))
+            {
+                builder.Append(character);
+            }
+            else if (character is '-' or '_' or '.')
+            {
+                builder.Append('-');
+            }
+            else if (char.IsWhiteSpace(character))
+            {
+                builder.Append('-');
+            }
+        }
+
+        var result = builder.ToString().Trim('-');
+
+        return string.IsNullOrWhiteSpace(result) ? "project" : result;
+    }
+
     private static string ResolveConfigPath(CliOptions options)
     {
         if (options.ConfigPath is null)
@@ -1279,6 +1389,39 @@ internal static class AegesCli
         foreach (var count in status.TaskCounts)
         {
             await output.WriteLineAsync($"  - {count.Status}: {count.Count}");
+        }
+    }
+
+    private static async Task WriteInitResultAsync(
+        InitResultOutput result,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                result,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync("Aeges initialized.");
+        await output.WriteLineAsync($"Runtime: {result.RuntimeRootPath}");
+        await output.WriteLineAsync($"Config: {result.ConfigPath}");
+        await output.WriteLineAsync($"Database: {result.DatabasePath ?? "(unknown)"}");
+        await output.WriteLineAsync($"Database status: {(result.DatabaseUpToDate ? "up-to-date" : "pending migrations")}");
+        await output.WriteLineAsync($"Project: {result.Project.Id} ({(result.ProjectCreated ? "created" : "existing")})");
+        await output.WriteLineAsync($"Project path: {result.Project.Path}");
+        await output.WriteLineAsync($"Machine: {result.Machine.Id} ({(result.MachineCreated ? "created" : "existing")})");
+        await output.WriteLineAsync("Next steps:");
+
+        foreach (var command in result.NextSteps)
+        {
+            await output.WriteLineAsync($"  - {command}");
         }
     }
 
@@ -1723,6 +1866,7 @@ internal static class AegesCli
     private static async Task WriteUsageAsync(TextWriter error)
     {
         await error.WriteLineAsync("Usage:");
+        await error.WriteLineAsync("  aeges init [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges status [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges db status [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges db migrate [--config <path>] [--connection-string <value>] [--json]");
@@ -1811,6 +1955,117 @@ internal static class AegesCli
 
             return true;
         }
+    }
+
+    private sealed class InitOptions : CliOptions
+    {
+        public string? ProjectId { get; private init; }
+
+        public string? ProjectName { get; private init; }
+
+        public string? ProjectPath { get; private init; }
+
+        public string? MachineId { get; private init; }
+
+        public string? MachineName { get; private init; }
+
+        public string? Platform { get; private init; }
+
+        public new static InitOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? projectId = null;
+            string? projectName = null;
+            string? projectPath = null;
+            string? machineId = null;
+            string? machineName = null;
+            string? platform = null;
+            var json = false;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--project-id":
+                        if (!TryReadValue(args, ref index, out projectId))
+                        {
+                            return ErrorResult("--project-id requires a value.");
+                        }
+
+                        break;
+                    case "--project-name":
+                        if (!TryReadValue(args, ref index, out projectName))
+                        {
+                            return ErrorResult("--project-name requires a value.");
+                        }
+
+                        break;
+                    case "--path":
+                        if (!TryReadValue(args, ref index, out projectPath))
+                        {
+                            return ErrorResult("--path requires a value.");
+                        }
+
+                        break;
+                    case "--machine-id":
+                        if (!TryReadValue(args, ref index, out machineId))
+                        {
+                            return ErrorResult("--machine-id requires a value.");
+                        }
+
+                        break;
+                    case "--machine-name":
+                        if (!TryReadValue(args, ref index, out machineName))
+                        {
+                            return ErrorResult("--machine-name requires a value.");
+                        }
+
+                        break;
+                    case "--platform":
+                        if (!TryReadValue(args, ref index, out platform))
+                        {
+                            return ErrorResult("--platform requires a value.");
+                        }
+
+                        break;
+                    default:
+                        return ErrorResult($"Unknown option '{args[index]}'.");
+                }
+            }
+
+            return new InitOptions
+            {
+                ConfigPath = configPath,
+                ConnectionString = connectionString,
+                Json = json,
+                ProjectId = projectId,
+                ProjectName = projectName,
+                ProjectPath = projectPath,
+                MachineId = machineId,
+                MachineName = machineName,
+                Platform = platform,
+            };
+        }
+
+        private static InitOptions ErrorResult(string error) => new() { Error = error };
     }
 
     private sealed class TaskCreateOptions : CliOptions
@@ -2963,4 +3218,15 @@ internal static class AegesCli
                 machineCount,
                 taskCounts);
     }
+
+    private sealed record InitResultOutput(
+        string RuntimeRootPath,
+        string ConfigPath,
+        string? DatabasePath,
+        bool DatabaseUpToDate,
+        ProjectOutput Project,
+        bool ProjectCreated,
+        MachineOutput Machine,
+        bool MachineCreated,
+        IReadOnlyList<string> NextSteps);
 }

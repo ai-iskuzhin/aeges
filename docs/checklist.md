@@ -85,6 +85,7 @@ review, test, and document independently.
 - [x] Add config loading model.
 - [x] Add `aeges db status`.
 - [x] Add `aeges db migrate`.
+- [x] Add `aeges init` first-run setup command.
 - [x] Add `aeges task create`.
 - [x] Add `aeges task status`.
 - [x] Add `aeges agent run` host shell.
@@ -196,6 +197,7 @@ review, test, and document independently.
 - [x] Add config loading model.
 - [x] Add `aeges db status`.
 - [x] Add `aeges db migrate`.
+- [x] Add `aeges init` first-run setup command.
 - [x] Add `aeges task create`.
 - [x] Add `aeges task status`.
 - [x] Add `aeges task cancel`.
