@@ -113,6 +113,8 @@ review, test, and document independently.
 - [x] Add GitHub release workflow for installer, package, and checksum assets.
 - [x] Add Windows PowerShell installer for local and release package installs.
 - [x] Document `develop` and `production` installer channels.
+- [x] Create separate `aeges-static` GitHub Pages repository scaffold for
+      `get.aeges.top`.
 
 ## Current Focus
 
@@ -120,6 +122,7 @@ review, test, and document independently.
 - [ ] Add unit tests for future core lifecycle and value object rules.
 - [ ] Create `develop` and `production` branches when remote repository policy
       is ready.
+- [ ] Push `aeges-static` and configure GitHub Pages custom domain.
 - [ ] Publish first version-tagged release and test remote installer URL.
 - [ ] Add Homebrew formula after release artifacts are stable.
 

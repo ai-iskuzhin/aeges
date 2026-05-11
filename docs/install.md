@@ -37,6 +37,26 @@ The current `main` branch can remain the repository default while the project is
 being shaped, but public install commands should move to `production` once that
 branch exists.
 
+## Static Install Site
+
+`get.aeges.top` is hosted from a separate static repository:
+
+```text
+~/work/aeges-static
+```
+
+That repository owns the GitHub Pages deployment, `public/CNAME`, the install
+landing page, and public copies of:
+
+```text
+public/install.sh
+public/install.ps1
+```
+
+The Aeges repository remains the source of truth for runtime code, release
+packages, and release tags. The static repository is the stable web entrypoint
+for installer scripts.
+
 ## Recommended Shell UX
 
 The friendly macOS/Linux install path should feel like Docker-style installers:
