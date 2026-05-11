@@ -2,6 +2,7 @@ namespace Aeges.Telegram;
 
 using Aeges.Core;
 using System.Collections.Concurrent;
+using RequestException = global::Telegram.Bot.Exceptions.RequestException;
 
 /// <summary>
 /// Runs a button-first Telegram long-polling loop around the interaction handler.
@@ -11,18 +12,22 @@ public sealed class TelegramLongPollingService
     private readonly ITelegramBotGateway gateway;
     private readonly TelegramInteractionHandler handler;
     private readonly ConcurrentDictionary<TaskWatchKey, TaskWatch> taskWatches = new();
+    private readonly TimeSpan transientErrorDelay;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TelegramLongPollingService"/> class.
     /// </summary>
     /// <param name="gateway">The Telegram network gateway.</param>
     /// <param name="handler">The deterministic interaction handler.</param>
+    /// <param name="transientErrorDelay">The delay before retrying after a transient Telegram transport error.</param>
     public TelegramLongPollingService(
         ITelegramBotGateway gateway,
-        TelegramInteractionHandler handler)
+        TelegramInteractionHandler handler,
+        TimeSpan? transientErrorDelay = null)
     {
         this.gateway = gateway;
         this.handler = handler;
+        this.transientErrorDelay = transientErrorDelay ?? TimeSpan.FromSeconds(2);
     }
 
     /// <summary>
@@ -38,8 +43,22 @@ public sealed class TelegramLongPollingService
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var result = await PollOnceAsync(nextOffset, options, cancellationToken);
-            nextOffset = result.NextOffset;
+            try
+            {
+                var result = await PollOnceAsync(nextOffset, options, cancellationToken);
+                nextOffset = result.NextOffset;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception) when (IsTransientTelegramTransportException(exception))
+            {
+                if (transientErrorDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(transientErrorDelay, cancellationToken);
+                }
+            }
         }
     }
 
@@ -203,6 +222,9 @@ public sealed class TelegramLongPollingService
 
     private static string CreateTaskFingerprint(RuntimeTask task) =>
         $"{task.Status.ToStorageValue()}:{task.CurrentIteration}:{task.FailureReason}";
+
+    private static bool IsTransientTelegramTransportException(Exception exception) =>
+        exception is RequestException or HttpRequestException or IOException;
 
     private readonly record struct TaskWatchKey(long ChatId, TaskId TaskId);
 

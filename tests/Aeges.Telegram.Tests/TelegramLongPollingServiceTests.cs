@@ -214,20 +214,69 @@ public sealed class TelegramLongPollingServiceTests
         Assert.Contains("completed tasks:", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task RunAsync_continues_after_transient_polling_failure()
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var gateway = new FakeTelegramBotGateway
+        {
+            ThrowTransientPollingFailureOnce = true,
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    1001,
+                    Text: "hello",
+                    CallbackData: null,
+                    CallbackQueryId: null),
+            ],
+        };
+        gateway.ResponseSent += (_, _) => cancellation.Cancel();
+        var service = CreateService(gateway, transientErrorDelay: TimeSpan.Zero);
+
+        await service.RunAsync(new TelegramLongPollingOptions(), cancellation.Token);
+
+        Assert.Equal(2, gateway.GetUpdatesCallCount);
+        Assert.Single(gateway.SentResponses);
+        Assert.Equal("talk_unavailable: Talk is not available in this test facade.", gateway.SentResponses[0].Response.Text);
+    }
+
+    [Fact]
+    public async Task RunAsync_stops_cleanly_when_cancelled()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var gateway = new FakeTelegramBotGateway();
+        gateway.BeforeGetUpdates += (_, _) => cancellation.Cancel();
+        var service = CreateService(gateway, transientErrorDelay: TimeSpan.Zero);
+
+        await service.RunAsync(new TelegramLongPollingOptions(), cancellation.Token);
+
+        Assert.Equal(1, gateway.GetUpdatesCallCount);
+    }
+
     private static TelegramLongPollingService CreateService(
         FakeTelegramBotGateway gateway,
-        FakeTelegramApplicationFacade? facade = null)
+        FakeTelegramApplicationFacade? facade = null,
+        TimeSpan? transientErrorDelay = null)
     {
         var handler = new TelegramInteractionHandler(
             facade ?? new FakeTelegramApplicationFacade(),
             new AegesTelegramConfiguration());
 
-        return new TelegramLongPollingService(gateway, handler);
+        return new TelegramLongPollingService(gateway, handler, transientErrorDelay);
     }
 
     private sealed class FakeTelegramBotGateway : ITelegramBotGateway
     {
         public IReadOnlyList<TelegramBotUpdate> Updates { get; set; } = [];
+
+        public bool ThrowTransientPollingFailureOnce { get; set; }
+
+        public int GetUpdatesCallCount { get; private set; }
+
+        public event EventHandler? BeforeGetUpdates;
+
+        public event EventHandler? ResponseSent;
 
         public List<string> AnsweredCallbackQueryIds { get; } = [];
 
@@ -248,6 +297,16 @@ public sealed class TelegramLongPollingServiceTests
             int timeoutSeconds,
             CancellationToken cancellationToken)
         {
+            GetUpdatesCallCount++;
+            BeforeGetUpdates?.Invoke(this, EventArgs.Empty);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (ThrowTransientPollingFailureOnce)
+            {
+                ThrowTransientPollingFailureOnce = false;
+                throw new HttpRequestException("Transient polling failure.");
+            }
+
             LastLimit = limit;
             LastTimeoutSeconds = timeoutSeconds;
 
@@ -260,6 +319,7 @@ public sealed class TelegramLongPollingServiceTests
             CancellationToken cancellationToken)
         {
             SentResponses.Add((chatId, response));
+            ResponseSent?.Invoke(this, EventArgs.Empty);
             return Task.FromResult<int?>(SentResponses.Count);
         }
 
