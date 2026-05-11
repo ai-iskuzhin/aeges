@@ -27,6 +27,7 @@ public sealed class CodexTalkRunnerTests
         Assert.Equal("thread-001", result.ExternalSessionId);
         Assert.True(File.Exists(result.ResponseArtifactPath));
         Assert.Contains("read-only", executor.LastCommand!.Arguments);
+        Assert.Contains("--skip-git-repo-check", executor.LastCommand.Arguments);
         Assert.Equal("Discuss Aeges.", executor.LastCommand.StandardInput);
     }
 

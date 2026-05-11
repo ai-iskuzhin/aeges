@@ -155,6 +155,7 @@ public sealed class CodexTalkRunner : ITalkRunner
                 "--json",
                 "--cd",
                 workingDirectory,
+                "--skip-git-repo-check",
             ];
         }
 
@@ -168,6 +169,7 @@ public sealed class CodexTalkRunner : ITalkRunner
             options.SandboxMode,
             "--cd",
             workingDirectory,
+            "--skip-git-repo-check",
         ];
     }
 
