@@ -225,9 +225,10 @@ https://github.com/ai-iskuzhin/aeges/releases/download/v0.1.0-alpha.1/Aeges.Cli.
 ```
 
 The release workflow builds, tests, packs the CLI tool, stages `install.sh` and
-`install.ps1`, and generates SHA-256 checksums. Tags named `v*` publish a GitHub
-release; manual workflow runs upload the same files as workflow artifacts
-without publishing a release.
+`install.ps1`, generates SHA-256 checksums, extracts the matching
+`CHANGELOG.md` section, and creates a GitHub release with `gh release create`.
+Tags named `v*` publish a release. Tags containing a hyphen, such as
+`v0.1.0-alpha.1`, are marked as prereleases.
 
 ## macOS And Linux: Homebrew
 

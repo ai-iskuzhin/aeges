@@ -123,7 +123,7 @@ review, test, and document independently.
 - [x] Create `develop` and `production` branches when remote repository policy
       is ready.
 - [x] Push `aeges-static` and configure GitHub Pages custom domain.
-- [ ] Publish first version-tagged release and test remote installer URL.
+- [x] Publish first version-tagged release and test remote installer URL.
 - [ ] Add Homebrew formula after release artifacts are stable.
 
 ## Storage Foundation

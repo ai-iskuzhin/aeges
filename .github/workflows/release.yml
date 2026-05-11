@@ -4,38 +4,21 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Package version to build, for example 0.1.0-alpha.1"
-        required: true
-        type: string
 
 permissions:
   contents: write
 
 jobs:
-  package:
+  github-release:
+    name: Create GitHub Release
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Resolve version
-        id: version
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            version="${{ inputs.version }}"
-          else
-            version="${GITHUB_REF_NAME#v}"
-          fi
-          echo "value=${version}" >> "$GITHUB_OUTPUT"
+        uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
 
@@ -52,27 +35,66 @@ jobs:
         run: >
           dotnet pack src/Aeges.Cli/Aeges.Cli.csproj
           -c Release
-          -p:PackageVersion=${{ steps.version.outputs.value }}
-          -o .artifacts/release
+          -p:PackageVersion=${GITHUB_REF_NAME#v}
+          -o artifacts/release
 
       - name: Stage installer
         run: |
-          cp scripts/install.sh .artifacts/release/install.sh
-          cp scripts/install.ps1 .artifacts/release/install.ps1
+          cp scripts/install.sh artifacts/release/install.sh
+          cp scripts/install.ps1 artifacts/release/install.ps1
 
       - name: Write checksums
-        working-directory: .artifacts/release
+        working-directory: artifacts/release
         run: sha256sum * > SHA256SUMS
 
-      - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: aeges-release-${{ steps.version.outputs.value }}
-          path: .artifacts/release/*
+      - name: Extract changelog notes
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          version="${TAG_NAME#v}"
+          notes_path="artifacts/release-notes.md"
+
+          awk -v version="$version" '
+            $0 == "## [" version "]" || index($0, "## [" version "] - ") == 1 {
+              in_section = 1
+              next
+            }
+
+            in_section && /^## \[/ {
+              exit
+            }
+
+            in_section {
+              print
+            }
+          ' CHANGELOG.md > "$notes_path"
+
+          if [ ! -s "$notes_path" ]; then
+            {
+              echo "Aeges ${version}"
+              echo
+              echo "No changelog entry was found for ${version}."
+            } > "$notes_path"
+          fi
 
       - name: Publish GitHub release
-        if: github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: .artifacts/release/*
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          args=(
+            artifacts/release/*
+            --title "Aeges ${TAG_NAME#v}"
+            --notes-file artifacts/release-notes.md
+            --verify-tag
+          )
+
+          if [[ "$TAG_NAME" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+
+          gh release create "$TAG_NAME" "${args[@]}"
