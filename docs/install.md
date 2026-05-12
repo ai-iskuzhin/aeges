@@ -62,6 +62,14 @@ The Aeges repository remains the source of truth for runtime code, release
 packages, and release tags. The static repository is the stable web entrypoint
 for installer scripts.
 
+Version tag releases can update the static repository automatically. Configure a
+repository secret named `AEGES_STATIC_TOKEN` with permission to push to
+`ai-iskuzhin/aeges-static`. When the secret is present, the Aeges release
+workflow copies the generated `install.sh` and `install.ps1` into
+`aeges-static/public`, updates the landing page version text, commits the
+change, and pushes the static repository's `production` branch. GitHub Pages in
+`aeges-static` then publishes `get.aeges.top`.
+
 ## Recommended Shell UX
 
 The friendly macOS/Linux install path should feel like Docker-style installers:

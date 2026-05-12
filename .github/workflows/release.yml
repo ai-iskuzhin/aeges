@@ -10,6 +10,7 @@ permissions:
 
 env:
   NUGET_TOKEN: ${{ secrets.NUGET_TOKEN }}
+  HAS_AEGES_STATIC_TOKEN: ${{ secrets.AEGES_STATIC_TOKEN != '' }}
 
 jobs:
   github-release:
@@ -114,3 +115,44 @@ jobs:
           fi
 
           gh release create "$TAG_NAME" "${args[@]}"
+
+      - name: Checkout static installer site
+        if: env.HAS_AEGES_STATIC_TOKEN == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: ai-iskuzhin/aeges-static
+          ref: production
+          path: aeges-static
+          token: ${{ secrets.AEGES_STATIC_TOKEN }}
+
+      - name: Sync static installer site
+        if: env.HAS_AEGES_STATIC_TOKEN == 'true'
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          version="${TAG_NAME#v}"
+
+          cp artifacts/release/install.sh aeges-static/public/install.sh
+          cp artifacts/release/install.ps1 aeges-static/public/install.ps1
+
+          perl -0pi -e "s/AEGES_VERSION=[0-9A-Za-z_.-]+/AEGES_VERSION=${version}/g" aeges-static/public/index.html
+          perl -0pi -e "s/aeges/releases\/tag\/v[0-9A-Za-z_.-]+/aeges/releases\/tag\/v${version}/g" aeges-static/public/index.html
+
+          cd aeges-static
+
+          if git diff --quiet -- public; then
+            echo "Static installer site is already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/install.sh public/install.ps1 public/index.html
+          git commit -m "Update installers for ${version}"
+          git push origin production
+
+      - name: Skip static installer site sync
+        if: env.HAS_AEGES_STATIC_TOKEN != 'true'
+        run: echo "AEGES_STATIC_TOKEN is not configured; skipping aeges-static sync."

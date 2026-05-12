@@ -123,6 +123,7 @@ review, test, and document independently.
 - [x] Document `develop` and `production` installer channels.
 - [x] Create separate `aeges-static` GitHub Pages repository scaffold for
       `get.aeges.top`.
+- [x] Sync `aeges-static` installer files automatically from tagged releases.
 
 ## Current Focus
 
