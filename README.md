@@ -21,8 +21,9 @@ Yes, as an MVP for local governed execution. Today you can:
 - organize projects with discovery roots and explicit groups
 - talk directly with the configured coding-agent runner without creating a task
 - create, inspect, and cancel durable tasks
-- run a local agent pass that heartbeats, claims one queued task, creates an
-  iteration, writes prompt artifacts, and records runner paths
+- run a local agent pass that heartbeats, claims queued work with explicit
+  project-bounded parallelism, creates iterations, writes prompt artifacts, and
+  records runner paths
 - optionally create an isolated Git worktree before runner execution
 - optionally execute the deterministic mock runner or local Codex CLI runner
 - use Telegram long polling with buttons for projects, machines, queued tasks,
@@ -193,9 +194,12 @@ aeges agent run \
   --machine-id local
 ```
 
-That pass claims at most one queued task, moves it into planning, creates the
-first iteration, writes a prompt artifact, and records planned artifact/worktree
-paths. It does not launch an AI worker unless you explicitly ask it to.
+That pass claims queued tasks, moves them into planning, creates iterations,
+writes prompt artifacts, and records planned artifact/worktree paths. It does
+not launch an AI worker unless you explicitly ask it to. By default the agent
+claims one task at a time. Use `--max-parallel-tasks <n>` to allow parallel
+execution across different projects; later tasks from the same project stay
+queued until active work for that project is done.
 
 For normal local use, start the background agent worker instead. It keeps
 polling the queue and, by default, creates an isolated worktree and executes the
@@ -473,9 +477,9 @@ aeges task create --project-id <id> --machine-id <id> --title <title> --goal <go
 aeges task status <task-id> [...]
 aeges task cancel <task-id> [...]
 aeges task continue <task-id> --feedback <text> [...]
-aeges agent run [--once] [--runner-id <id>] [--create-worktree] [--execute-runner] [...]
-aeges agent start [--runner-id <id>] [--no-execute-runner] [--no-create-worktree] [...]
-aeges agent restart [--runner-id <id>] [--no-execute-runner] [--no-create-worktree] [...]
+aeges agent run [--once] [--runner-id <id>] [--max-parallel-tasks <int>] [...]
+aeges agent start [--runner-id <id>] [--max-parallel-tasks <int>] [...]
+aeges agent restart [--runner-id <id>] [--max-parallel-tasks <int>] [...]
 aeges agent status [--json]
 aeges agent stop [--json]
 aeges telegram setup [...]

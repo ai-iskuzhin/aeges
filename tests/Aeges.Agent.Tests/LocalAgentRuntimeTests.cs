@@ -151,6 +151,114 @@ public sealed class LocalAgentRuntimeTests
     }
 
     [Fact]
+    public async Task RunOnce_can_claim_parallel_tasks_from_different_projects()
+    {
+        var clock = new FixedClock(new DateTimeOffset(2026, 05, 08, 08, 00, 00, TimeSpan.Zero));
+        var runtime = new LocalAgentRuntime(clock);
+        var databasePath = Path.Combine(Path.GetTempPath(), $"aeges-agent-{Guid.NewGuid():N}.db");
+        var connectionString = $"Data Source={databasePath}";
+        var runtimeRoot = Path.Combine(Path.GetTempPath(), $"aeges-runtime-{Guid.NewGuid():N}");
+
+        try
+        {
+            await SeedProjectsMachineAndTasksAsync(
+                connectionString,
+                clock.Now,
+                new MachineId("machine-001"),
+                [
+                    new SeedTask("project-001", "Aeges", "/work/aeges", "task-001"),
+                    new SeedTask("project-002", "Website", "/work/site", "task-002"),
+                ]);
+
+            var snapshot = await runtime.RunOnceAsync(
+                new AgentRunOptions(
+                    connectionString,
+                    "machine-001",
+                    "local-test",
+                    "test-platform",
+                    MaxParallelTasks: 2,
+                    RunnerId: "mock",
+                    RuntimeRootPath: runtimeRoot),
+                CancellationToken.None);
+
+            await using var context = new AegesDbContext(AegesDbContextOptions.Create(connectionString));
+            var unitOfWork = new SqliteUnitOfWork(context);
+            var firstTask = await unitOfWork.Tasks.GetByIdAsync(new TaskId("task-001"), CancellationToken.None);
+            var secondTask = await unitOfWork.Tasks.GetByIdAsync(new TaskId("task-002"), CancellationToken.None);
+
+            Assert.Equal(2, snapshot.ClaimedTasks.Count);
+            Assert.Contains(snapshot.ClaimedTasks, task => task.TaskId == "task-001" && task.ProjectId == "project-001");
+            Assert.Contains(snapshot.ClaimedTasks, task => task.TaskId == "task-002" && task.ProjectId == "project-002");
+            Assert.Equal("task-001", snapshot.ClaimedTaskId);
+            Assert.Equal(0, snapshot.QueuedTaskCount);
+            Assert.NotNull(firstTask);
+            Assert.NotNull(secondTask);
+            Assert.Equal(RuntimeTaskStatus.Planning, firstTask.Status);
+            Assert.Equal(RuntimeTaskStatus.Planning, secondTask.Status);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+            DeleteIfExists($"{databasePath}-shm");
+            DeleteIfExists($"{databasePath}-wal");
+            DeleteDirectoryIfExists(runtimeRoot);
+        }
+    }
+
+    [Fact]
+    public async Task RunOnce_serializes_queued_tasks_from_the_same_project()
+    {
+        var clock = new FixedClock(new DateTimeOffset(2026, 05, 08, 08, 00, 00, TimeSpan.Zero));
+        var runtime = new LocalAgentRuntime(clock);
+        var databasePath = Path.Combine(Path.GetTempPath(), $"aeges-agent-{Guid.NewGuid():N}.db");
+        var connectionString = $"Data Source={databasePath}";
+        var runtimeRoot = Path.Combine(Path.GetTempPath(), $"aeges-runtime-{Guid.NewGuid():N}");
+
+        try
+        {
+            await SeedProjectsMachineAndTasksAsync(
+                connectionString,
+                clock.Now,
+                new MachineId("machine-001"),
+                [
+                    new SeedTask("project-001", "Aeges", "/work/aeges", "task-001"),
+                    new SeedTask("project-001", "Aeges", "/work/aeges", "task-002"),
+                ]);
+
+            var snapshot = await runtime.RunOnceAsync(
+                new AgentRunOptions(
+                    connectionString,
+                    "machine-001",
+                    "local-test",
+                    "test-platform",
+                    MaxParallelTasks: 2,
+                    RunnerId: "mock",
+                    RuntimeRootPath: runtimeRoot),
+                CancellationToken.None);
+
+            await using var context = new AegesDbContext(AegesDbContextOptions.Create(connectionString));
+            var unitOfWork = new SqliteUnitOfWork(context);
+            var firstTask = await unitOfWork.Tasks.GetByIdAsync(new TaskId("task-001"), CancellationToken.None);
+            var secondTask = await unitOfWork.Tasks.GetByIdAsync(new TaskId("task-002"), CancellationToken.None);
+
+            var claimedTask = Assert.Single(snapshot.ClaimedTasks);
+            Assert.Equal("task-001", claimedTask.TaskId);
+            Assert.Equal(1, snapshot.QueuedTaskCount);
+            Assert.NotNull(firstTask);
+            Assert.NotNull(secondTask);
+            Assert.Equal(RuntimeTaskStatus.Planning, firstTask.Status);
+            Assert.Equal(RuntimeTaskStatus.Queued, secondTask.Status);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+            DeleteIfExists($"{databasePath}-shm");
+            DeleteIfExists($"{databasePath}-wal");
+            DeleteDirectoryIfExists(runtimeRoot);
+        }
+    }
+
+    [Fact]
     public async Task RunOnce_does_not_claim_task_assigned_to_another_machine()
     {
         var clock = new FixedClock(new DateTimeOffset(2026, 05, 08, 08, 00, 00, TimeSpan.Zero));
@@ -368,28 +476,62 @@ public sealed class LocalAgentRuntimeTests
         MachineId taskMachineId,
         string projectPath = "/work/aeges")
     {
+        await SeedProjectsMachineAndTasksAsync(
+            connectionString,
+            now,
+            taskMachineId,
+            [new SeedTask("project-001", "Aeges", projectPath, "task-001")]);
+    }
+
+    private static async Task SeedProjectsMachineAndTasksAsync(
+        string connectionString,
+        DateTimeOffset now,
+        MachineId taskMachineId,
+        IReadOnlyList<SeedTask> tasks)
+    {
         await using var context = new AegesDbContext(AegesDbContextOptions.Create(connectionString));
         await SqlitePragmas.ApplyAsync(context, CancellationToken.None);
         await context.Database.MigrateAsync(CancellationToken.None);
         var unitOfWork = new SqliteUnitOfWork(context);
 
-        await unitOfWork.Projects.AddAsync(
-            RuntimeProject.Create(new ProjectId("project-001"), "Aeges", projectPath, now),
-            CancellationToken.None);
+        foreach (var project in tasks
+            .GroupBy(task => task.ProjectId)
+            .Select(group => group.First()))
+        {
+            await unitOfWork.Projects.AddAsync(
+                RuntimeProject.Create(
+                    new ProjectId(project.ProjectId),
+                    project.ProjectName,
+                    project.ProjectPath,
+                    now),
+                CancellationToken.None);
+        }
+
         await unitOfWork.Machines.AddAsync(
             RuntimeMachine.Create(taskMachineId, $"machine-{taskMachineId.Value}", "test-platform", now),
             CancellationToken.None);
-        await unitOfWork.Tasks.AddAsync(
-            RuntimeTask.Create(
-                new TaskId("task-001"),
-                new ProjectId("project-001"),
-                taskMachineId,
-                "Queued task",
-                "Do governed work.",
-                now),
-            CancellationToken.None);
+
+        foreach (var task in tasks)
+        {
+            await unitOfWork.Tasks.AddAsync(
+                RuntimeTask.Create(
+                    new TaskId(task.TaskId),
+                    new ProjectId(task.ProjectId),
+                    taskMachineId,
+                    "Queued task",
+                    "Do governed work.",
+                    now),
+                CancellationToken.None);
+        }
+
         await unitOfWork.SaveChangesAsync(CancellationToken.None);
     }
+
+    private sealed record SeedTask(
+        string ProjectId,
+        string ProjectName,
+        string ProjectPath,
+        string TaskId);
 
     private sealed class TemporaryGitRepository : IDisposable
     {

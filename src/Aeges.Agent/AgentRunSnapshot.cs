@@ -19,6 +19,7 @@ namespace Aeges.Agent;
 /// <param name="RunnerErrorSummary">The runner error summary, when execution did not succeed.</param>
 /// <param name="WorktreeCreated">A value indicating whether a Git worktree was created for the iteration.</param>
 /// <param name="WorktreeBaseCommit">The base commit used for the created worktree, when known.</param>
+/// <param name="ClaimedTasks">The task-level work items claimed by this heartbeat.</param>
 public sealed record AgentRunSnapshot(
     string MachineId,
     string? DatabasePath,
@@ -35,4 +36,12 @@ public sealed record AgentRunSnapshot(
     int? RunnerExitCode = null,
     string? RunnerErrorSummary = null,
     bool WorktreeCreated = false,
-    string? WorktreeBaseCommit = null);
+    string? WorktreeBaseCommit = null,
+    IReadOnlyList<AgentTaskRunSnapshot>? ClaimedTasks = null)
+{
+    /// <summary>
+    /// Gets the task-level work items claimed by this heartbeat.
+    /// </summary>
+    public IReadOnlyList<AgentTaskRunSnapshot> ClaimedTasks { get; init; } =
+        ClaimedTasks ?? Array.Empty<AgentTaskRunSnapshot>();
+}

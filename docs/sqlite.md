@@ -131,10 +131,15 @@ and create a queued task without Telegram or a future control plane.
 folders, and project registrations when run with `--apply`. Passing a
 registered root id remains available for deterministic scripts.
 
-`agent run --once` records a heartbeat and may claim one queued task assigned to
-the configured machine. The claim moves the task into planning and creates a
-bounded iteration with the configured runner id. Use `--no-claim` to keep the
-command as a heartbeat and queue-preview check only.
+`agent run --once` records a heartbeat and may claim queued tasks assigned to
+the configured machine. Claimed tasks move into planning and receive bounded
+iterations with the configured runner id. Use `--no-claim` to keep the command
+as a heartbeat and queue-preview check only.
+
+The agent's concurrency limit is explicit. `--max-parallel-tasks` allows
+parallel work across projects, while same-project work remains serialized by
+leaving later queued tasks untouched until active work for that project reaches
+a terminal state.
 
 Runtime code may call EF Core migration APIs during local agent startup when
 configured to manage the local SQLite database automatically.

@@ -26,10 +26,12 @@ The application layer creates each next bounded iteration by incrementing the
 task iteration counter and inserting the iteration record inside one unit-of-work
 transaction. Terminal tasks cannot create new iterations.
 
-The local agent currently claims at most one queued task per run for its
-configured machine, moves it into planning, and creates the first bounded
-iteration. Runner process execution is intentionally layered after this
-deterministic claim step.
+The local agent claims queued tasks for its configured machine using explicit
+bounded parallelism. The default limit is one task per heartbeat. When
+`--max-parallel-tasks` is greater than one, the agent may claim and execute
+tasks from different projects in parallel, but it will not claim a second active
+task for the same project while that project already has planning, running,
+reviewing, or approval-waiting work.
 
 The application layer exposes these lifecycle changes as task use cases. It
 loads the task from storage, delegates transition validation to the core domain

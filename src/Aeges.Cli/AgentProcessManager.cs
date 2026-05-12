@@ -199,6 +199,8 @@ internal sealed class AgentProcessManager
             request.PollIntervalSeconds.ToString(),
             "--queue-preview-limit",
             request.QueuePreviewLimit.ToString(),
+            "--max-parallel-tasks",
+            request.MaxParallelTasks.ToString(),
         };
 
         if (!request.ClaimQueuedTask)
@@ -384,6 +386,7 @@ internal sealed record AgentProcessStartRequest(
     string? RunnerId,
     int PollIntervalSeconds,
     int QueuePreviewLimit,
+    int MaxParallelTasks,
     bool ClaimQueuedTask,
     bool ExecuteRunner,
     bool CreateWorktree);

@@ -74,75 +74,85 @@ public sealed class LocalAgentRuntime
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        string? claimedTaskId = null;
-        string? createdIterationId = null;
-        string? promptArtifactId = null;
-        string? promptPath = null;
-        string? worktreePath = null;
-        string? artifactOutputDirectory = null;
-        string? runnerExecutionId = null;
-        string? runnerStatus = null;
-        int? runnerExitCode = null;
-        string? runnerErrorSummary = null;
-        var worktreeCreated = false;
-        string? worktreeBaseCommit = null;
+        var claimedTasks = new List<PreparedClaim>();
 
         if (options.ClaimQueuedTask)
         {
-            var claim = await ClaimNextQueuedTaskAsync(unitOfWork, machineId, options, cancellationToken);
-            claimedTaskId = claim.ClaimedTaskId;
-            createdIterationId = claim.CreatedIterationId;
-            promptArtifactId = claim.PromptArtifactId;
-            promptPath = claim.PromptPath;
-            worktreePath = claim.WorktreePath;
-            artifactOutputDirectory = claim.ArtifactOutputDirectory;
-            runnerExecutionId = claim.RunnerExecutionId;
-            runnerStatus = claim.RunnerStatus;
-            runnerExitCode = claim.RunnerExitCode;
-            runnerErrorSummary = claim.RunnerErrorSummary;
-            worktreeCreated = claim.WorktreeCreated;
-            worktreeBaseCommit = claim.WorktreeBaseCommit;
+            var claimedProjectIds = new HashSet<string>(StringComparer.Ordinal);
+
+            for (var index = 0; index < options.MaxParallelTasks; index++)
+            {
+                var claim = await ClaimNextQueuedTaskAsync(
+                    unitOfWork,
+                    machineId,
+                    options,
+                    claimedProjectIds,
+                    cancellationToken);
+
+                if (claim is null)
+                {
+                    break;
+                }
+
+                claimedTasks.Add(claim);
+                claimedProjectIds.Add(claim.ProjectId.Value);
+            }
+
+            if (options.ExecuteRunner && claimedTasks.Count > 0)
+            {
+                var executedClaims = await Task.WhenAll(
+                    claimedTasks.Select(claim => ExecutePreparedClaimAsync(claim, options, cancellationToken)));
+                claimedTasks = executedClaims.ToList();
+            }
         }
 
         var queuedTasks = await unitOfWork.Tasks.ListByStatusAsync(
             RuntimeTaskStatus.Queued,
             options.QueuedTaskPreviewLimit,
             cancellationToken);
+        var taskSnapshots = claimedTasks.Select(claim => claim.Snapshot).ToArray();
+        var firstTask = taskSnapshots.FirstOrDefault();
 
         return new AgentRunSnapshot(
             machine.Id.Value,
             context.Database.GetDbConnection().DataSource,
             now,
             queuedTasks.Count,
-            claimedTaskId,
-            createdIterationId,
-            promptArtifactId,
-            promptPath,
-            worktreePath,
-            artifactOutputDirectory,
-            runnerExecutionId,
-            runnerStatus,
-            runnerExitCode,
-            runnerErrorSummary,
-            worktreeCreated,
-            worktreeBaseCommit);
+            firstTask?.TaskId,
+            firstTask?.CreatedIterationId,
+            firstTask?.PromptArtifactId,
+            firstTask?.PromptPath,
+            firstTask?.WorktreePath,
+            firstTask?.ArtifactOutputDirectory,
+            firstTask?.RunnerExecutionId,
+            firstTask?.RunnerStatus,
+            firstTask?.RunnerExitCode,
+            firstTask?.RunnerErrorSummary,
+            firstTask?.WorktreeCreated ?? false,
+            firstTask?.WorktreeBaseCommit,
+            taskSnapshots);
     }
 
-    private async Task<ClaimResult> ClaimNextQueuedTaskAsync(
+    private async Task<PreparedClaim?> ClaimNextQueuedTaskAsync(
         SqliteUnitOfWork unitOfWork,
         MachineId machineId,
         AgentRunOptions options,
+        ISet<string> claimedProjectIds,
         CancellationToken cancellationToken)
     {
+        var activeProjectIds = await ListActiveProjectIdsAsync(unitOfWork, cancellationToken);
         var queuedTasks = await unitOfWork.Tasks.ListByStatusAsync(
             RuntimeTaskStatus.Queued,
             options.QueuedTaskPreviewLimit,
             cancellationToken);
-        var task = queuedTasks.FirstOrDefault(candidate => candidate.MachineId == machineId);
+        var task = queuedTasks.FirstOrDefault(candidate =>
+            candidate.MachineId == machineId
+            && !activeProjectIds.Contains(candidate.ProjectId.Value)
+            && !claimedProjectIds.Contains(candidate.ProjectId.Value));
 
         if (task is null)
         {
-            return ClaimResult.Empty;
+            return null;
         }
 
         var taskService = new TaskService(unitOfWork, clock);
@@ -171,32 +181,74 @@ public sealed class LocalAgentRuntime
             worktree = await CreateWorktreeAsync(task, prepared.Project, iteration.Value!, prepared.RunnerRequest, cancellationToken);
         }
 
-        RunnerRunSummary? runnerRun = null;
-
-        if (options.ExecuteRunner)
-        {
-            runnerRun = await ExecuteRunnerAsync(
-                unitOfWork,
-                task.Id,
-                iteration.Value!.Id,
-                prepared.RunnerRequest,
-                options,
-                cancellationToken);
-        }
-
-        return new ClaimResult(
+        var snapshot = new AgentTaskRunSnapshot(
             task.Id.Value,
+            task.ProjectId.Value,
             iteration.Value!.Id.Value,
             prepared.PromptArtifactId,
             prepared.PromptPath,
             prepared.WorktreePath,
             prepared.ArtifactOutputDirectory,
-            runnerRun?.RunnerExecutionId,
-            runnerRun?.Status,
-            runnerRun?.ExitCode,
-            runnerRun?.ErrorSummary,
+            null,
+            null,
+            null,
+            null,
             worktree is not null,
             worktree?.BaseCommit);
+
+        return new PreparedClaim(task.Id, task.ProjectId, iteration.Value.Id, prepared.RunnerRequest, snapshot);
+    }
+
+    private async Task<PreparedClaim> ExecutePreparedClaimAsync(
+        PreparedClaim claim,
+        AgentRunOptions options,
+        CancellationToken cancellationToken)
+    {
+        await using var context = new AegesDbContext(AegesDbContextOptions.Create(options.ConnectionString));
+        await SqlitePragmas.ApplyAsync(context, cancellationToken);
+        var unitOfWork = new SqliteUnitOfWork(context);
+        var runnerRun = await ExecuteRunnerAsync(
+            unitOfWork,
+            claim.TaskId,
+            claim.IterationId,
+            claim.RunnerRequest,
+            options,
+            cancellationToken);
+        var snapshot = claim.Snapshot with
+        {
+            RunnerExecutionId = runnerRun.RunnerExecutionId,
+            RunnerStatus = runnerRun.Status,
+            RunnerExitCode = runnerRun.ExitCode,
+            RunnerErrorSummary = runnerRun.ErrorSummary,
+        };
+
+        return claim with { Snapshot = snapshot };
+    }
+
+    private static async Task<HashSet<string>> ListActiveProjectIdsAsync(
+        SqliteUnitOfWork unitOfWork,
+        CancellationToken cancellationToken)
+    {
+        var projectIds = new HashSet<string>(StringComparer.Ordinal);
+        var activeStatuses = new[]
+        {
+            RuntimeTaskStatus.Planning,
+            RuntimeTaskStatus.Running,
+            RuntimeTaskStatus.Reviewing,
+            RuntimeTaskStatus.WaitingApproval,
+        };
+
+        foreach (var status in activeStatuses)
+        {
+            var tasks = await unitOfWork.Tasks.ListByStatusAsync(status, int.MaxValue, cancellationToken);
+
+            foreach (var task in tasks)
+            {
+                projectIds.Add(task.ProjectId.Value);
+            }
+        }
+
+        return projectIds;
     }
 
     private async Task<PreparedRunnerBundle> PrepareRunnerBundleAsync(
@@ -515,6 +567,14 @@ public sealed class LocalAgentRuntime
                 "Queued task preview limit must be greater than zero.");
         }
 
+        if (options.MaxParallelTasks <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                options.MaxParallelTasks,
+                "Maximum parallel tasks must be greater than zero.");
+        }
+
         if (string.IsNullOrWhiteSpace(options.RunnerId))
         {
             throw new ArgumentException("Runner ID must not be empty.", nameof(options));
@@ -700,20 +760,10 @@ public sealed class LocalAgentRuntime
         int? ExitCode,
         string? ErrorSummary);
 
-    private sealed record ClaimResult(
-        string? ClaimedTaskId,
-        string? CreatedIterationId,
-        string? PromptArtifactId,
-        string? PromptPath,
-        string? WorktreePath,
-        string? ArtifactOutputDirectory,
-        string? RunnerExecutionId,
-        string? RunnerStatus,
-        int? RunnerExitCode,
-        string? RunnerErrorSummary,
-        bool WorktreeCreated,
-        string? WorktreeBaseCommit)
-    {
-        public static ClaimResult Empty { get; } = new(null, null, null, null, null, null, null, null, null, null, false, null);
-    }
+    private sealed record PreparedClaim(
+        TaskId TaskId,
+        ProjectId ProjectId,
+        IterationId IterationId,
+        RunnerRequest RunnerRequest,
+        AgentTaskRunSnapshot Snapshot);
 }

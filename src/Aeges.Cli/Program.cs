@@ -516,6 +516,7 @@ internal static class AegesCli
                         configuration.Runners.Default,
                         PollIntervalSeconds: 5,
                         QueuePreviewLimit: 100,
+                        MaxParallelTasks: 1,
                         ClaimQueuedTask: true,
                         ExecuteRunner: true,
                         CreateWorktree: true),
@@ -972,7 +973,7 @@ internal static class AegesCli
             if (options.Once)
             {
                 var snapshot = await runtime.RunOnceAsync(agentOptions, cancellationToken);
-                await TraceAsync($"agent run: queued={snapshot.QueuedTaskCount} claimed={snapshot.ClaimedTaskId ?? "(none)"}");
+                await TraceAsync($"agent run: queued={snapshot.QueuedTaskCount} claimed={snapshot.ClaimedTasks.Count}");
                 await WriteAgentSnapshotAsync(snapshot, options.Json, output);
                 return 0;
             }
@@ -982,10 +983,8 @@ internal static class AegesCli
                 output,
                 "agent",
                 "info",
-                $"Started machine={agentOptions.MachineId} runner={agentOptions.RunnerId} pollInterval={options.PollInterval} claimQueued={agentOptions.ClaimQueuedTask} createWorktree={agentOptions.CreateWorktree} executeRunner={agentOptions.ExecuteRunner}");
+                $"Started machine={agentOptions.MachineId} runner={agentOptions.RunnerId} pollInterval={options.PollInterval} maxParallelTasks={agentOptions.MaxParallelTasks} claimQueued={agentOptions.ClaimQueuedTask} createWorktree={agentOptions.CreateWorktree} executeRunner={agentOptions.ExecuteRunner}");
 
-            // The initial shell deliberately performs bounded heartbeats only.
-            // Task dispatch will be layered in later behind governed workflow checks.
             while (!cancellationToken.IsCancellationRequested)
             {
                 var snapshot = await runtime.RunOnceAsync(agentOptions, cancellationToken);
@@ -1035,6 +1034,7 @@ internal static class AegesCli
                 options.RunnerId,
                 options.PollIntervalSeconds,
                 options.QueuePreviewLimit,
+                options.MaxParallelTasks,
                 options.ClaimQueuedTask,
                 options.ExecuteRunner,
                 options.CreateWorktree),
@@ -1074,6 +1074,7 @@ internal static class AegesCli
                 options.RunnerId,
                 options.PollIntervalSeconds,
                 options.QueuePreviewLimit,
+                options.MaxParallelTasks,
                 options.ClaimQueuedTask,
                 options.ExecuteRunner,
                 options.CreateWorktree),
@@ -2729,6 +2730,7 @@ internal static class AegesCli
             options.MachineName ?? Environment.MachineName,
             options.Platform ?? RuntimeInformation.OSDescription,
             options.QueuePreviewLimit,
+            options.MaxParallelTasks,
             options.RunnerId ?? configuration.Runners.Default,
             layout.RootPath,
             TimeSpan.FromSeconds(configuration.Runners.Codex.TimeoutSeconds),
@@ -3187,6 +3189,7 @@ internal static class AegesCli
         await output.WriteLineAsync($"Agent heartbeat: {snapshot.MachineId}");
         await output.WriteLineAsync($"Database: {snapshot.DatabasePath ?? "(unknown)"}");
         await output.WriteLineAsync($"Queued tasks: {snapshot.QueuedTaskCount}");
+        await output.WriteLineAsync($"Claimed tasks: {snapshot.ClaimedTasks.Count}");
         await output.WriteLineAsync($"Claimed task: {snapshot.ClaimedTaskId ?? "(none)"}");
         await output.WriteLineAsync($"Created iteration: {snapshot.CreatedIterationId ?? "(none)"}");
         await output.WriteLineAsync($"Prompt artifact: {snapshot.PromptArtifactId ?? "(none)"}");
@@ -3200,6 +3203,12 @@ internal static class AegesCli
         await output.WriteLineAsync($"Runner error: {snapshot.RunnerErrorSummary ?? "(none)"}");
         await output.WriteLineAsync($"Worktree created: {snapshot.WorktreeCreated}");
         await output.WriteLineAsync($"Worktree base commit: {snapshot.WorktreeBaseCommit ?? "(none)"}");
+        foreach (var claimedTask in snapshot.ClaimedTasks.Skip(1))
+        {
+            await output.WriteLineAsync(
+                $"Claimed task: {claimedTask.TaskId} | project={claimedTask.ProjectId} | iteration={claimedTask.CreatedIterationId} | runner={claimedTask.RunnerStatus ?? "(not executed)"}");
+        }
+
         await output.WriteLineAsync($"Heartbeat: {snapshot.HeartbeatAt:O}");
     }
 
@@ -3681,9 +3690,9 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task cancel <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task continue <task-id> --feedback <text> [--config <path>] [--connection-string <value>] [--json]");
-        await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--create-worktree] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
-        await error.WriteLineAsync("  aeges agent start [--machine-id <id>] [--runner-id <id>] [--no-claim] [--no-create-worktree] [--no-execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
-        await error.WriteLineAsync("  aeges agent restart [--machine-id <id>] [--runner-id <id>] [--no-claim] [--no-create-worktree] [--no-execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--create-worktree] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--max-parallel-tasks <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges agent start [--machine-id <id>] [--runner-id <id>] [--no-claim] [--no-create-worktree] [--no-execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--max-parallel-tasks <int>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges agent restart [--machine-id <id>] [--runner-id <id>] [--no-claim] [--no-create-worktree] [--no-execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--max-parallel-tasks <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent status [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent stop [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges telegram setup [--config <path>]");
@@ -4989,6 +4998,8 @@ internal static class AegesCli
 
         public int QueuePreviewLimit { get; private init; } = 100;
 
+        public int MaxParallelTasks { get; private init; } = 1;
+
         public string? RunnerId { get; private init; }
 
         public bool ClaimQueuedTask { get; private init; } = true;
@@ -5009,6 +5020,7 @@ internal static class AegesCli
             var json = false;
             var pollInterval = TimeSpan.FromSeconds(5);
             var queuePreviewLimit = 100;
+            var maxParallelTasks = 1;
             var claimQueuedTask = true;
             var executeRunner = false;
             var createWorktree = false;
@@ -5089,6 +5101,13 @@ internal static class AegesCli
                         }
 
                         break;
+                    case "--max-parallel-tasks":
+                        if (!TryReadPositiveInt(args, ref index, out maxParallelTasks))
+                        {
+                            return ErrorResult("--max-parallel-tasks requires an integer value greater than zero.");
+                        }
+
+                        break;
                     default:
                         return ErrorResult($"Unknown option '{args[index]}'.");
                 }
@@ -5105,6 +5124,7 @@ internal static class AegesCli
                 Platform = platform,
                 PollInterval = pollInterval,
                 QueuePreviewLimit = queuePreviewLimit,
+                MaxParallelTasks = maxParallelTasks,
                 RunnerId = runnerId,
                 ClaimQueuedTask = claimQueuedTask,
                 ExecuteRunner = executeRunner,
@@ -5138,6 +5158,8 @@ internal static class AegesCli
 
         public int QueuePreviewLimit { get; private init; } = 100;
 
+        public int MaxParallelTasks { get; private init; } = 1;
+
         public string? RunnerId { get; private init; }
 
         public bool ClaimQueuedTask { get; private init; } = true;
@@ -5157,6 +5179,7 @@ internal static class AegesCli
             var json = false;
             var pollIntervalSeconds = 5;
             var queuePreviewLimit = 100;
+            var maxParallelTasks = 1;
             var claimQueuedTask = true;
             var executeRunner = true;
             var createWorktree = true;
@@ -5233,6 +5256,13 @@ internal static class AegesCli
                         }
 
                         break;
+                    case "--max-parallel-tasks":
+                        if (!TryReadPositiveInt(args, ref index, out maxParallelTasks))
+                        {
+                            return ErrorResult("--max-parallel-tasks requires an integer value greater than zero.");
+                        }
+
+                        break;
                     default:
                         return ErrorResult($"Unknown option '{args[index]}'.");
                 }
@@ -5248,6 +5278,7 @@ internal static class AegesCli
                 Platform = platform,
                 PollIntervalSeconds = pollIntervalSeconds,
                 QueuePreviewLimit = queuePreviewLimit,
+                MaxParallelTasks = maxParallelTasks,
                 RunnerId = runnerId,
                 ClaimQueuedTask = claimQueuedTask,
                 ExecuteRunner = executeRunner,
@@ -5687,7 +5718,8 @@ internal static class AegesCli
         int? RunnerExitCode,
         string? RunnerErrorSummary,
         bool WorktreeCreated,
-        string? WorktreeBaseCommit)
+        string? WorktreeBaseCommit,
+        IReadOnlyList<AgentTaskSnapshotOutput> ClaimedTasks)
     {
         public static AgentSnapshotOutput From(AgentRunSnapshot snapshot) =>
             new(
@@ -5696,6 +5728,39 @@ internal static class AegesCli
                 snapshot.HeartbeatAt,
                 snapshot.QueuedTaskCount,
                 snapshot.ClaimedTaskId,
+                snapshot.CreatedIterationId,
+                snapshot.PromptArtifactId,
+                snapshot.PromptPath,
+                snapshot.WorktreePath,
+                snapshot.ArtifactOutputDirectory,
+                snapshot.RunnerExecutionId,
+                snapshot.RunnerStatus,
+                snapshot.RunnerExitCode,
+                snapshot.RunnerErrorSummary,
+                snapshot.WorktreeCreated,
+                snapshot.WorktreeBaseCommit,
+                snapshot.ClaimedTasks.Select(AgentTaskSnapshotOutput.From).ToArray());
+    }
+
+    private sealed record AgentTaskSnapshotOutput(
+        string TaskId,
+        string ProjectId,
+        string CreatedIterationId,
+        string PromptArtifactId,
+        string PromptPath,
+        string WorktreePath,
+        string ArtifactOutputDirectory,
+        string? RunnerExecutionId,
+        string? RunnerStatus,
+        int? RunnerExitCode,
+        string? RunnerErrorSummary,
+        bool WorktreeCreated,
+        string? WorktreeBaseCommit)
+    {
+        public static AgentTaskSnapshotOutput From(AgentTaskRunSnapshot snapshot) =>
+            new(
+                snapshot.TaskId,
+                snapshot.ProjectId,
                 snapshot.CreatedIterationId,
                 snapshot.PromptArtifactId,
                 snapshot.PromptPath,

@@ -37,12 +37,22 @@ aeges agent run
 ```
 
 The current shell initializes the local SQLite database, records a heartbeat for
-the configured machine, reports a bounded queued-task snapshot, and claims at
-most one queued task assigned to that machine. A claim moves the task into
-planning, creates its next bounded iteration, writes a prompt file under
-`artifacts/`, registers prompt artifact metadata, and records the planned
-worktree path on the iteration. Use `--once` for a single deterministic pass,
-and `--no-claim` when only a heartbeat and queue preview are needed.
+the configured machine, reports a bounded queued-task snapshot, and claims
+queued tasks assigned to that machine. A claim moves the task into planning,
+creates its next bounded iteration, writes a prompt file under `artifacts/`,
+registers prompt artifact metadata, and records the planned worktree path on the
+iteration. Use `--once` for a single deterministic pass, and `--no-claim` when
+only a heartbeat and queue preview are needed.
+
+Parallelism is explicit and project-bounded. By default the agent claims one
+task per heartbeat. `--max-parallel-tasks <n>` allows the heartbeat to prepare
+and execute up to `n` tasks, but it will claim at most one active task per
+project. Queued tasks from a project that already has planning, running,
+reviewing, or approval-waiting work remain queued until that project is clear:
+
+```text
+aeges agent restart --max-parallel-tasks 2
+```
 
 Runner execution is explicit. Use `--execute-runner` to execute the prepared
 runner request. The deterministic mock runner is useful for local dry runs and

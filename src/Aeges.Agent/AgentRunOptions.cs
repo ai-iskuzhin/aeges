@@ -8,6 +8,7 @@ namespace Aeges.Agent;
 /// <param name="MachineName">The human-readable machine name.</param>
 /// <param name="Platform">The machine platform description.</param>
 /// <param name="QueuedTaskPreviewLimit">The maximum number of queued tasks to include in the heartbeat snapshot.</param>
+/// <param name="MaxParallelTasks">The maximum number of project-isolated tasks this heartbeat may prepare and execute.</param>
 /// <param name="RunnerId">The runner assigned to newly created task iterations.</param>
 /// <param name="RuntimeRootPath">The local runtime root path used for artifact and worktree path planning.</param>
 /// <param name="RunnerTimeout">The maximum allowed runner execution time.</param>
@@ -25,6 +26,7 @@ public sealed record AgentRunOptions(
     string MachineName,
     string Platform,
     int QueuedTaskPreviewLimit = 100,
+    int MaxParallelTasks = 1,
     string RunnerId = "codex",
     string? RuntimeRootPath = null,
     TimeSpan? RunnerTimeout = null,
