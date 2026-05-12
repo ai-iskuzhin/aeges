@@ -120,6 +120,11 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
 
         if (update.Message is not null)
         {
+            if (update.Message.Text is null)
+            {
+                return null;
+            }
+
             var user = update.Message.From;
 
             return new TelegramBotUpdate(

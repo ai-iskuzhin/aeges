@@ -30,6 +30,11 @@ public sealed record TelegramUpdate(
     bool IsPrivateChat = true)
 {
     /// <summary>
+    /// Gets the Telegram user identifier that should be used for authorization.
+    /// </summary>
+    public long AuthorizationUserId => SenderUserId ?? ChatId;
+
+    /// <summary>
     /// Converts the observed Telegram sender fields into a domain profile.
     /// </summary>
     /// <returns>The observed Telegram profile.</returns>

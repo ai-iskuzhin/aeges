@@ -105,6 +105,33 @@ public sealed class TelegramInteractionHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_authorizes_group_updates_by_sender_user()
+    {
+        var admin = RuntimeTelegramUser.CreateFirstAdmin(1001, Now);
+        var pendingGroup = RuntimeTelegramUser.CreatePending(-1003999764927, Now);
+        var facade = new FakeTelegramApplicationFacade
+        {
+            TelegramUsers = [admin, pendingGroup],
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(
+                -1003999764927,
+                Text: "/start",
+                Username: "mrx_eternal",
+                FirstName: "Eternal",
+                SenderUserId: 1001,
+                IsPrivateChat: false),
+            CancellationToken.None);
+
+        Assert.Equal(1001, facade.LastEnsuredTelegramUserId);
+        Assert.Contains("Aeges control", response.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("waiting for an Aeges Telegram administrator", response.Text, StringComparison.Ordinal);
+        Assert.Equal("mrx_eternal", admin.Username);
+    }
+
+    [Fact]
     public async Task HandleAsync_lists_telegram_users_for_admins()
     {
         var pending = RuntimeTelegramUser.CreatePending(
@@ -956,11 +983,14 @@ public sealed class TelegramInteractionHandlerTests
 
         public string? ResolvedBy { get; private set; }
 
+        public long? LastEnsuredTelegramUserId { get; private set; }
+
         public Task<TelegramUserAuthorization> EnsureTelegramUserAsync(
             long chatId,
             RuntimeTelegramUserProfile profile,
             CancellationToken cancellationToken)
         {
+            LastEnsuredTelegramUserId = chatId;
             var user = TelegramUsers.FirstOrDefault(user => user.ChatId == chatId)
                 ?? RuntimeTelegramUser.CreateFirstAdmin(chatId, Now, profile);
             if (!profile.IsEmpty)

@@ -58,7 +58,10 @@ public sealed class TelegramInteractionHandler
                 TelegramButtonMarkup.Empty);
         }
 
-        var authorization = await application.EnsureTelegramUserAsync(update.ChatId, update.ToUserProfile(), cancellationToken);
+        var authorization = await application.EnsureTelegramUserAsync(
+            update.AuthorizationUserId,
+            update.ToUserProfile(),
+            cancellationToken);
 
         if (!authorization.IsApproved)
         {
