@@ -8,6 +8,24 @@ All notable changes to Aeges are documented in this file.
 
 - Nothing yet.
 
+## [0.1.0-alpha.5] - 2026-05-12
+
+### Added
+
+- Added project discovery roots and explicit project groups.
+- Added `aeges root scan <path-or-root-id>` with dry-run discovery and
+  `--apply` persistence for roots, inferred groups, and projects.
+- Added Telegram project grouping so group buttons open project-scoped lists.
+- Added a project-scoped `New task` button on Telegram project details.
+
+### Changed
+
+- `aeges root scan ~/work` now treats an existing directory as a discovery
+  target instead of requiring a pre-registered root id.
+- Telegram project details now show the project group.
+- Telegram project archive now requires explicit confirmation before mutating
+  state.
+
 ## [0.1.0-alpha.4] - 2026-05-12
 
 ### Added
