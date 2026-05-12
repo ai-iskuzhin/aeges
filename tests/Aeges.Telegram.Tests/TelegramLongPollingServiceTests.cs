@@ -384,6 +384,44 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
+    public async Task PollOnceAsync_skips_stale_callback_query_errors_without_retrying_batch()
+    {
+        var logs = new List<TelegramLongPollingLogEntry>();
+        var gateway = new FakeTelegramBotGateway
+        {
+            ThrowStaleCallbackOnAnswer = true,
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    1001,
+                    Text: null,
+                    CallbackData: TelegramCallbackData.MainMenu,
+                    CallbackQueryId: "callback-001",
+                    MessageId: 9001),
+                new TelegramBotUpdate(
+                    42,
+                    1001,
+                    Text: "/start",
+                    CallbackData: null,
+                    CallbackQueryId: null),
+            ],
+        };
+        var service = CreateService(gateway, transientErrorDelay: TimeSpan.Zero, logs: logs);
+
+        var result = await service.PollOnceAsync(null, new TelegramLongPollingOptions(), CancellationToken.None);
+
+        Assert.Equal(43, result.NextOffset);
+        Assert.Equal(2, result.ProcessedUpdates);
+        Assert.Equal(["callback-001"], gateway.AnsweredCallbackQueryIds);
+        Assert.Single(gateway.SentResponses);
+        Assert.Contains(logs, entry =>
+            entry.Level == TelegramLongPollingLogLevel.Warning
+            && entry.Message.Contains("stale", StringComparison.OrdinalIgnoreCase)
+            && entry.ExceptionType == nameof(ApiRequestException));
+    }
+
+    [Fact]
     public async Task RunAsync_stops_cleanly_when_cancelled()
     {
         using var cancellation = new CancellationTokenSource();
@@ -428,6 +466,8 @@ public sealed class TelegramLongPollingServiceTests
         public bool ThrowChatMigrationOnSend { get; set; }
 
         public bool ThrowChatMigrationOnEdit { get; set; }
+
+        public bool ThrowStaleCallbackOnAnswer { get; set; }
 
         public int GetUpdatesCallCount { get; private set; }
 
@@ -514,6 +554,13 @@ public sealed class TelegramLongPollingServiceTests
             CancellationToken cancellationToken)
         {
             AnsweredCallbackQueryIds.Add(callbackQueryId);
+            if (ThrowStaleCallbackOnAnswer)
+            {
+                throw new ApiRequestException(
+                    "Bad Request: query is too old and response timeout expired or query ID is invalid",
+                    400);
+            }
+
             return Task.CompletedTask;
         }
     }

@@ -184,6 +184,18 @@ public sealed class TelegramLongPollingService
                         ErrorMessage: exception.Message),
                     cancellationToken);
             }
+            catch (Exception exception) when (IsTelegramStaleCallbackException(exception))
+            {
+                await LogAsync(
+                    new TelegramLongPollingLogEntry(
+                        TelegramLongPollingLogLevel.Warning,
+                        "Telegram callback query is stale; skipping update.",
+                        NextOffset: update.UpdateId + 1,
+                        ProcessedUpdates: processed + 1,
+                        ExceptionType: exception.GetType().Name,
+                        ErrorMessage: exception.Message),
+                    cancellationToken);
+            }
 
             nextOffset = Math.Max(nextOffset ?? 0, update.UpdateId + 1);
             processed++;
@@ -342,12 +354,17 @@ public sealed class TelegramLongPollingService
 
     private static bool IsTransientTelegramTransportException(Exception exception) =>
         !IsTelegramChatMigratedException(exception)
+        && !IsTelegramStaleCallbackException(exception)
         && exception is RequestException or HttpRequestException or IOException;
 
     private static bool IsTelegramChatMigratedException(Exception exception) =>
         exception is ApiRequestException apiException
         && (apiException.Parameters?.MigrateToChatId is not null
             || apiException.Message.Contains("group chat was upgraded to a supergroup chat", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsTelegramStaleCallbackException(Exception exception) =>
+        exception is ApiRequestException apiException
+        && apiException.Message.Contains("query is too old", StringComparison.OrdinalIgnoreCase);
 
     private async ValueTask LogAsync(
         TelegramLongPollingLogEntry entry,
