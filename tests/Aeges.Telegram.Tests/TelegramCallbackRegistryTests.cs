@@ -87,6 +87,10 @@ public sealed class TelegramCallbackRegistryTests
 
         public IProjectRepository Projects => throw new NotSupportedException();
 
+        public IProjectGroupRepository ProjectGroups => throw new NotSupportedException();
+
+        public IProjectRootRepository ProjectRoots => throw new NotSupportedException();
+
         public IMachineRepository Machines => throw new NotSupportedException();
 
         public ILockRepository Locks => throw new NotSupportedException();

@@ -18,6 +18,7 @@ Yes, as an MVP for local governed execution. Today you can:
 
 - create and migrate the local SQLite database
 - register projects and machines
+- organize projects with discovery roots and explicit groups
 - talk directly with the configured coding-agent runner without creating a task
 - create, inspect, and cancel durable tasks
 - run a local agent pass that heartbeats, claims one queued task, creates an
@@ -148,6 +149,20 @@ aeges machine add \
   --name "$(hostname)" \
   --platform "$(uname -s)"
 ```
+
+For project discovery, register broad folders as roots and explicit grouped
+folders as groups. Aeges scans roots without turning the root itself into a
+group:
+
+```bash
+aeges root add --root-id work --name Work --path "$HOME/work"
+aeges group add --group-id analitex --name Analitex --path "$HOME/work/analitex"
+aeges root scan work --max-depth 2
+aeges root scan work --max-depth 2 --apply
+```
+
+See [docs/project-organization.md](docs/project-organization.md) for the
+recommended `~/work` layout.
 
 Create a governed task:
 

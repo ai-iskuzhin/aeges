@@ -21,6 +21,16 @@ internal sealed class ProjectRecord
     public string Path { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the optional project group identifier.
+    /// </summary>
+    public string? GroupId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional project group.
+    /// </summary>
+    public ProjectGroupRecord? Group { get; set; }
+
+    /// <summary>
     /// Gets or sets the registration timestamp.
     /// </summary>
     public DateTimeOffset CreatedAt { get; set; }

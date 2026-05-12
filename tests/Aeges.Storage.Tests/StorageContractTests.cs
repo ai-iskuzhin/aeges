@@ -12,6 +12,8 @@ public sealed class StorageContractTests
         typeof(IArtifactRepository),
         typeof(IApprovalRepository),
         typeof(IProjectRepository),
+        typeof(IProjectGroupRepository),
+        typeof(IProjectRootRepository),
         typeof(IMachineRepository),
         typeof(ILockRepository),
         typeof(IRunnerExecutionRepository),
@@ -67,6 +69,8 @@ public sealed class StorageContractTests
         Assert.Equal(typeof(IArtifactRepository), typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.Artifacts))?.PropertyType);
         Assert.Equal(typeof(IApprovalRepository), typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.Approvals))?.PropertyType);
         Assert.Equal(typeof(IProjectRepository), typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.Projects))?.PropertyType);
+        Assert.Equal(typeof(IProjectGroupRepository), typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.ProjectGroups))?.PropertyType);
+        Assert.Equal(typeof(IProjectRootRepository), typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.ProjectRoots))?.PropertyType);
         Assert.Equal(typeof(IMachineRepository), typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.Machines))?.PropertyType);
         Assert.Equal(typeof(ILockRepository), typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.Locks))?.PropertyType);
         Assert.Equal(

@@ -22,6 +22,8 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
         Artifacts = new SqliteArtifactRepository(context);
         Approvals = new SqliteApprovalRepository(context);
         Projects = new SqliteProjectRepository(context);
+        ProjectGroups = new SqliteProjectGroupRepository(context);
+        ProjectRoots = new SqliteProjectRootRepository(context);
         Machines = new SqliteMachineRepository(context);
         Locks = new SqliteLockRepository(context);
         RunnerExecutions = new SqliteRunnerExecutionRepository(context);
@@ -44,6 +46,12 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
 
     /// <inheritdoc />
     public IProjectRepository Projects { get; }
+
+    /// <inheritdoc />
+    public IProjectGroupRepository ProjectGroups { get; }
+
+    /// <inheritdoc />
+    public IProjectRootRepository ProjectRoots { get; }
 
     /// <inheritdoc />
     public IMachineRepository Machines { get; }

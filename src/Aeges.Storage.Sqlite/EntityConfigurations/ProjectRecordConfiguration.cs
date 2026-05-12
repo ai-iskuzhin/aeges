@@ -14,12 +14,19 @@ internal sealed class ProjectRecordConfiguration : IEntityTypeConfiguration<Proj
         builder.Property(project => project.Id).HasColumnName("id");
         builder.Property(project => project.Name).HasColumnName("name").IsRequired();
         builder.Property(project => project.Path).HasColumnName("path").IsRequired();
+        builder.Property(project => project.GroupId).HasColumnName("group_id");
         builder.Property(project => project.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(project => project.UpdatedAt).HasColumnName("updated_at").IsRequired();
         builder.Property(project => project.IsArchived).HasColumnName("is_archived").IsRequired().HasDefaultValue(false);
         builder.Property(project => project.ArchivedAt).HasColumnName("archived_at");
 
         builder.HasIndex(project => project.Path).IsUnique();
+        builder.HasIndex(project => project.GroupId);
         builder.HasIndex(project => project.IsArchived);
+
+        builder.HasOne(project => project.Group)
+            .WithMany(group => group.Projects)
+            .HasForeignKey(project => project.GroupId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

@@ -18,6 +18,7 @@ public sealed class RuntimeProjectTests
         Assert.Equal(new ProjectId("project-001"), project.Id);
         Assert.Equal("Aeges", project.Name);
         Assert.Equal("/work/aeges", project.Path);
+        Assert.Null(project.GroupId);
         Assert.Equal(CreatedAt, project.CreatedAt);
         Assert.Equal(CreatedAt, project.UpdatedAt);
         Assert.False(project.IsArchived);
@@ -39,6 +40,7 @@ public sealed class RuntimeProjectTests
         Assert.Equal(new ProjectId("project-001"), project.Id);
         Assert.Equal("Aeges", project.Name);
         Assert.Equal("/work/aeges", project.Path);
+        Assert.Null(project.GroupId);
         Assert.Equal(CreatedAt, project.CreatedAt);
         Assert.Equal(updatedAt, project.UpdatedAt);
         Assert.False(project.IsArchived);
@@ -67,6 +69,7 @@ public sealed class RuntimeProjectTests
     [Fact]
     public void Update_changes_metadata_and_timestamp()
     {
+        var groupId = new ProjectGroupId("runtime");
         var project = RuntimeProject.Create(
             new ProjectId("project-001"),
             "Aeges",
@@ -74,10 +77,28 @@ public sealed class RuntimeProjectTests
             CreatedAt);
         var updatedAt = CreatedAt.AddMinutes(1);
 
-        project.Update("Aeges Runtime", "/work/aeges-runtime", updatedAt);
+        project.Update("Aeges Runtime", "/work/aeges-runtime", updatedAt, groupId);
 
         Assert.Equal("Aeges Runtime", project.Name);
         Assert.Equal("/work/aeges-runtime", project.Path);
+        Assert.Equal(groupId, project.GroupId);
+        Assert.Equal(updatedAt, project.UpdatedAt);
+    }
+
+    [Fact]
+    public void AssignGroup_changes_project_group_and_timestamp()
+    {
+        var project = RuntimeProject.Create(
+            new ProjectId("project-001"),
+            "Aeges",
+            "/work/aeges",
+            CreatedAt,
+            new ProjectGroupId("old-group"));
+        var updatedAt = CreatedAt.AddMinutes(1);
+
+        project.AssignGroup(new ProjectGroupId("new-group"), updatedAt);
+
+        Assert.Equal(new ProjectGroupId("new-group"), project.GroupId);
         Assert.Equal(updatedAt, project.UpdatedAt);
     }
 

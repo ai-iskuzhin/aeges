@@ -56,6 +56,7 @@ public sealed class SqliteProjectRepository : IProjectRepository
 
         record.Name = project.Name;
         record.Path = project.Path;
+        record.GroupId = project.GroupId?.Value;
         record.UpdatedAt = project.UpdatedAt;
         record.IsArchived = project.IsArchived;
         record.ArchivedAt = project.ArchivedAt;
@@ -67,6 +68,7 @@ public sealed class SqliteProjectRepository : IProjectRepository
             Id = project.Id.Value,
             Name = project.Name,
             Path = project.Path,
+            GroupId = project.GroupId?.Value,
             CreatedAt = project.CreatedAt,
             UpdatedAt = project.UpdatedAt,
             IsArchived = project.IsArchived,
@@ -80,6 +82,7 @@ public sealed class SqliteProjectRepository : IProjectRepository
             record.Path,
             record.CreatedAt,
             record.UpdatedAt,
+            record.GroupId is null ? null : new ProjectGroupId(record.GroupId),
             record.IsArchived,
             record.ArchivedAt);
 }

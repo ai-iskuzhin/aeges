@@ -119,6 +119,31 @@ internal static class AegesCli
             return await RunProjectListAsync(projectListArgs, output, error, cancellationToken);
         }
 
+        if (args is ["group", "add", .. var groupAddArgs])
+        {
+            return await RunProjectGroupAddAsync(groupAddArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["group", "list", .. var groupListArgs])
+        {
+            return await RunProjectGroupListAsync(groupListArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["root", "add", .. var rootAddArgs])
+        {
+            return await RunProjectRootAddAsync(rootAddArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["root", "list", .. var rootListArgs])
+        {
+            return await RunProjectRootListAsync(rootListArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["root", "scan", .. var rootScanArgs])
+        {
+            return await RunProjectRootScanAsync(rootScanArgs, output, error, cancellationToken);
+        }
+
         if (args is ["machine", "add", .. var machineAddArgs])
         {
             return await RunMachineAddAsync(machineAddArgs, output, error, cancellationToken);
@@ -1194,7 +1219,8 @@ internal static class AegesCli
             new RegisterProjectRequest(
                 options.Name!,
                 options.Path!,
-                options.ProjectId is null ? null : new ProjectId(options.ProjectId)),
+                options.ProjectId is null ? null : new ProjectId(options.ProjectId),
+                options.GroupId is null ? null : new ProjectGroupId(options.GroupId)),
             cancellationToken);
 
         if (!result.IsSuccess)
@@ -1226,6 +1252,172 @@ internal static class AegesCli
         var service = new ProjectService(new SqliteUnitOfWork(context), new SystemClock());
         var projects = await service.ListAsync(cancellationToken);
         await WriteProjectsAsync(projects, options.Json, output);
+
+        return 0;
+    }
+
+    private static async Task<int> RunProjectGroupAddAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = ProjectGroupAddOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var service = new ProjectGroupService(new SqliteUnitOfWork(context), new SystemClock());
+        var result = await service.RegisterAsync(
+            new RegisterProjectGroupRequest(
+                options.Name!,
+                options.Path,
+                options.GroupId is null ? null : new ProjectGroupId(options.GroupId)),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            await WriteErrorAsync(result.Error!, options.Json, error);
+            return 1;
+        }
+
+        await WriteProjectGroupAsync(result.Value!, options.Json, output, "Added group");
+
+        return 0;
+    }
+
+    private static async Task<int> RunProjectGroupListAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = CliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var service = new ProjectGroupService(new SqliteUnitOfWork(context), new SystemClock());
+        var groups = await service.ListAsync(cancellationToken);
+        await WriteProjectGroupsAsync(groups, options.Json, output);
+
+        return 0;
+    }
+
+    private static async Task<int> RunProjectRootAddAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = ProjectRootAddOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var service = new ProjectRootService(new SqliteUnitOfWork(context), new SystemClock());
+        var result = await service.RegisterAsync(
+            new RegisterProjectRootRequest(
+                options.Name!,
+                options.Path!,
+                options.RootId is null ? null : new ProjectRootId(options.RootId)),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            await WriteErrorAsync(result.Error!, options.Json, error);
+            return 1;
+        }
+
+        await WriteProjectRootAsync(result.Value!, options.Json, output, "Added root");
+
+        return 0;
+    }
+
+    private static async Task<int> RunProjectRootListAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = CliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var service = new ProjectRootService(new SqliteUnitOfWork(context), new SystemClock());
+        var roots = await service.ListAsync(cancellationToken);
+        await WriteProjectRootsAsync(roots, options.Json, output);
+
+        return 0;
+    }
+
+    private static async Task<int> RunProjectRootScanAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = ProjectRootScanOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var unitOfWork = new SqliteUnitOfWork(context);
+        var root = await unitOfWork.ProjectRoots.GetByIdAsync(new ProjectRootId(options.RootId!), cancellationToken);
+
+        if (root is null)
+        {
+            await WriteErrorAsync(
+                new ApplicationError("project_root_not_found", $"Project root '{options.RootId}' was not found."),
+                options.Json,
+                error);
+            return 1;
+        }
+
+        var scan = await ScanProjectRootAsync(unitOfWork, root, options, cancellationToken);
+
+        if (options.Apply)
+        {
+            foreach (var candidate in scan.Candidates.Where(candidate => candidate.ProjectId is null))
+            {
+                var project = RuntimeProject.Create(
+                    CreateUniqueProjectId(candidate.Name, scan.ExistingProjectIds),
+                    candidate.Name,
+                    candidate.Path,
+                    DateTimeOffset.UtcNow,
+                    candidate.GroupId is null ? null : new ProjectGroupId(candidate.GroupId));
+
+                scan.ExistingProjectIds.Add(project.Id);
+                await unitOfWork.Projects.AddAsync(project, cancellationToken);
+                candidate.ProjectId = project.Id.Value;
+                candidate.Status = "created";
+            }
+
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        await WriteProjectRootScanAsync(scan, options.Json, output);
 
         return 0;
     }
@@ -1495,6 +1687,170 @@ internal static class AegesCli
         }
 
         return builder.ToString();
+    }
+
+    private static async Task<ProjectRootScanOutput> ScanProjectRootAsync(
+        IUnitOfWork unitOfWork,
+        RuntimeProjectRoot root,
+        ProjectRootScanOptions options,
+        CancellationToken cancellationToken)
+    {
+        var projects = await unitOfWork.Projects.ListAsync(cancellationToken);
+        var groups = await unitOfWork.ProjectGroups.ListAsync(cancellationToken);
+        var existingProjectIds = projects.Select(project => project.Id).ToHashSet();
+        var existingProjectPaths = projects.ToDictionary(
+            project => NormalizePathKey(project.Path),
+            project => project.Id.Value,
+            StringComparer.Ordinal);
+        var candidates = DiscoverProjectDirectories(root.Path, options.MaxDepth)
+            .Select(projectPath => CreateScanCandidate(projectPath, groups, existingProjectPaths))
+            .OrderBy(candidate => candidate.GroupId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new ProjectRootScanOutput(
+            root.Id.Value,
+            root.Name,
+            root.Path,
+            options.MaxDepth,
+            options.Apply,
+            existingProjectIds,
+            candidates);
+    }
+
+    private static ProjectScanCandidateOutput CreateScanCandidate(
+        string projectPath,
+        IReadOnlyList<RuntimeProjectGroup> groups,
+        IReadOnlyDictionary<string, string> existingProjectPaths)
+    {
+        var name = new DirectoryInfo(projectPath).Name;
+        var group = ResolveProjectGroup(projectPath, groups);
+        var normalizedPath = NormalizePathKey(projectPath);
+        existingProjectPaths.TryGetValue(normalizedPath, out var existingProjectId);
+
+        return new ProjectScanCandidateOutput(
+            name,
+            projectPath,
+            group?.Id.Value,
+            existingProjectId is null ? "discovered" : "existing",
+            existingProjectId);
+    }
+
+    private static RuntimeProjectGroup? ResolveProjectGroup(
+        string projectPath,
+        IReadOnlyList<RuntimeProjectGroup> groups)
+    {
+        return groups
+            .Where(group => !group.IsArchived && !string.IsNullOrWhiteSpace(group.Path))
+            .Select(group => new
+            {
+                Group = group,
+                Path = Path.GetFullPath(group.Path!),
+            })
+            .Where(group => IsPathWithin(projectPath, group.Path))
+            .OrderByDescending(group => group.Path.Length)
+            .FirstOrDefault()
+            ?.Group;
+    }
+
+    private static IReadOnlyList<string> DiscoverProjectDirectories(string rootPath, int maxDepth)
+    {
+        var rootFullPath = Path.GetFullPath(rootPath);
+        var discovered = new List<string>();
+        var queue = new Queue<(string Path, int Depth)>();
+        queue.Enqueue((rootFullPath, 0));
+
+        while (queue.Count > 0)
+        {
+            var (currentPath, depth) = queue.Dequeue();
+
+            if (depth >= maxDepth)
+            {
+                continue;
+            }
+
+            foreach (var directory in Directory.EnumerateDirectories(currentPath).Order(StringComparer.OrdinalIgnoreCase))
+            {
+                var directoryName = new DirectoryInfo(directory).Name;
+
+                if (ShouldIgnoreDirectory(directoryName))
+                {
+                    continue;
+                }
+
+                var childDepth = depth + 1;
+
+                if (LooksLikeProject(directory))
+                {
+                    discovered.Add(Path.GetFullPath(directory));
+                    continue;
+                }
+
+                if (childDepth < maxDepth)
+                {
+                    queue.Enqueue((directory, childDepth));
+                }
+            }
+        }
+
+        return discovered;
+    }
+
+    private static bool LooksLikeProject(string path)
+    {
+        return Directory.Exists(Path.Combine(path, ".git"))
+            || Directory.EnumerateFiles(path, "*.sln").Any()
+            || Directory.EnumerateFiles(path, "*.csproj").Any()
+            || File.Exists(Path.Combine(path, "package.json"))
+            || File.Exists(Path.Combine(path, "pyproject.toml"))
+            || File.Exists(Path.Combine(path, "Cargo.toml"))
+            || File.Exists(Path.Combine(path, "go.mod"))
+            || File.Exists(Path.Combine(path, "deno.json"))
+            || File.Exists(Path.Combine(path, "deno.jsonc"));
+    }
+
+    private static bool ShouldIgnoreDirectory(string directoryName)
+    {
+        var ignored = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".aeges",
+            ".git",
+            "bin",
+            "build",
+            "dist",
+            "node_modules",
+            "obj",
+            "vendor",
+        };
+
+        return ignored.Contains(directoryName);
+    }
+
+    private static bool IsPathWithin(string childPath, string parentPath)
+    {
+        var fullChildPath = Path.GetFullPath(childPath);
+        var fullParentPath = Path.GetFullPath(parentPath);
+        var relativePath = Path.GetRelativePath(fullParentPath, fullChildPath);
+
+        return relativePath == "."
+            || (!relativePath.StartsWith("..", StringComparison.Ordinal)
+                && !Path.IsPathRooted(relativePath));
+    }
+
+    private static string NormalizePathKey(string path) =>
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+
+    private static ProjectId CreateUniqueProjectId(string name, ISet<ProjectId> existingProjectIds)
+    {
+        var baseId = CreateStableIdentifier(name);
+        var candidate = new ProjectId(baseId);
+
+        for (var suffix = 2; existingProjectIds.Contains(candidate); suffix++)
+        {
+            candidate = new ProjectId($"{baseId}-{suffix}");
+        }
+
+        return candidate;
     }
 
     private static SqliteMigrationService CreateMigrationService(CliOptions options)
@@ -2029,12 +2385,145 @@ internal static class AegesCli
         await output.WriteLineAsync($"{heading}: {project.Id}");
         await output.WriteLineAsync($"Name: {project.Name}");
         await output.WriteLineAsync($"Status: {(project.IsArchived ? "archived" : "active")}");
+        await output.WriteLineAsync($"Group: {project.GroupId?.Value ?? "ungrouped"}");
         await output.WriteLineAsync($"Path: {project.Path}");
         await output.WriteLineAsync($"Created: {project.CreatedAt:O}");
         await output.WriteLineAsync($"Updated: {project.UpdatedAt:O}");
         if (project.ArchivedAt is not null)
         {
             await output.WriteLineAsync($"Archived: {project.ArchivedAt:O}");
+        }
+    }
+
+    private static async Task WriteProjectGroupAsync(
+        RuntimeProjectGroup group,
+        bool json,
+        TextWriter output,
+        string heading)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                ProjectGroupOutput.From(group),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"{heading}: {group.Id}");
+        await output.WriteLineAsync($"Name: {group.Name}");
+        await output.WriteLineAsync($"Status: {(group.IsArchived ? "archived" : "active")}");
+        await output.WriteLineAsync($"Path: {group.Path ?? "(none)"}");
+        await output.WriteLineAsync($"Created: {group.CreatedAt:O}");
+        await output.WriteLineAsync($"Updated: {group.UpdatedAt:O}");
+    }
+
+    private static async Task WriteProjectGroupsAsync(
+        IReadOnlyList<RuntimeProjectGroup> groups,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                groups.Select(ProjectGroupOutput.From).ToArray(),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"Groups: {groups.Count}");
+
+        foreach (var group in groups)
+        {
+            await output.WriteLineAsync(
+                $"  - {group.Id} | {group.Name} | {(group.IsArchived ? "archived" : "active")} | {group.Path ?? "(none)"}");
+        }
+    }
+
+    private static async Task WriteProjectRootAsync(
+        RuntimeProjectRoot root,
+        bool json,
+        TextWriter output,
+        string heading)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                ProjectRootOutput.From(root),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"{heading}: {root.Id}");
+        await output.WriteLineAsync($"Name: {root.Name}");
+        await output.WriteLineAsync($"Status: {(root.IsArchived ? "archived" : "active")}");
+        await output.WriteLineAsync($"Path: {root.Path}");
+        await output.WriteLineAsync($"Created: {root.CreatedAt:O}");
+        await output.WriteLineAsync($"Updated: {root.UpdatedAt:O}");
+    }
+
+    private static async Task WriteProjectRootsAsync(
+        IReadOnlyList<RuntimeProjectRoot> roots,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                roots.Select(ProjectRootOutput.From).ToArray(),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"Roots: {roots.Count}");
+
+        foreach (var root in roots)
+        {
+            await output.WriteLineAsync(
+                $"  - {root.Id} | {root.Name} | {(root.IsArchived ? "archived" : "active")} | {root.Path}");
+        }
+    }
+
+    private static async Task WriteProjectRootScanAsync(
+        ProjectRootScanOutput scan,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                scan,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"Root scan: {scan.RootId}");
+        await output.WriteLineAsync($"Path: {scan.RootPath}");
+        await output.WriteLineAsync($"Candidates: {scan.Candidates.Count}");
+
+        foreach (var candidate in scan.Candidates)
+        {
+            await output.WriteLineAsync(
+                $"  - {candidate.Status} | {candidate.Name} | group: {candidate.GroupId ?? "ungrouped"} | {candidate.Path}");
         }
     }
 
@@ -2060,7 +2549,7 @@ internal static class AegesCli
         foreach (var project in projects)
         {
             await output.WriteLineAsync(
-                $"  - {project.Id} | {project.Name} | {(project.IsArchived ? "archived" : "active")} | {project.Path}");
+                $"  - {project.Id} | {project.Name} | {(project.IsArchived ? "archived" : "active")} | group: {project.GroupId?.Value ?? "ungrouped"} | {project.Path}");
         }
     }
 
@@ -2538,8 +3027,13 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges talk [message] [--new] [--session-id <id>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges db status [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges db migrate [--config <path>] [--connection-string <value>] [--json]");
-        await error.WriteLineAsync("  aeges project add --name <name> --path <path> [--project-id <id>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges project add --name <name> --path <path> [--project-id <id>] [--group-id <id>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges project list [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges group add --name <name> [--path <path>] [--group-id <id>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges group list [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges root add --name <name> --path <path> [--root-id <id>] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges root list [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges root scan <root-id> [--max-depth <int>] [--recursive] [--apply] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges machine add --name <name> --platform <text> [--machine-id <id>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges machine list [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task create --project-id <id> --machine-id <id> --title <title> --goal <goal> [--task-id <id>] [--priority <int>] [--max-iterations <int>] [--config <path>] [--connection-string <value>] [--json]");
@@ -3169,6 +3663,8 @@ internal static class AegesCli
     {
         public string? ProjectId { get; private init; }
 
+        public string? GroupId { get; private init; }
+
         public string? Name { get; private init; }
 
         public string? Path { get; private init; }
@@ -3178,6 +3674,7 @@ internal static class AegesCli
             string? configPath = null;
             string? connectionString = null;
             string? projectId = null;
+            string? groupId = null;
             string? name = null;
             string? path = null;
             var json = false;
@@ -3210,6 +3707,14 @@ internal static class AegesCli
                         }
 
                         break;
+                    case "--group-id":
+                    case "--group":
+                        if (!TryReadValue(args, ref index, out groupId))
+                        {
+                            return ErrorResult($"{args[index]} requires a value.");
+                        }
+
+                        break;
                     case "--name":
                         if (!TryReadValue(args, ref index, out name))
                         {
@@ -3237,6 +3742,7 @@ internal static class AegesCli
                     ConnectionString = connectionString,
                     Json = json,
                     ProjectId = projectId,
+                    GroupId = groupId,
                     Name = name,
                     Path = path,
                 };
@@ -3248,6 +3754,281 @@ internal static class AegesCli
                 : null;
 
         private static ProjectAddOptions ErrorResult(string error) => new() { Error = error };
+    }
+
+    private sealed class ProjectGroupAddOptions : CliOptions
+    {
+        public string? GroupId { get; private init; }
+
+        public string? Name { get; private init; }
+
+        public string? Path { get; private init; }
+
+        public new static ProjectGroupAddOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? groupId = null;
+            string? name = null;
+            string? path = null;
+            var json = false;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--group-id":
+                        if (!TryReadValue(args, ref index, out groupId))
+                        {
+                            return ErrorResult("--group-id requires a value.");
+                        }
+
+                        break;
+                    case "--name":
+                        if (!TryReadValue(args, ref index, out name))
+                        {
+                            return ErrorResult("--name requires a value.");
+                        }
+
+                        break;
+                    case "--path":
+                        if (!TryReadValue(args, ref index, out path))
+                        {
+                            return ErrorResult("--path requires a value.");
+                        }
+
+                        break;
+                    default:
+                        return ErrorResult($"Unknown option '{args[index]}'.");
+                }
+            }
+
+            return RequireText(name, "--name")
+                ?? new ProjectGroupAddOptions
+                {
+                    ConfigPath = configPath,
+                    ConnectionString = connectionString,
+                    Json = json,
+                    GroupId = groupId,
+                    Name = name,
+                    Path = path,
+                };
+        }
+
+        private static ProjectGroupAddOptions? RequireText(string? value, string optionName) =>
+            string.IsNullOrWhiteSpace(value)
+                ? ErrorResult($"{optionName} is required.")
+                : null;
+
+        private static ProjectGroupAddOptions ErrorResult(string error) => new() { Error = error };
+    }
+
+    private sealed class ProjectRootAddOptions : CliOptions
+    {
+        public string? RootId { get; private init; }
+
+        public string? Name { get; private init; }
+
+        public string? Path { get; private init; }
+
+        public new static ProjectRootAddOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? rootId = null;
+            string? name = null;
+            string? path = null;
+            var json = false;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--root-id":
+                        if (!TryReadValue(args, ref index, out rootId))
+                        {
+                            return ErrorResult("--root-id requires a value.");
+                        }
+
+                        break;
+                    case "--name":
+                        if (!TryReadValue(args, ref index, out name))
+                        {
+                            return ErrorResult("--name requires a value.");
+                        }
+
+                        break;
+                    case "--path":
+                        if (!TryReadValue(args, ref index, out path))
+                        {
+                            return ErrorResult("--path requires a value.");
+                        }
+
+                        break;
+                    default:
+                        return ErrorResult($"Unknown option '{args[index]}'.");
+                }
+            }
+
+            return RequireText(name, "--name")
+                ?? RequireText(path, "--path")
+                ?? new ProjectRootAddOptions
+                {
+                    ConfigPath = configPath,
+                    ConnectionString = connectionString,
+                    Json = json,
+                    RootId = rootId,
+                    Name = name,
+                    Path = path,
+                };
+        }
+
+        private static ProjectRootAddOptions? RequireText(string? value, string optionName) =>
+            string.IsNullOrWhiteSpace(value)
+                ? ErrorResult($"{optionName} is required.")
+                : null;
+
+        private static ProjectRootAddOptions ErrorResult(string error) => new() { Error = error };
+    }
+
+    private sealed class ProjectRootScanOptions : CliOptions
+    {
+        public string? RootId { get; private init; }
+
+        public int MaxDepth { get; private init; } = 1;
+
+        public bool Apply { get; private init; }
+
+        public new static ProjectRootScanOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? rootId = null;
+            int? maxDepth = null;
+            var recursive = false;
+            var apply = false;
+            var json = false;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--root-id":
+                        if (!TryReadValue(args, ref index, out rootId))
+                        {
+                            return ErrorResult("--root-id requires a value.");
+                        }
+
+                        break;
+                    case "--max-depth":
+                        if (!TryReadPositiveInt(args, ref index, out var value))
+                        {
+                            return ErrorResult("--max-depth requires a positive integer.");
+                        }
+
+                        maxDepth = value;
+                        break;
+                    case "--recursive":
+                        recursive = true;
+                        break;
+                    case "--apply":
+                        apply = true;
+                        break;
+                    default:
+                        if (args[index].StartsWith("--", StringComparison.Ordinal))
+                        {
+                            return ErrorResult($"Unknown option '{args[index]}'.");
+                        }
+
+                        if (rootId is not null)
+                        {
+                            return ErrorResult("Only one root identifier can be supplied.");
+                        }
+
+                        rootId = args[index];
+                        break;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(rootId))
+            {
+                return ErrorResult("Root identifier is required.");
+            }
+
+            return new ProjectRootScanOptions
+            {
+                ConfigPath = configPath,
+                ConnectionString = connectionString,
+                Json = json,
+                RootId = rootId,
+                MaxDepth = maxDepth ?? (recursive ? 2 : 1),
+                Apply = apply,
+            };
+        }
+
+        private static bool TryReadPositiveInt(string[] args, ref int index, out int value)
+        {
+            if (!TryReadValue(args, ref index, out var text) || !int.TryParse(text, out value))
+            {
+                value = 0;
+                return false;
+            }
+
+            return value > 0;
+        }
+
+        private static ProjectRootScanOptions ErrorResult(string error) => new() { Error = error };
     }
 
     private sealed class MachineAddOptions : CliOptions
@@ -3963,6 +4744,7 @@ internal static class AegesCli
         string Id,
         string Name,
         string Path,
+        string? GroupId,
         bool IsArchived,
         DateTimeOffset? ArchivedAt,
         DateTimeOffset CreatedAt,
@@ -3973,10 +4755,87 @@ internal static class AegesCli
                 project.Id.Value,
                 project.Name,
                 project.Path,
+                project.GroupId?.Value,
                 project.IsArchived,
                 project.ArchivedAt,
                 project.CreatedAt,
                 project.UpdatedAt);
+    }
+
+    private sealed record ProjectGroupOutput(
+        string Id,
+        string Name,
+        string? Path,
+        bool IsArchived,
+        DateTimeOffset? ArchivedAt,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset UpdatedAt)
+    {
+        public static ProjectGroupOutput From(RuntimeProjectGroup group) =>
+            new(
+                group.Id.Value,
+                group.Name,
+                group.Path,
+                group.IsArchived,
+                group.ArchivedAt,
+                group.CreatedAt,
+                group.UpdatedAt);
+    }
+
+    private sealed record ProjectRootOutput(
+        string Id,
+        string Name,
+        string Path,
+        bool IsArchived,
+        DateTimeOffset? ArchivedAt,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset UpdatedAt)
+    {
+        public static ProjectRootOutput From(RuntimeProjectRoot root) =>
+            new(
+                root.Id.Value,
+                root.Name,
+                root.Path,
+                root.IsArchived,
+                root.ArchivedAt,
+                root.CreatedAt,
+                root.UpdatedAt);
+    }
+
+    private sealed record ProjectRootScanOutput(
+        string RootId,
+        string RootName,
+        string RootPath,
+        int MaxDepth,
+        bool Applied,
+        [property: JsonIgnore] ISet<ProjectId> ExistingProjectIds,
+        IReadOnlyList<ProjectScanCandidateOutput> Candidates);
+
+    private sealed class ProjectScanCandidateOutput
+    {
+        public ProjectScanCandidateOutput(
+            string name,
+            string path,
+            string? groupId,
+            string status,
+            string? projectId)
+        {
+            Name = name;
+            Path = path;
+            GroupId = groupId;
+            Status = status;
+            ProjectId = projectId;
+        }
+
+        public string Name { get; }
+
+        public string Path { get; }
+
+        public string? GroupId { get; }
+
+        public string Status { get; set; }
+
+        public string? ProjectId { get; set; }
     }
 
     private sealed record MachineOutput(

@@ -12,6 +12,8 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
         Artifacts = new ArtifactRepository();
         Approvals = new ApprovalRepository();
         Projects = new ProjectRepository();
+        ProjectGroups = new ProjectGroupRepository();
+        ProjectRoots = new ProjectRootRepository();
         Machines = new MachineRepository();
         Locks = new LockRepository();
         RunnerExecutions = new RunnerExecutionRepository();
@@ -29,6 +31,10 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
     public IApprovalRepository Approvals { get; }
 
     public IProjectRepository Projects { get; }
+
+    public IProjectGroupRepository ProjectGroups { get; }
+
+    public IProjectRootRepository ProjectRoots { get; }
 
     public IMachineRepository Machines { get; }
 
@@ -114,6 +120,56 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
         public Task UpdateAsync(RuntimeMachine machine, CancellationToken cancellationToken)
         {
             machines[machine.Id] = machine;
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ProjectGroupRepository : IProjectGroupRepository
+    {
+        private readonly Dictionary<ProjectGroupId, RuntimeProjectGroup> groups = [];
+
+        public Task AddAsync(RuntimeProjectGroup group, CancellationToken cancellationToken)
+        {
+            groups.Add(group.Id, group);
+
+            return Task.CompletedTask;
+        }
+
+        public Task<RuntimeProjectGroup?> GetByIdAsync(ProjectGroupId id, CancellationToken cancellationToken) =>
+            Task.FromResult(groups.GetValueOrDefault(id));
+
+        public Task<IReadOnlyList<RuntimeProjectGroup>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeProjectGroup>>(groups.Values.OrderBy(group => group.Name).ToArray());
+
+        public Task UpdateAsync(RuntimeProjectGroup group, CancellationToken cancellationToken)
+        {
+            groups[group.Id] = group;
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ProjectRootRepository : IProjectRootRepository
+    {
+        private readonly Dictionary<ProjectRootId, RuntimeProjectRoot> roots = [];
+
+        public Task AddAsync(RuntimeProjectRoot root, CancellationToken cancellationToken)
+        {
+            roots.Add(root.Id, root);
+
+            return Task.CompletedTask;
+        }
+
+        public Task<RuntimeProjectRoot?> GetByIdAsync(ProjectRootId id, CancellationToken cancellationToken) =>
+            Task.FromResult(roots.GetValueOrDefault(id));
+
+        public Task<IReadOnlyList<RuntimeProjectRoot>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeProjectRoot>>(roots.Values.OrderBy(root => root.Name).ToArray());
+
+        public Task UpdateAsync(RuntimeProjectRoot root, CancellationToken cancellationToken)
+        {
+            roots[root.Id] = root;
 
             return Task.CompletedTask;
         }

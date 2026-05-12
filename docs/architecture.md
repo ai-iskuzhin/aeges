@@ -25,6 +25,8 @@ The initial core model includes strongly typed identifiers plus durable models
 for tasks, iterations, artifacts, approvals, projects, machines, and
 path-based locks. It also includes talk sessions and talk messages for direct
 governed discussion with a coding-agent runner outside the task lifecycle.
+Project roots and project groups let the runtime discover many local projects
+without treating broad folders such as `~/work` as classifications.
 These types describe runtime state and validation rules only; they do not
 depend on persistence, transports, runners, or operating-system services.
 

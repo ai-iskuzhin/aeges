@@ -31,6 +31,16 @@ public interface IUnitOfWork
     IProjectRepository Projects { get; }
 
     /// <summary>
+    /// Gets the project group repository.
+    /// </summary>
+    IProjectGroupRepository ProjectGroups { get; }
+
+    /// <summary>
+    /// Gets the project discovery root repository.
+    /// </summary>
+    IProjectRootRepository ProjectRoots { get; }
+
+    /// <summary>
     /// Gets the machine repository.
     /// </summary>
     IMachineRepository Machines { get; }

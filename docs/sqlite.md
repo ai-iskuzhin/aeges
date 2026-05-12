@@ -9,6 +9,8 @@ types.
 It stores durable runtime state and metadata:
 
 - projects
+- project groups
+- project discovery roots
 - tasks
 - task iterations
 - artifact metadata
@@ -52,9 +54,11 @@ The current EF Core foundation includes:
 - `AddProjectArchiveState` for non-destructive project archiving
 - `AddTalkSessions` for durable direct discussion state
 - `AddTransportCallbackActions` for short Telegram callback-token resolution
+- `AddProjectRootsAndGroups` for explicit project grouping and root scanning
 - SQLite pragma application for WAL, foreign keys, and busy timeout
 - SQLite project, machine, task, iteration, artifact, approval, and lock
   repositories backed by temporary-file tests
+- SQLite project group and project root repositories for project organization
 - SQLite runner execution repository for durable worker process launch records
 - SQLite transport callback action repository for resolving short transport
   button tokens back into runtime-owned logical actions
@@ -89,6 +93,11 @@ aeges db status
 aeges db migrate
 aeges project add
 aeges project list
+aeges group add
+aeges group list
+aeges root add
+aeges root list
+aeges root scan
 aeges machine add
 aeges machine list
 aeges task create

@@ -19,6 +19,10 @@ public sealed class AegesDbContext : DbContext
 
     internal DbSet<ProjectRecord> Projects => Set<ProjectRecord>();
 
+    internal DbSet<ProjectGroupRecord> ProjectGroups => Set<ProjectGroupRecord>();
+
+    internal DbSet<ProjectRootRecord> ProjectRoots => Set<ProjectRootRecord>();
+
     internal DbSet<TaskRecord> Tasks => Set<TaskRecord>();
 
     internal DbSet<TaskIterationRecord> TaskIterations => Set<TaskIterationRecord>();

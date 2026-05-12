@@ -5,11 +5,12 @@ namespace Aeges.Core;
 /// </summary>
 public sealed class RuntimeProject
 {
-    private RuntimeProject(ProjectId id, string name, string path, DateTimeOffset createdAt)
+    private RuntimeProject(ProjectId id, string name, string path, ProjectGroupId? groupId, DateTimeOffset createdAt)
     {
         Id = id;
         Name = RequireText(name, nameof(name));
         Path = RequireText(path, nameof(path));
+        GroupId = groupId;
         CreatedAt = createdAt;
         UpdatedAt = createdAt;
         IsArchived = false;
@@ -30,6 +31,11 @@ public sealed class RuntimeProject
     /// Gets the project root path.
     /// </summary>
     public string Path { get; private set; }
+
+    /// <summary>
+    /// Gets the optional project group classification.
+    /// </summary>
+    public ProjectGroupId? GroupId { get; private set; }
 
     /// <summary>
     /// Gets the timestamp when the project was registered.
@@ -57,10 +63,16 @@ public sealed class RuntimeProject
     /// <param name="id">The project identifier.</param>
     /// <param name="name">The human-readable project name.</param>
     /// <param name="path">The project root path.</param>
+    /// <param name="groupId">The optional project group classification.</param>
     /// <param name="createdAt">The registration timestamp.</param>
     /// <returns>A registered runtime project.</returns>
-    public static RuntimeProject Create(ProjectId id, string name, string path, DateTimeOffset createdAt) =>
-        new(id, name, path, createdAt);
+    public static RuntimeProject Create(
+        ProjectId id,
+        string name,
+        string path,
+        DateTimeOffset createdAt,
+        ProjectGroupId? groupId = null) =>
+        new(id, name, path, groupId, createdAt);
 
     /// <summary>
     /// Rehydrates a registered project from durable storage.
@@ -68,6 +80,7 @@ public sealed class RuntimeProject
     /// <param name="id">The project identifier.</param>
     /// <param name="name">The human-readable project name.</param>
     /// <param name="path">The project root path.</param>
+    /// <param name="groupId">The optional project group classification.</param>
     /// <param name="createdAt">The registration timestamp.</param>
     /// <param name="updatedAt">The last update timestamp.</param>
     /// <param name="isArchived">A value indicating whether the project is archived.</param>
@@ -79,6 +92,7 @@ public sealed class RuntimeProject
         string path,
         DateTimeOffset createdAt,
         DateTimeOffset updatedAt,
+        ProjectGroupId? groupId = null,
         bool isArchived = false,
         DateTimeOffset? archivedAt = null)
     {
@@ -92,7 +106,7 @@ public sealed class RuntimeProject
             throw new ArgumentException("Active projects must not include an archive timestamp.", nameof(archivedAt));
         }
 
-        var project = new RuntimeProject(id, name, path, createdAt)
+        var project = new RuntimeProject(id, name, path, groupId, createdAt)
         {
             UpdatedAt = updatedAt,
             IsArchived = isArchived,
@@ -108,10 +122,23 @@ public sealed class RuntimeProject
     /// <param name="name">The new project name.</param>
     /// <param name="path">The new project root path.</param>
     /// <param name="now">The update timestamp.</param>
-    public void Update(string name, string path, DateTimeOffset now)
+    /// <param name="groupId">The optional project group classification.</param>
+    public void Update(string name, string path, DateTimeOffset now, ProjectGroupId? groupId = null)
     {
         Name = RequireText(name, nameof(name));
         Path = RequireText(path, nameof(path));
+        GroupId = groupId;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Changes the project group classification.
+    /// </summary>
+    /// <param name="groupId">The optional project group classification.</param>
+    /// <param name="now">The update timestamp.</param>
+    public void AssignGroup(ProjectGroupId? groupId, DateTimeOffset now)
+    {
+        GroupId = groupId;
         UpdatedAt = now;
     }
 

@@ -36,7 +36,8 @@ public sealed class ProjectService
             request.ProjectId ?? ProjectId.New(),
             request.Name,
             request.Path,
-            clock.Now);
+            clock.Now,
+            request.GroupId);
 
         await unitOfWork.Projects.AddAsync(project, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);

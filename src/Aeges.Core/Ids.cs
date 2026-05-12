@@ -59,6 +59,64 @@ public readonly record struct ProjectId
 }
 
 /// <summary>
+/// Identifies a project group used to classify related projects.
+/// </summary>
+public readonly record struct ProjectGroupId
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ProjectGroupId"/> struct.
+    /// </summary>
+    /// <param name="value">The stable project group identifier value.</param>
+    public ProjectGroupId(string value)
+    {
+        Value = IdValue.Require(value);
+    }
+
+    /// <summary>
+    /// Gets the stable identifier value.
+    /// </summary>
+    public string Value { get; }
+
+    /// <summary>
+    /// Creates a new project group identifier.
+    /// </summary>
+    /// <returns>A generated project group identifier.</returns>
+    public static ProjectGroupId New() => new(IdValue.New("project-group"));
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+}
+
+/// <summary>
+/// Identifies a local discovery root that can be scanned for projects.
+/// </summary>
+public readonly record struct ProjectRootId
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ProjectRootId"/> struct.
+    /// </summary>
+    /// <param name="value">The stable project root identifier value.</param>
+    public ProjectRootId(string value)
+    {
+        Value = IdValue.Require(value);
+    }
+
+    /// <summary>
+    /// Gets the stable identifier value.
+    /// </summary>
+    public string Value { get; }
+
+    /// <summary>
+    /// Creates a new project root identifier.
+    /// </summary>
+    /// <returns>A generated project root identifier.</returns>
+    public static ProjectRootId New() => new(IdValue.New("project-root"));
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+}
+
+/// <summary>
 /// Identifies a machine that can host or execute governed runtime work.
 /// </summary>
 public readonly record struct MachineId

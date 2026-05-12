@@ -91,6 +91,8 @@ review, test, and document independently.
 - [x] Add `aeges update` runtime update command over release artifacts and
       local package sources.
 - [x] Add NuGet publishing support to the tag release workflow.
+- [x] Add project discovery roots and explicit project groups.
+- [x] Add CLI project root scanning with group assignment.
 - [x] Add `aeges task create`.
 - [x] Add `aeges task status`.
 - [x] Add `aeges agent run` host shell.

@@ -13,7 +13,16 @@ public sealed class SqliteProjectRepositoryTests
         await using var database = await TemporarySqliteDatabase.CreateAsync();
         await using var context = database.CreateContext();
         var repository = new SqliteProjectRepository(context);
-        var project = RuntimeProject.Create(new ProjectId("project-001"), "Aeges", "/work/aeges", CreatedAt);
+        var groups = new SqliteProjectGroupRepository(context);
+        await groups.AddAsync(
+            RuntimeProjectGroup.Create(new ProjectGroupId("runtime"), "Runtime", CreatedAt, "/work"),
+            CancellationToken.None);
+        var project = RuntimeProject.Create(
+            new ProjectId("project-001"),
+            "Aeges",
+            "/work/aeges",
+            CreatedAt,
+            new ProjectGroupId("runtime"));
 
         await repository.AddAsync(project, CancellationToken.None);
         await context.SaveChangesAsync(CancellationToken.None);
@@ -24,6 +33,7 @@ public sealed class SqliteProjectRepositoryTests
         Assert.Equal(project.Id, stored.Id);
         Assert.Equal(project.Name, stored.Name);
         Assert.Equal(project.Path, stored.Path);
+        Assert.Equal(project.GroupId, stored.GroupId);
         Assert.Equal(project.CreatedAt, stored.CreatedAt);
         Assert.Equal(project.UpdatedAt, stored.UpdatedAt);
         Assert.False(stored.IsArchived);
@@ -70,6 +80,30 @@ public sealed class SqliteProjectRepositoryTests
         Assert.Equal("Aeges Runtime", stored.Name);
         Assert.Equal("/work/aeges-runtime", stored.Path);
         Assert.Equal(updatedAt, stored.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task Update_persists_project_group_assignment()
+    {
+        await using var database = await TemporarySqliteDatabase.CreateAsync();
+        await using var context = database.CreateContext();
+        var repository = new SqliteProjectRepository(context);
+        var groups = new SqliteProjectGroupRepository(context);
+        await groups.AddAsync(
+            RuntimeProjectGroup.Create(new ProjectGroupId("runtime"), "Runtime", CreatedAt, "/work/runtime"),
+            CancellationToken.None);
+        var project = RuntimeProject.Create(new ProjectId("project-001"), "Aeges", "/work/aeges", CreatedAt);
+        await repository.AddAsync(project, CancellationToken.None);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        project.AssignGroup(new ProjectGroupId("runtime"), CreatedAt.AddMinutes(5));
+        await repository.UpdateAsync(project, CancellationToken.None);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        var stored = await repository.GetByIdAsync(new ProjectId("project-001"), CancellationToken.None);
+
+        Assert.NotNull(stored);
+        Assert.Equal(new ProjectGroupId("runtime"), stored.GroupId);
     }
 
     [Fact]
