@@ -155,10 +155,15 @@ project picker.
 The `reviewing` bucket is the human confirmation step after a worker succeeds.
 Opening a reviewing task shows the latest iteration, runner exit status,
 registered artifacts, and a short runner response preview. Press `Complete` to
-confirm the result, move the task to `completed`, and return to the completed
-task bucket without a duplicate status notification. Press `Continue` and send
+confirm the result, move the task to `completed`, and leave the final task
+details message in place without action buttons. Press `Continue` and send
 follow-up feedback to store a `review` artifact and requeue the task for another
 bounded iteration.
+
+For forum-topic tasks, the Telegram transport updates the topic title with the
+latest task status, for example `[running] Fix install docs` or `[completed]
+Fix install docs`. If Telegram rejects the title update because the bot lacks
+topic-management permission, the task flow continues and the failure is logged.
 
 Continuation drafts are scoped to the user who pressed `Continue`. In private
 chats, the next non-empty message from that chat is accepted as feedback. In

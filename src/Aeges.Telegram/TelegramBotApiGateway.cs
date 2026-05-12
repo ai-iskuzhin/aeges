@@ -87,6 +87,20 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
     }
 
     /// <inheritdoc />
+    public async Task UpdateForumTopicTitleAsync(
+        long chatId,
+        int messageThreadId,
+        string name,
+        CancellationToken cancellationToken)
+    {
+        await botClient.EditForumTopic(
+            chatId,
+            messageThreadId,
+            name,
+            cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task EditResponseAsync(
         long chatId,
         int messageId,

@@ -53,6 +53,20 @@ public interface ITelegramBotGateway
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Updates a forum topic title in a Telegram supergroup.
+    /// </summary>
+    /// <param name="chatId">The target Telegram supergroup identifier.</param>
+    /// <param name="messageThreadId">The target forum topic/thread identifier.</param>
+    /// <param name="name">The updated topic name.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    Task UpdateForumTopicTitleAsync(
+        long chatId,
+        int messageThreadId,
+        string name,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Edits an existing response message with updated text and inline buttons.
     /// </summary>
     /// <param name="chatId">The target Telegram chat identifier.</param>

@@ -1326,12 +1326,7 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse($"{task.Error!.Code}: {task.Error.Message}", BackButtons());
         }
 
-        var response = await ListTasksByStatusAsync(authorization, RuntimeTaskStatus.Completed, cancellationToken);
-
-        return response with
-        {
-            Metadata = new TelegramResponseMetadata(TelegramResponseKind.TaskWatch, task.Value!.Id),
-        };
+        return await RenderTaskDetailsAsync(task.Value!.Id, cancellationToken);
     }
 
     private async Task<TelegramResponse> ViewApprovalAsync(
@@ -1446,7 +1441,7 @@ public sealed class TelegramInteractionHandler
     {
         if (task.Status.IsTerminal())
         {
-            return BackButtons();
+            return TelegramButtonMarkup.Empty;
         }
 
         if (task.Status == RuntimeTaskStatus.Reviewing)

@@ -680,14 +680,11 @@ public sealed class TelegramInteractionHandlerTests
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.CompleteTask(task.Id)),
             CancellationToken.None);
 
-        Assert.Equal("completed tasks:\n- task-001: Wire Telegram buttons", response.Text);
+        Assert.Contains("> Status: completed", response.Text, StringComparison.Ordinal);
         Assert.Equal(RuntimeTaskStatus.Completed, task.Status);
         Assert.True(facade.CompleteTaskCalled);
-        Assert.Equal("Wire Telegram buttons", response.Buttons.Rows[0][0].Text);
-        Assert.Equal(TelegramCallbackData.ViewTask(task.Id), response.Buttons.Rows[0][0].CallbackData);
-        Assert.Equal("Back", response.Buttons.Rows[1][0].Text);
-        Assert.Equal(TelegramCallbackData.TaskMenu, response.Buttons.Rows[1][0].CallbackData);
-        Assert.Equal(TelegramResponseKind.TaskWatch, response.Metadata?.Kind);
+        Assert.Empty(response.Buttons.Rows);
+        Assert.Equal(TelegramResponseKind.TaskDetails, response.Metadata?.Kind);
         Assert.Equal(task.Id, response.Metadata?.TaskId);
     }
 

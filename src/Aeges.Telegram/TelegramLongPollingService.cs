@@ -344,6 +344,7 @@ public sealed class TelegramLongPollingService
             CreateTaskFingerprint(task),
             isDetails ? messageId : null,
             isDetails && messageId is not null);
+        await TryUpdateTaskTopicTitleAsync(chatId, messageThreadId, task, cancellationToken);
         await handler.RecordTaskBindingAsync(
             chatId,
             messageThreadId,
@@ -377,6 +378,8 @@ public sealed class TelegramLongPollingService
             {
                 continue;
             }
+
+            await TryUpdateTaskTopicTitleAsync(pair.Key.ChatId, pair.Key.MessageThreadId, task, cancellationToken);
 
             if (pair.Value.LastBotMessageIsTaskDetails && pair.Value.DetailMessageId is not null)
             {
@@ -436,6 +439,37 @@ public sealed class TelegramLongPollingService
             {
                 await ForgetMigratedTaskWatchAsync(pair.Key, exception, cancellationToken);
             }
+        }
+    }
+
+    private async Task TryUpdateTaskTopicTitleAsync(
+        long chatId,
+        int? messageThreadId,
+        RuntimeTask task,
+        CancellationToken cancellationToken)
+    {
+        if (messageThreadId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await gateway.UpdateForumTopicTitleAsync(
+                chatId,
+                messageThreadId.Value,
+                CreateTaskTopicTitle(task),
+                cancellationToken);
+        }
+        catch (Exception exception) when (exception is RequestException or ApiRequestException)
+        {
+            await LogAsync(
+                new TelegramLongPollingLogEntry(
+                    TelegramLongPollingLogLevel.Warning,
+                    "Telegram forum topic title update failed.",
+                    ExceptionType: exception.GetType().Name,
+                    ErrorMessage: exception.Message),
+                cancellationToken);
         }
     }
 
@@ -533,6 +567,13 @@ public sealed class TelegramLongPollingService
 
     private static string CreateTaskFingerprint(RuntimeTask task) =>
         $"{task.Status.ToStorageValue()}:{task.CurrentIteration}:{task.FailureReason}";
+
+    private static string CreateTaskTopicTitle(RuntimeTask task)
+    {
+        var title = $"[{task.Status.ToStorageValue()}] {task.Title}".Trim();
+
+        return title.Length <= 128 ? title : title[..128];
+    }
 
     private static bool IsTerminal(RuntimeTaskStatus status) =>
         status is RuntimeTaskStatus.Completed or RuntimeTaskStatus.Failed or RuntimeTaskStatus.Cancelled;

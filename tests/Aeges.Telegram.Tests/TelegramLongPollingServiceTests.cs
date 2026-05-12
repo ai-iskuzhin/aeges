@@ -344,7 +344,46 @@ public sealed class TelegramLongPollingServiceTests
         Assert.Equal(RuntimeTaskStatus.Completed, task.Status);
         Assert.Empty(gateway.SentResponses);
         Assert.Equal(2, gateway.EditedResponses.Count);
-        Assert.Contains("completed tasks:", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Status: completed", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
+        Assert.Empty(gateway.EditedResponses[1].Response.Buttons.Rows);
+    }
+
+    [Fact]
+    public async Task PollOnceAsync_updates_forum_topic_title_when_watched_task_status_changes()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Complete from Telegram",
+            "Update topic title when task changes.",
+            DateTimeOffset.UtcNow);
+        var facade = new FakeTelegramApplicationFacade { WatchedTask = task };
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    -1001,
+                    Text: null,
+                    CallbackData: TelegramCallbackData.ViewTask(task.Id),
+                    CallbackQueryId: "callback-001",
+                    MessageId: 9001,
+                    MessageThreadId: 77,
+                    IsPrivateChat: false),
+            ],
+        };
+        var service = CreateService(gateway, facade);
+
+        await service.PollOnceAsync(null, new TelegramLongPollingOptions(), CancellationToken.None);
+        task.StartPlanning(DateTimeOffset.UtcNow);
+        gateway.Updates = [];
+
+        await service.PollOnceAsync(42, new TelegramLongPollingOptions(), CancellationToken.None);
+
+        Assert.Contains(gateway.UpdatedTopics, topic => topic == (-1001, 77, "[queued] Complete from Telegram"));
+        Assert.Contains(gateway.UpdatedTopics, topic => topic == (-1001, 77, "[planning] Complete from Telegram"));
     }
 
     [Fact]
@@ -616,6 +655,8 @@ public sealed class TelegramLongPollingServiceTests
 
         public List<(long ChatId, string Name)> CreatedTopics { get; } = [];
 
+        public List<(long ChatId, int MessageThreadId, string Name)> UpdatedTopics { get; } = [];
+
         public int? LastLimit { get; private set; }
 
         public int? LastTimeoutSeconds { get; private set; }
@@ -671,6 +712,16 @@ public sealed class TelegramLongPollingServiceTests
         {
             CreatedTopics.Add((chatId, name));
             return Task.FromResult(new TelegramForumTopic(777, name));
+        }
+
+        public Task UpdateForumTopicTitleAsync(
+            long chatId,
+            int messageThreadId,
+            string name,
+            CancellationToken cancellationToken)
+        {
+            UpdatedTopics.Add((chatId, messageThreadId, name));
+            return Task.CompletedTask;
         }
 
         public Task EditResponseAsync(
