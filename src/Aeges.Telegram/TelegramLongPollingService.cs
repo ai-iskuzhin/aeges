@@ -116,7 +116,7 @@ public sealed class TelegramLongPollingService
 
                 if (isCallback)
                 {
-                    await gateway.AnswerCallbackQueryAsync(callbackQueryId!, cancellationToken);
+                    await TryAnswerCallbackQueryAsync(callbackQueryId!, update, processed, cancellationToken);
                 }
 
                 if (await TryStartTaskTopicAsync(update, cancellationToken))
@@ -493,6 +493,30 @@ public sealed class TelegramLongPollingService
             cancellationToken);
     }
 
+    private async Task TryAnswerCallbackQueryAsync(
+        string callbackQueryId,
+        TelegramBotUpdate update,
+        int processed,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await gateway.AnswerCallbackQueryAsync(callbackQueryId, cancellationToken);
+        }
+        catch (Exception exception) when (IsTelegramStaleCallbackException(exception))
+        {
+            await LogAsync(
+                new TelegramLongPollingLogEntry(
+                    TelegramLongPollingLogLevel.Warning,
+                    "Telegram callback query acknowledgement is stale; processing callback payload anyway.",
+                    NextOffset: update.UpdateId + 1,
+                    ProcessedUpdates: processed + 1,
+                    ExceptionType: exception.GetType().Name,
+                    ErrorMessage: exception.Message),
+                cancellationToken);
+        }
+    }
+
     private static TelegramUpdate ToInteractionUpdate(TelegramBotUpdate update) =>
         new(
             update.ChatId,
@@ -533,23 +557,41 @@ public sealed class TelegramLongPollingService
         }
 
         var command = trimmed[mention.Length..].TrimStart();
-        if (!command.StartsWith("new task", StringComparison.OrdinalIgnoreCase))
+        var titleStart = MatchTaskCommand(command);
+        if (titleStart is null)
         {
             return false;
         }
 
-        if (command.Length > "new task".Length && !char.IsWhiteSpace(command["new task".Length]) && command["new task".Length] != ':')
-        {
-            return false;
-        }
-
-        var title = command["new task".Length..].TrimStart(' ', '\t', ':', '-');
+        var title = command[titleStart.Value..].TrimStart(' ', '\t', ':', '-');
         if (!string.IsNullOrWhiteSpace(title))
         {
             topicTitle = title.Length <= 96 ? title : title[..96];
         }
 
         return true;
+    }
+
+    private static int? MatchTaskCommand(string command)
+    {
+        foreach (var candidate in new[] { "new task", "task" })
+        {
+            if (!command.StartsWith(candidate, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (command.Length > candidate.Length
+                && !char.IsWhiteSpace(command[candidate.Length])
+                && command[candidate.Length] != ':')
+            {
+                continue;
+            }
+
+            return candidate.Length;
+        }
+
+        return null;
     }
 
     private static bool IsTransientTelegramTransportException(Exception exception) =>

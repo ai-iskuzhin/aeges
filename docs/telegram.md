@@ -108,10 +108,11 @@ The task is created in `queued` state. If the local agent worker is running, it
 will claim and process the task on its next polling pass.
 
 In Telegram forum supergroups, General can also act as the task intake lane.
-Mention the bot with `new task` and an optional topic title:
+Mention the bot with `new task` or `task:` and an optional topic title:
 
 ```text
 @aeges_bot new task Fix install docs
+@aeges_bot task: Fix install docs
 ```
 
 When the bot has administrator access with topic management enabled, it creates

@@ -140,6 +140,40 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
+    public async Task PollOnceAsync_creates_forum_topic_for_short_task_command_in_supergroup()
+    {
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    -1001,
+                    Text: "@aeges_test_bot task: Test task thread",
+                    CallbackData: null,
+                    CallbackQueryId: null,
+                    Username: "operator",
+                    SenderUserId: 1001,
+                    IsPrivateChat: false),
+            ],
+        };
+        var service = CreateService(gateway);
+
+        var result = await service.PollOnceAsync(
+            nextOffset: null,
+            new TelegramLongPollingOptions(),
+            CancellationToken.None);
+
+        Assert.Equal(42, result.NextOffset);
+        Assert.Equal(1, result.ProcessedUpdates);
+        Assert.Single(gateway.CreatedTopics);
+        Assert.Equal((-1001, "Test task thread"), gateway.CreatedTopics[0]);
+        Assert.Single(gateway.SentResponses);
+        Assert.Equal(777, gateway.SentResponses[0].MessageThreadId);
+        Assert.Contains("No active projects", gateway.SentResponses[0].Response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PollOnceAsync_sends_menu_without_pending_message_for_start_command()
     {
         var gateway = new FakeTelegramBotGateway
@@ -478,7 +512,7 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
-    public async Task PollOnceAsync_skips_stale_callback_query_errors_without_retrying_batch()
+    public async Task PollOnceAsync_processes_callback_payload_when_acknowledgement_is_stale()
     {
         var logs = new List<TelegramLongPollingLogEntry>();
         var gateway = new FakeTelegramBotGateway
@@ -509,6 +543,9 @@ public sealed class TelegramLongPollingServiceTests
         Assert.Equal(2, result.ProcessedUpdates);
         Assert.Equal(["callback-001"], gateway.AnsweredCallbackQueryIds);
         Assert.Single(gateway.SentResponses);
+        Assert.Single(gateway.EditedResponses);
+        Assert.Equal(9001, gateway.EditedResponses[0].MessageId);
+        Assert.Equal("Aeges control", gateway.EditedResponses[0].Response.Text);
         Assert.Contains(logs, entry =>
             entry.Level == TelegramLongPollingLogLevel.Warning
             && entry.Message.Contains("stale", StringComparison.OrdinalIgnoreCase)
