@@ -1,4 +1,5 @@
 using Aeges.Application.Configuration;
+using Aeges.Application.Runtime;
 
 namespace Aeges.Cli.Tests;
 
@@ -118,20 +119,21 @@ public sealed class TelegramCliSetupTests
     public async Task RunWizardAsync_writes_configured_secret_file_without_echoing_token()
     {
         var configPath = Path.Combine(CreateTemporaryDirectory(), "config.json");
-        var tokenPath = Path.Combine(CreateTemporaryDirectory(), "telegram-token");
         var output = new StringWriter();
+        var layout = RuntimeDirectoryLayout.Create(CreateTemporaryDirectory());
+        var tokenPath = Path.Combine(layout.SecretsPath, "telegram-bot-token");
 
         var result = await TelegramCliSetup.RunWizardAsync(
             new AegesConfiguration(),
             configPath,
             new StringReader($"""
-            {tokenPath}
             entered-token
             1001,1002
 
             """),
             output,
-            CancellationToken.None);
+            CancellationToken.None,
+            layout);
 
         Assert.Equal(configPath, result.ConfigPath);
         Assert.Equal("AEGES_TELEGRAM_BOT_TOKEN", result.BotTokenEnvironmentVariable);
@@ -139,6 +141,7 @@ public sealed class TelegramCliSetupTests
         Assert.Equal([1001, 1002], result.AllowedChatIds);
         Assert.Equal("entered-token\n", await File.ReadAllTextAsync(tokenPath));
         Assert.DoesNotContain("entered-token", output.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Telegram bot token file [", output.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("Telegram bot token environment variable [", output.ToString(), StringComparison.Ordinal);
     }
 
@@ -146,20 +149,47 @@ public sealed class TelegramCliSetupTests
     public async Task RunWizardAsync_allows_open_local_chat_mode()
     {
         var configPath = Path.Combine(CreateTemporaryDirectory(), "config.json");
-        var tokenPath = Path.Combine(CreateTemporaryDirectory(), "telegram-token");
         var output = new StringWriter();
+        var layout = RuntimeDirectoryLayout.Create(CreateTemporaryDirectory());
+        var tokenPath = Path.Combine(layout.SecretsPath, "telegram-bot-token");
 
         var result = await TelegramCliSetup.RunWizardAsync(
             new AegesConfiguration(),
             configPath,
-            new StringReader($"{tokenPath}\nentered-token\nempty\n"),
+            new StringReader("entered-token\nempty\n"),
             output,
-            CancellationToken.None);
+            CancellationToken.None,
+            layout);
 
         Assert.Equal("AEGES_TELEGRAM_BOT_TOKEN", result.BotTokenEnvironmentVariable);
         Assert.Equal(tokenPath, result.BotTokenFilePath);
         Assert.Empty(result.AllowedChatIds);
         Assert.Contains("open to any chat", output.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunWizardAsync_keeps_existing_secret_file_when_token_is_empty()
+    {
+        var configPath = Path.Combine(CreateTemporaryDirectory(), "config.json");
+        var output = new StringWriter();
+        var layout = RuntimeDirectoryLayout.Create(CreateTemporaryDirectory());
+        var tokenPath = Path.Combine(layout.SecretsPath, "telegram-bot-token");
+        Directory.CreateDirectory(layout.SecretsPath);
+        await File.WriteAllTextAsync(tokenPath, "existing-token\n");
+
+        var result = await TelegramCliSetup.RunWizardAsync(
+            new AegesConfiguration(),
+            configPath,
+            new StringReader("\n1001\n"),
+            output,
+            CancellationToken.None,
+            layout);
+
+        Assert.Equal(tokenPath, result.BotTokenFilePath);
+        Assert.Equal([1001], result.AllowedChatIds);
+        Assert.Equal("existing-token\n", await File.ReadAllTextAsync(tokenPath));
+        Assert.Contains("Keeping existing local secret file.", output.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("existing-token", output.ToString(), StringComparison.Ordinal);
     }
 
     private static string CreateVariableName() =>

@@ -57,9 +57,10 @@ internal static class TelegramCliSetup
         string configPath,
         TextReader input,
         TextWriter output,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        RuntimeDirectoryLayout? layout = null)
     {
-        var layout = RuntimeDirectoryLayout.CreateDefault();
+        layout ??= RuntimeDirectoryLayout.CreateDefault();
         var defaultTokenFilePath = Path.Combine(layout.SecretsPath, "telegram-bot-token");
 
         await output.WriteLineAsync("Aeges Telegram setup");
@@ -67,27 +68,18 @@ internal static class TelegramCliSetup
         await output.WriteLineAsync();
 
         configuration.Telegram.BotTokenEnvironmentVariable = DefaultBotTokenEnvironmentVariable;
+        var tokenFilePath = defaultTokenFilePath;
+
         await output.WriteLineAsync("Token source: local secret file.");
-        await output.WriteLineAsync(
-            $"Environment override remains available through {DefaultBotTokenEnvironmentVariable}.");
-
-        var tokenFilePath = string.IsNullOrWhiteSpace(configuration.Telegram.BotTokenFilePath)
-            ? defaultTokenFilePath
-            : configuration.Telegram.BotTokenFilePath;
-
-        tokenFilePath = await PromptAbsolutePathAsync(
-            input,
-            output,
-            "Telegram bot token file",
-            tokenFilePath,
-            cancellationToken);
+        await output.WriteLineAsync($"Token file: {tokenFilePath}");
+        await output.WriteLineAsync($"Environment override: {DefaultBotTokenEnvironmentVariable}");
 
         var existingTokenFile = File.Exists(tokenFilePath);
         while (true)
         {
             await output.WriteAsync(existingTokenFile
-                ? "Enter Telegram bot token, or press Enter to keep the existing secret file: "
-                : "Enter Telegram bot token: ");
+                ? "Telegram bot token [press Enter to keep existing]: "
+                : "Telegram bot token: ");
 
             var token = await ReadSecretAsync(input, cancellationToken);
             await output.WriteLineAsync();
@@ -95,13 +87,13 @@ internal static class TelegramCliSetup
             if (!string.IsNullOrWhiteSpace(token))
             {
                 WriteSecretFile(tokenFilePath, token);
-                await output.WriteLineAsync($"Saved Telegram bot token to local secret file: {tokenFilePath}");
+                await output.WriteLineAsync("Saved Telegram bot token to the local secret file.");
                 break;
             }
 
             if (existingTokenFile)
             {
-                await output.WriteLineAsync($"Keeping existing local secret file: {tokenFilePath}");
+                await output.WriteLineAsync("Keeping existing local secret file.");
                 break;
             }
 
@@ -140,89 +132,6 @@ internal static class TelegramCliSetup
         return !string.IsNullOrWhiteSpace(configuration.BotTokenFilePath)
             && File.Exists(configuration.BotTokenFilePath)
             && !string.IsNullOrWhiteSpace(File.ReadAllText(configuration.BotTokenFilePath));
-    }
-
-    private static async Task<string> PromptTextAsync(
-        TextReader input,
-        TextWriter output,
-        string label,
-        string defaultValue,
-        CancellationToken cancellationToken)
-    {
-        while (true)
-        {
-            await output.WriteAsync($"{label} [{defaultValue}]: ");
-            var value = await input.ReadLineAsync(cancellationToken);
-
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return defaultValue;
-            }
-
-            value = value.Trim();
-
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                return value;
-            }
-        }
-    }
-
-    private static async Task<bool> PromptYesNoAsync(
-        TextReader input,
-        TextWriter output,
-        string label,
-        bool defaultValue,
-        CancellationToken cancellationToken)
-    {
-        var suffix = defaultValue ? "Y/n" : "y/N";
-
-        while (true)
-        {
-            await output.WriteAsync($"{label} [{suffix}]: ");
-            var value = await input.ReadLineAsync(cancellationToken);
-
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return defaultValue;
-            }
-
-            value = value.Trim();
-
-            if (value.Equals("y", StringComparison.OrdinalIgnoreCase)
-                || value.Equals("yes", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (value.Equals("n", StringComparison.OrdinalIgnoreCase)
-                || value.Equals("no", StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            await output.WriteLineAsync("Enter yes or no.");
-        }
-    }
-
-    private static async Task<string> PromptAbsolutePathAsync(
-        TextReader input,
-        TextWriter output,
-        string label,
-        string defaultValue,
-        CancellationToken cancellationToken)
-    {
-        while (true)
-        {
-            var path = await PromptTextAsync(input, output, label, defaultValue, cancellationToken);
-
-            if (Path.IsPathFullyQualified(path))
-            {
-                return Path.GetFullPath(path);
-            }
-
-            await output.WriteLineAsync("Enter an absolute file path.");
-        }
     }
 
     private static async Task<List<long>> PromptAllowedChatIdsAsync(

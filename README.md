@@ -272,9 +272,10 @@ Run the setup wizard:
 aeges telegram setup
 ```
 
-The wizard writes safe Telegram settings to `~/.aeges/config.json`, can store
-the bot token in a local secret file under `~/.aeges/secrets/`, and asks for
-allowed chat IDs. The token is never written to committed config or logs.
+The wizard writes safe Telegram settings to `~/.aeges/config.json`, asks once
+for the bot token, stores it in `~/.aeges/secrets/telegram-bot-token`, and asks
+for allowed chat IDs. If the secret file already exists, press Enter at the
+token prompt to keep it. The token is never written to committed config or logs.
 
 You can also override the local token file with an environment variable when
 needed:

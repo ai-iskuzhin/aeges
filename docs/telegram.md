@@ -164,12 +164,16 @@ The bot token is read from the environment variable named by
 `telegram.botTokenFilePath`. The token value itself must not be stored in
 committed config.
 
-Run the setup wizard to write safe config and store the token in a local secret
-file:
+Run the setup wizard to write safe config and store the token in the default
+local secret file:
 
 ```text
 aeges telegram setup
 ```
+
+The wizard asks once for the bot token, saves it to
+`~/.aeges/secrets/telegram-bot-token`, and then asks for allowed chat IDs. If a
+secret file already exists, press Enter at the token prompt to keep it.
 
 If no token source is configured, `aeges telegram run` prompts for a token and
 loads it into the current process only. Prompted tokens are not written to config
