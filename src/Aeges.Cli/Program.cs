@@ -1384,21 +1384,36 @@ internal static class AegesCli
 
         await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
         var unitOfWork = new SqliteUnitOfWork(context);
-        var root = await unitOfWork.ProjectRoots.GetByIdAsync(new ProjectRootId(options.RootId!), cancellationToken);
+        var target = await ResolveProjectRootScanTargetAsync(unitOfWork, options, cancellationToken);
 
-        if (root is null)
+        if (!target.IsSuccess)
         {
-            await WriteErrorAsync(
-                new ApplicationError("project_root_not_found", $"Project root '{options.RootId}' was not found."),
-                options.Json,
-                error);
+            await WriteErrorAsync(target.Error!, options.Json, error);
             return 1;
         }
 
-        var scan = await ScanProjectRootAsync(unitOfWork, root, options, cancellationToken);
+        var scan = await ScanProjectRootAsync(unitOfWork, target.Value!, options, cancellationToken);
 
         if (options.Apply)
         {
+            if (scan.RootStatus == "discovered")
+            {
+                await unitOfWork.ProjectRoots.AddAsync(target.Value!.Root, cancellationToken);
+                scan.RootStatus = "created";
+            }
+
+            foreach (var group in scan.Groups.Where(group => group.Status == "discovered"))
+            {
+                await unitOfWork.ProjectGroups.AddAsync(
+                    RuntimeProjectGroup.Create(
+                        new ProjectGroupId(group.GroupId),
+                        group.Name,
+                        DateTimeOffset.UtcNow,
+                        group.Path),
+                    cancellationToken);
+                group.Status = "created";
+            }
+
             foreach (var candidate in scan.Candidates.Where(candidate => candidate.ProjectId is null))
             {
                 var project = RuntimeProject.Create(
@@ -1689,51 +1704,186 @@ internal static class AegesCli
         return builder.ToString();
     }
 
+    private static async Task<ApplicationResult<ProjectRootScanTarget>> ResolveProjectRootScanTargetAsync(
+        IUnitOfWork unitOfWork,
+        ProjectRootScanOptions options,
+        CancellationToken cancellationToken)
+    {
+        var roots = await unitOfWork.ProjectRoots.ListAsync(cancellationToken);
+        var input = options.RootInput!;
+
+        if (Directory.Exists(input))
+        {
+            var path = Path.GetFullPath(input);
+            var existingRoot = roots.FirstOrDefault(root => NormalizePathKey(root.Path) == NormalizePathKey(path));
+
+            if (existingRoot is not null)
+            {
+                return ApplicationResult<ProjectRootScanTarget>.Success(new ProjectRootScanTarget(existingRoot, "existing"));
+            }
+
+            var rootName = new DirectoryInfo(path).Name;
+            var root = RuntimeProjectRoot.Create(
+                CreateUniqueProjectRootId(rootName, roots.Select(existing => existing.Id).ToHashSet()),
+                rootName,
+                path,
+                DateTimeOffset.UtcNow);
+
+            return ApplicationResult<ProjectRootScanTarget>.Success(new ProjectRootScanTarget(root, "discovered"));
+        }
+
+        var registeredRoot = await unitOfWork.ProjectRoots.GetByIdAsync(new ProjectRootId(input), cancellationToken);
+
+        return registeredRoot is null
+            ? ApplicationResult<ProjectRootScanTarget>.Failure(
+                "project_root_not_found",
+                $"'{input}' is not a registered root id and is not an existing directory.")
+            : ApplicationResult<ProjectRootScanTarget>.Success(new ProjectRootScanTarget(registeredRoot, "existing"));
+    }
+
     private static async Task<ProjectRootScanOutput> ScanProjectRootAsync(
         IUnitOfWork unitOfWork,
-        RuntimeProjectRoot root,
+        ProjectRootScanTarget target,
         ProjectRootScanOptions options,
         CancellationToken cancellationToken)
     {
         var projects = await unitOfWork.Projects.ListAsync(cancellationToken);
         var groups = await unitOfWork.ProjectGroups.ListAsync(cancellationToken);
         var existingProjectIds = projects.Select(project => project.Id).ToHashSet();
+        var existingGroupIds = groups.Select(group => group.Id).ToHashSet();
         var existingProjectPaths = projects.ToDictionary(
             project => NormalizePathKey(project.Path),
             project => project.Id.Value,
             StringComparer.Ordinal);
-        var candidates = DiscoverProjectDirectories(root.Path, options.MaxDepth)
-            .Select(projectPath => CreateScanCandidate(projectPath, groups, existingProjectPaths))
+        var existingGroupsByPath = groups
+            .Where(group => !group.IsArchived && !string.IsNullOrWhiteSpace(group.Path))
+            .GroupBy(group => NormalizePathKey(group.Path!), StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        var scanGroups = new Dictionary<string, ProjectScanGroupOutput>(StringComparer.Ordinal);
+        var candidates = DiscoverProjectDirectories(target.Root.Path, options.MaxDepth)
+            .Select(projectPath => CreateScanCandidate(
+                target.Root.Path,
+                projectPath,
+                groups,
+                existingGroupsByPath,
+                existingGroupIds,
+                existingProjectPaths,
+                scanGroups))
             .OrderBy(candidate => candidate.GroupId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ThenBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         return new ProjectRootScanOutput(
-            root.Id.Value,
-            root.Name,
-            root.Path,
+            target.Root.Id.Value,
+            target.Root.Name,
+            target.Root.Path,
+            target.RootStatus,
             options.MaxDepth,
             options.Apply,
             existingProjectIds,
+            scanGroups.Values
+                .OrderBy(group => group.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList(),
             candidates);
     }
 
     private static ProjectScanCandidateOutput CreateScanCandidate(
+        string rootPath,
         string projectPath,
         IReadOnlyList<RuntimeProjectGroup> groups,
+        IReadOnlyDictionary<string, RuntimeProjectGroup> existingGroupsByPath,
+        ISet<ProjectGroupId> existingGroupIds,
         IReadOnlyDictionary<string, string> existingProjectPaths)
+    {
+        return CreateScanCandidate(
+            rootPath,
+            projectPath,
+            groups,
+            existingGroupsByPath,
+            existingGroupIds,
+            existingProjectPaths,
+            new Dictionary<string, ProjectScanGroupOutput>(StringComparer.Ordinal));
+    }
+
+    private static ProjectScanCandidateOutput CreateScanCandidate(
+        string rootPath,
+        string projectPath,
+        IReadOnlyList<RuntimeProjectGroup> groups,
+        IReadOnlyDictionary<string, RuntimeProjectGroup> existingGroupsByPath,
+        ISet<ProjectGroupId> existingGroupIds,
+        IReadOnlyDictionary<string, string> existingProjectPaths,
+        IDictionary<string, ProjectScanGroupOutput> scanGroups)
     {
         var name = new DirectoryInfo(projectPath).Name;
         var group = ResolveProjectGroup(projectPath, groups);
+        var inferredGroupPath = group is null ? InferProjectGroupPath(rootPath, projectPath) : null;
+        var groupId = group?.Id.Value;
+
+        if (groupId is null && inferredGroupPath is not null)
+        {
+            var normalizedGroupPath = NormalizePathKey(inferredGroupPath);
+
+            if (existingGroupsByPath.TryGetValue(normalizedGroupPath, out var existingGroup))
+            {
+                groupId = existingGroup.Id.Value;
+                if (!scanGroups.ContainsKey(normalizedGroupPath))
+                {
+                    scanGroups.Add(
+                        normalizedGroupPath,
+                        new ProjectScanGroupOutput(
+                        existingGroup.Name,
+                        existingGroup.Path!,
+                        existingGroup.Id.Value,
+                        "existing"));
+                }
+            }
+            else
+            {
+                if (!scanGroups.TryGetValue(normalizedGroupPath, out var discoveredGroup))
+                {
+                    var groupName = new DirectoryInfo(inferredGroupPath).Name;
+                    var discoveredGroupId = CreateUniqueProjectGroupId(groupName, existingGroupIds);
+                    existingGroupIds.Add(discoveredGroupId);
+                    discoveredGroup = new ProjectScanGroupOutput(
+                        groupName,
+                        inferredGroupPath,
+                        discoveredGroupId.Value,
+                        "discovered");
+                    scanGroups.Add(normalizedGroupPath, discoveredGroup);
+                }
+
+                groupId = discoveredGroup.GroupId;
+            }
+        }
+
         var normalizedPath = NormalizePathKey(projectPath);
         existingProjectPaths.TryGetValue(normalizedPath, out var existingProjectId);
 
         return new ProjectScanCandidateOutput(
             name,
             projectPath,
-            group?.Id.Value,
+            groupId,
             existingProjectId is null ? "discovered" : "existing",
             existingProjectId);
+    }
+
+    private static string? InferProjectGroupPath(string rootPath, string projectPath)
+    {
+        var fullRootPath = Path.GetFullPath(rootPath);
+        var fullProjectPath = Path.GetFullPath(projectPath);
+        var relativePath = Path.GetRelativePath(fullRootPath, fullProjectPath);
+        var segments = relativePath.Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries);
+
+        if (segments.Length < 2)
+        {
+            return null;
+        }
+
+        var groupPath = Path.Combine(fullRootPath, segments[0]);
+
+        return LooksLikeProject(groupPath) ? null : groupPath;
     }
 
     private static RuntimeProjectGroup? ResolveProjectGroup(
@@ -1848,6 +1998,32 @@ internal static class AegesCli
         for (var suffix = 2; existingProjectIds.Contains(candidate); suffix++)
         {
             candidate = new ProjectId($"{baseId}-{suffix}");
+        }
+
+        return candidate;
+    }
+
+    private static ProjectGroupId CreateUniqueProjectGroupId(string name, ISet<ProjectGroupId> existingGroupIds)
+    {
+        var baseId = CreateStableIdentifier(name);
+        var candidate = new ProjectGroupId(baseId);
+
+        for (var suffix = 2; existingGroupIds.Contains(candidate); suffix++)
+        {
+            candidate = new ProjectGroupId($"{baseId}-{suffix}");
+        }
+
+        return candidate;
+    }
+
+    private static ProjectRootId CreateUniqueProjectRootId(string name, ISet<ProjectRootId> existingRootIds)
+    {
+        var baseId = CreateStableIdentifier(name);
+        var candidate = new ProjectRootId(baseId);
+
+        for (var suffix = 2; existingRootIds.Contains(candidate); suffix++)
+        {
+            candidate = new ProjectRootId($"{baseId}-{suffix}");
         }
 
         return candidate;
@@ -2516,8 +2692,15 @@ internal static class AegesCli
             return;
         }
 
-        await output.WriteLineAsync($"Root scan: {scan.RootId}");
+        await output.WriteLineAsync($"Root scan: {scan.RootId} ({scan.RootStatus})");
         await output.WriteLineAsync($"Path: {scan.RootPath}");
+        await output.WriteLineAsync($"Groups: {scan.Groups.Count}");
+        foreach (var group in scan.Groups)
+        {
+            await output.WriteLineAsync(
+                $"  - {group.Status} | {group.GroupId} | {group.Name} | {group.Path}");
+        }
+
         await output.WriteLineAsync($"Candidates: {scan.Candidates.Count}");
 
         foreach (var candidate in scan.Candidates)
@@ -3033,7 +3216,7 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges group list [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges root add --name <name> --path <path> [--root-id <id>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges root list [--config <path>] [--connection-string <value>] [--json]");
-        await error.WriteLineAsync("  aeges root scan <root-id> [--max-depth <int>] [--recursive] [--apply] [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges root scan <path-or-root-id> [--max-depth <int>] [--recursive] [--apply] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges machine add --name <name> --platform <text> [--machine-id <id>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges machine list [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task create --project-id <id> --machine-id <id> --title <title> --goal <goal> [--task-id <id>] [--priority <int>] [--max-iterations <int>] [--config <path>] [--connection-string <value>] [--json]");
@@ -3927,9 +4110,9 @@ internal static class AegesCli
 
     private sealed class ProjectRootScanOptions : CliOptions
     {
-        public string? RootId { get; private init; }
+        public string? RootInput { get; private init; }
 
-        public int MaxDepth { get; private init; } = 1;
+        public int MaxDepth { get; private init; } = 2;
 
         public bool Apply { get; private init; }
 
@@ -3937,7 +4120,7 @@ internal static class AegesCli
         {
             string? configPath = null;
             string? connectionString = null;
-            string? rootId = null;
+            string? rootInput = null;
             int? maxDepth = null;
             var recursive = false;
             var apply = false;
@@ -3965,7 +4148,7 @@ internal static class AegesCli
 
                         break;
                     case "--root-id":
-                        if (!TryReadValue(args, ref index, out rootId))
+                        if (!TryReadValue(args, ref index, out rootInput))
                         {
                             return ErrorResult("--root-id requires a value.");
                         }
@@ -3991,19 +4174,19 @@ internal static class AegesCli
                             return ErrorResult($"Unknown option '{args[index]}'.");
                         }
 
-                        if (rootId is not null)
+                        if (rootInput is not null)
                         {
-                            return ErrorResult("Only one root identifier can be supplied.");
+                            return ErrorResult("Only one root path or identifier can be supplied.");
                         }
 
-                        rootId = args[index];
+                        rootInput = args[index];
                         break;
                 }
             }
 
-            if (string.IsNullOrWhiteSpace(rootId))
+            if (string.IsNullOrWhiteSpace(rootInput))
             {
-                return ErrorResult("Root identifier is required.");
+                return ErrorResult("Root path or identifier is required.");
             }
 
             return new ProjectRootScanOptions
@@ -4011,8 +4194,8 @@ internal static class AegesCli
                 ConfigPath = configPath,
                 ConnectionString = connectionString,
                 Json = json,
-                RootId = rootId,
-                MaxDepth = maxDepth ?? (recursive ? 2 : 1),
+                RootInput = rootInput,
+                MaxDepth = maxDepth ?? (recursive ? 3 : 2),
                 Apply = apply,
             };
         }
@@ -4802,14 +4985,74 @@ internal static class AegesCli
                 root.UpdatedAt);
     }
 
-    private sealed record ProjectRootScanOutput(
-        string RootId,
-        string RootName,
-        string RootPath,
-        int MaxDepth,
-        bool Applied,
-        [property: JsonIgnore] ISet<ProjectId> ExistingProjectIds,
-        IReadOnlyList<ProjectScanCandidateOutput> Candidates);
+    private sealed record ProjectRootScanTarget(RuntimeProjectRoot Root, string RootStatus);
+
+    private sealed class ProjectRootScanOutput
+    {
+        public ProjectRootScanOutput(
+            string rootId,
+            string rootName,
+            string rootPath,
+            string rootStatus,
+            int maxDepth,
+            bool applied,
+            ISet<ProjectId> existingProjectIds,
+            IReadOnlyList<ProjectScanGroupOutput> groups,
+            IReadOnlyList<ProjectScanCandidateOutput> candidates)
+        {
+            RootId = rootId;
+            RootName = rootName;
+            RootPath = rootPath;
+            RootStatus = rootStatus;
+            MaxDepth = maxDepth;
+            Applied = applied;
+            ExistingProjectIds = existingProjectIds;
+            Groups = groups;
+            Candidates = candidates;
+        }
+
+        public string RootId { get; }
+
+        public string RootName { get; }
+
+        public string RootPath { get; }
+
+        public string RootStatus { get; set; }
+
+        public int MaxDepth { get; }
+
+        public bool Applied { get; }
+
+        [JsonIgnore]
+        public ISet<ProjectId> ExistingProjectIds { get; }
+
+        public IReadOnlyList<ProjectScanGroupOutput> Groups { get; }
+
+        public IReadOnlyList<ProjectScanCandidateOutput> Candidates { get; }
+    }
+
+    private sealed class ProjectScanGroupOutput
+    {
+        public ProjectScanGroupOutput(
+            string name,
+            string path,
+            string groupId,
+            string status)
+        {
+            Name = name;
+            Path = path;
+            GroupId = groupId;
+            Status = status;
+        }
+
+        public string Name { get; }
+
+        public string Path { get; }
+
+        public string GroupId { get; }
+
+        public string Status { get; set; }
+    }
 
     private sealed class ProjectScanCandidateOutput
     {

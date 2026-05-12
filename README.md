@@ -150,15 +150,20 @@ aeges machine add \
   --platform "$(uname -s)"
 ```
 
-For project discovery, register broad folders as roots and explicit grouped
-folders as groups. Aeges scans roots without turning the root itself into a
-group:
+For project discovery, scan a broad folder. Aeges can discover the root, likely
+group folders, and projects in one pass:
+
+```bash
+aeges root scan "$HOME/work"
+aeges root scan "$HOME/work" --apply
+```
+
+You can still register roots and groups explicitly when you want stable ids or
+scripted setup:
 
 ```bash
 aeges root add --root-id work --name Work --path "$HOME/work"
 aeges group add --group-id analitex --name Analitex --path "$HOME/work/analitex"
-aeges root scan work --max-depth 2
-aeges root scan work --max-depth 2 --apply
 ```
 
 See [docs/project-organization.md](docs/project-organization.md) for the

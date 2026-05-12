@@ -5,6 +5,86 @@ namespace Aeges.Cli.Tests;
 public sealed class AegesCliProjectOrganizationTests
 {
     [Fact]
+    public async Task Root_scan_path_registers_root_groups_and_projects()
+    {
+        using var runtime = new TemporaryRuntime();
+        var groupedProjectPath = Path.Combine(runtime.WorkPath, "analitex", "api");
+        var ungroupedProjectPath = Path.Combine(runtime.WorkPath, "aeges");
+        Directory.CreateDirectory(groupedProjectPath);
+        Directory.CreateDirectory(ungroupedProjectPath);
+        File.WriteAllText(Path.Combine(groupedProjectPath, "package.json"), "{}");
+        File.WriteAllText(Path.Combine(ungroupedProjectPath, "Aeges.sln"), string.Empty);
+
+        var scanOutput = new StringWriter();
+        var scanExitCode = await AegesCli.RunAsync(
+            [
+                "root",
+                "scan",
+                runtime.WorkPath,
+                "--apply",
+                "--json",
+                "--connection-string",
+                runtime.ConnectionString,
+            ],
+            TextReader.Null,
+            scanOutput,
+            TextWriter.Null,
+            CancellationToken.None);
+
+        Assert.Equal(0, scanExitCode);
+
+        using var scanDocument = JsonDocument.Parse(scanOutput.ToString());
+        Assert.Equal("created", scanDocument.RootElement.GetProperty("RootStatus").GetString());
+        Assert.Single(scanDocument.RootElement.GetProperty("Groups").EnumerateArray());
+        Assert.Contains(
+            scanDocument.RootElement.GetProperty("Groups").EnumerateArray(),
+            group => group.GetProperty("GroupId").GetString() == "analitex"
+                && group.GetProperty("Status").GetString() == "created");
+        Assert.Contains(
+            scanDocument.RootElement.GetProperty("Candidates").EnumerateArray(),
+            candidate => candidate.GetProperty("Name").GetString() == "api"
+                && candidate.GetProperty("GroupId").GetString() == "analitex"
+                && candidate.GetProperty("Status").GetString() == "created");
+        Assert.Contains(
+            scanDocument.RootElement.GetProperty("Candidates").EnumerateArray(),
+            candidate => candidate.GetProperty("Name").GetString() == "aeges"
+                && candidate.GetProperty("GroupId").ValueKind == JsonValueKind.Null
+                && candidate.GetProperty("Status").GetString() == "created");
+
+        var rootsOutput = new StringWriter();
+        Assert.Equal(
+            0,
+            await AegesCli.RunAsync(
+                ["root", "list", "--json", "--connection-string", runtime.ConnectionString],
+                TextReader.Null,
+                rootsOutput,
+                TextWriter.Null,
+                CancellationToken.None));
+
+        using var rootsDocument = JsonDocument.Parse(rootsOutput.ToString());
+        Assert.Contains(
+            rootsDocument.RootElement.EnumerateArray(),
+            root => root.GetProperty("Id").GetString() == "work"
+                && root.GetProperty("Path").GetString() == runtime.WorkPath);
+
+        var groupsOutput = new StringWriter();
+        Assert.Equal(
+            0,
+            await AegesCli.RunAsync(
+                ["group", "list", "--json", "--connection-string", runtime.ConnectionString],
+                TextReader.Null,
+                groupsOutput,
+                TextWriter.Null,
+                CancellationToken.None));
+
+        using var groupsDocument = JsonDocument.Parse(groupsOutput.ToString());
+        Assert.Contains(
+            groupsDocument.RootElement.EnumerateArray(),
+            group => group.GetProperty("Id").GetString() == "analitex"
+                && group.GetProperty("Path").GetString() == Path.Combine(runtime.WorkPath, "analitex"));
+    }
+
+    [Fact]
     public async Task Root_scan_registers_projects_and_assigns_matching_groups()
     {
         using var runtime = new TemporaryRuntime();

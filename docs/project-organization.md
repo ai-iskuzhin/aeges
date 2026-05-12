@@ -19,30 +19,28 @@ For a layout such as:
     └── portal/
 ```
 
-register `~/work` as a root, then register `~/work/analitex` and `~/work/brsc`
-as groups. Projects directly under `~/work` remain ungrouped. Projects inside a
-group path are assigned to the most specific matching group during scan.
+scan `~/work` first. Projects directly under `~/work` remain ungrouped.
+Projects inside likely group folders such as `~/work/analitex` and
+`~/work/brsc` are assigned to inferred groups during scan.
 
 Example:
 
 ```bash
-aeges root add --root-id work --name Work --path "$HOME/work"
-
-aeges group add \
-  --group-id analitex \
-  --name Analitex \
-  --path "$HOME/work/analitex"
-
-aeges group add \
-  --group-id brsc \
-  --name BRSC \
-  --path "$HOME/work/brsc"
-
-aeges root scan work --max-depth 2
-aeges root scan work --max-depth 2 --apply
+aeges root scan "$HOME/work"
+aeges root scan "$HOME/work" --apply
 ```
 
-`root scan` treats common project markers as project boundaries, including
+The dry run reports the root, inferred groups, and project candidates. `--apply`
+persists newly discovered roots, groups, and projects. Registered root ids still
+work for scripted use:
+
+```bash
+aeges root add --root-id work --name Work --path "$HOME/work"
+aeges group add --group-id analitex --name Analitex --path "$HOME/work/analitex"
+aeges root scan work --apply
+```
+
+`root scan` looks two levels deep by default. It treats common project markers as project boundaries, including
 `.git`, `.sln`, `.csproj`, `package.json`, `pyproject.toml`, `Cargo.toml`,
 `go.mod`, `deno.json`, and `deno.jsonc`.
 

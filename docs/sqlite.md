@@ -97,7 +97,7 @@ aeges group add
 aeges group list
 aeges root add
 aeges root list
-aeges root scan
+aeges root scan <path-or-root-id>
 aeges machine add
 aeges machine list
 aeges task create
@@ -118,6 +118,10 @@ execution boundaries.
 Project and machine commands provide the local-only setup path for the task
 commands. A developer can migrate the database, add a project, add a machine,
 and create a queued task without Telegram or a future control plane.
+
+`root scan <path>` may discover and persist a project root, inferred group
+folders, and project registrations when run with `--apply`. Passing a
+registered root id remains available for deterministic scripts.
 
 `agent run --once` records a heartbeat and may claim one queued task assigned to
 the configured machine. The claim moves the task into planning and creates a
