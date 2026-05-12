@@ -1285,13 +1285,6 @@ internal static class AegesCli
             return 1;
         }
 
-        if (!TelegramRuntimeLock.CanAcquire())
-        {
-            await error.WriteLineAsync(
-                "Telegram transport is already running for this runtime. Stop it with 'aeges telegram stop' or close the foreground 'aeges telegram run' terminal.");
-            return 1;
-        }
-
         await TraceAsync("telegram start: starting background process");
         var manager = new TelegramProcessManager();
         var result = await manager.StartAsync(
