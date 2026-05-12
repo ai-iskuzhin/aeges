@@ -124,7 +124,11 @@ public sealed class TelegramLongPollingService
                         update.ChatId,
                         TelegramInteractionHandler.RenderPendingTextResponse(update.Text),
                         cancellationToken);
-                    var pendingMessageId = await gateway.SendResponseAsync(update.ChatId, pendingResponse, cancellationToken);
+                    var pendingMessageId = await gateway.SendResponseAsync(
+                        update.ChatId,
+                        update.MessageThreadId,
+                        pendingResponse,
+                        cancellationToken);
                     var finalResponse = await handler.HandleAsync(
                         ToInteractionUpdate(update),
                         cancellationToken);
@@ -136,12 +140,26 @@ public sealed class TelegramLongPollingService
                             pendingMessageId.Value,
                             finalResponse,
                             cancellationToken);
-                        await TrackResponseAsync(update.ChatId, pendingMessageId, finalResponse, cancellationToken);
+                        await TrackResponseAsync(
+                            update.ChatId,
+                            update.MessageThreadId,
+                            pendingMessageId,
+                            finalResponse,
+                            cancellationToken);
                     }
                     else
                     {
-                        var finalMessageId = await gateway.SendResponseAsync(update.ChatId, finalResponse, cancellationToken);
-                        await TrackResponseAsync(update.ChatId, finalMessageId, finalResponse, cancellationToken);
+                        var finalMessageId = await gateway.SendResponseAsync(
+                            update.ChatId,
+                            update.MessageThreadId,
+                            finalResponse,
+                            cancellationToken);
+                        await TrackResponseAsync(
+                            update.ChatId,
+                            update.MessageThreadId,
+                            finalMessageId,
+                            finalResponse,
+                            cancellationToken);
                     }
 
                     nextOffset = Math.Max(nextOffset ?? 0, update.UpdateId + 1);
@@ -163,13 +181,27 @@ public sealed class TelegramLongPollingService
                 }
                 else
                 {
-                    var sentMessageId = await gateway.SendResponseAsync(update.ChatId, response, cancellationToken);
-                    await TrackResponseAsync(update.ChatId, sentMessageId, response, cancellationToken);
+                    var sentMessageId = await gateway.SendResponseAsync(
+                        update.ChatId,
+                        update.MessageThreadId,
+                        response,
+                        cancellationToken);
+                    await TrackResponseAsync(
+                        update.ChatId,
+                        update.MessageThreadId,
+                        sentMessageId,
+                        response,
+                        cancellationToken);
                 }
 
                 if (isCallback && update.MessageId is not null)
                 {
-                    await TrackResponseAsync(update.ChatId, update.MessageId, response, cancellationToken);
+                    await TrackResponseAsync(
+                        update.ChatId,
+                        update.MessageThreadId,
+                        update.MessageId,
+                        response,
+                        cancellationToken);
                 }
             }
             catch (Exception exception) when (IsTelegramChatMigratedException(exception))
@@ -208,13 +240,14 @@ public sealed class TelegramLongPollingService
 
     private async Task TrackResponseAsync(
         long chatId,
+        int? messageThreadId,
         int? messageId,
         TelegramResponse response,
         CancellationToken cancellationToken)
     {
         var metadata = response.Metadata;
 
-        foreach (var pair in taskWatches.Where(pair => pair.Key.ChatId == chatId))
+        foreach (var pair in taskWatches.Where(pair => pair.Key.ChatId == chatId && pair.Key.MessageThreadId == messageThreadId))
         {
             taskWatches[pair.Key] = pair.Value with
             {
@@ -235,9 +268,10 @@ public sealed class TelegramLongPollingService
         }
 
         var isDetails = metadata.Kind == TelegramResponseKind.TaskDetails;
-        var key = new TaskWatchKey(chatId, taskId);
+        var key = new TaskWatchKey(chatId, messageThreadId, taskId);
         taskWatches[key] = new TaskWatch(
             chatId,
+            messageThreadId,
             taskId,
             CreateTaskFingerprint(task),
             isDetails ? messageId : null,
@@ -304,7 +338,11 @@ public sealed class TelegramLongPollingService
                         ]),
                         new TelegramResponseMetadata(TelegramResponseKind.TaskWatch, task.Id)),
                     cancellationToken);
-                await gateway.SendResponseAsync(pair.Key.ChatId, notification, cancellationToken);
+                await gateway.SendResponseAsync(
+                    pair.Key.ChatId,
+                    pair.Key.MessageThreadId,
+                    notification,
+                    cancellationToken);
 
                 taskWatches[pair.Key] = pair.Value with
                 {
@@ -376,10 +414,11 @@ public sealed class TelegramLongPollingService
         }
     }
 
-    private readonly record struct TaskWatchKey(long ChatId, TaskId TaskId);
+    private readonly record struct TaskWatchKey(long ChatId, int? MessageThreadId, TaskId TaskId);
 
     private sealed record TaskWatch(
         long ChatId,
+        int? MessageThreadId,
         TaskId TaskId,
         string LastFingerprint,
         int? DetailMessageId,

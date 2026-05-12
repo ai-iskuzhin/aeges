@@ -77,6 +77,35 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
+    public async Task PollOnceAsync_sends_text_response_to_original_forum_topic()
+    {
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    -1001,
+                    Text: "hello",
+                    CallbackData: null,
+                    CallbackQueryId: null,
+                    MessageThreadId: 77,
+                    IsPrivateChat: false),
+            ],
+        };
+        var service = CreateService(gateway);
+
+        await service.PollOnceAsync(
+            nextOffset: null,
+            new TelegramLongPollingOptions(),
+            CancellationToken.None);
+
+        Assert.Single(gateway.SentResponses);
+        Assert.Equal(77, gateway.SentResponses[0].MessageThreadId);
+        Assert.Single(gateway.EditedResponses);
+    }
+
+    [Fact]
     public async Task PollOnceAsync_sends_menu_without_pending_message_for_start_command()
     {
         var gateway = new FakeTelegramBotGateway
@@ -479,7 +508,7 @@ public sealed class TelegramLongPollingServiceTests
 
         public List<string> AnsweredCallbackQueryIds { get; } = [];
 
-        public List<(long ChatId, TelegramResponse Response)> SentResponses { get; } = [];
+        public List<(long ChatId, int? MessageThreadId, TelegramResponse Response)> SentResponses { get; } = [];
 
         public List<(long ChatId, int MessageId, TelegramResponse Response)> EditedResponses { get; } = [];
 
@@ -514,10 +543,11 @@ public sealed class TelegramLongPollingServiceTests
 
         public Task<int?> SendResponseAsync(
             long chatId,
+            int? messageThreadId,
             TelegramResponse response,
             CancellationToken cancellationToken)
         {
-            SentResponses.Add((chatId, response));
+            SentResponses.Add((chatId, messageThreadId, response));
             ResponseSent?.Invoke(this, EventArgs.Empty);
             if (ThrowChatMigrationOnSend)
             {

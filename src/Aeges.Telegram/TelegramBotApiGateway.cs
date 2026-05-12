@@ -57,6 +57,7 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
     /// <inheritdoc />
     public async Task<int?> SendResponseAsync(
         long chatId,
+        int? messageThreadId,
         TelegramResponse response,
         CancellationToken cancellationToken)
     {
@@ -65,6 +66,7 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
             TelegramMarkdown.EscapeResponseText(response.Text),
             parseMode: ParseMode.MarkdownV2,
             replyMarkup: ToReplyMarkup(response.Buttons),
+            messageThreadId: messageThreadId,
             cancellationToken: cancellationToken);
 
         return message.MessageId;

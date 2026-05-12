@@ -30,11 +30,13 @@ public interface ITelegramBotGateway
     /// Sends a response message with inline buttons.
     /// </summary>
     /// <param name="chatId">The target Telegram chat identifier.</param>
+    /// <param name="messageThreadId">The target forum topic/thread identifier, when available.</param>
     /// <param name="response">The response produced by the interaction handler.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The sent message identifier, when the gateway provides it.</returns>
     Task<int?> SendResponseAsync(
         long chatId,
+        int? messageThreadId,
         TelegramResponse response,
         CancellationToken cancellationToken);
 
