@@ -18,6 +18,7 @@ using Aeges.Application.Projects;
 using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
 using Aeges.Application.Talk;
+using Aeges.Application.TelegramTaskBindings;
 using Aeges.Application.TelegramUsers;
 using Aeges.Application.Tasks;
 using Aeges.Application.Transports;
@@ -1201,6 +1202,7 @@ internal static class AegesCli
             new ApprovalService(unitOfWork, clock),
             CreateTalkService(unitOfWork, clock, configuration),
             new TelegramUserService(unitOfWork, clock),
+            new TelegramTaskBindingService(unitOfWork, clock),
             configuration,
             configPath);
         var callbackActions = new TransportCallbackActionService(unitOfWork, clock);

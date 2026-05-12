@@ -18,6 +18,7 @@ public sealed class StorageContractTests
         typeof(ILockRepository),
         typeof(IRunnerExecutionRepository),
         typeof(ITelegramUserRepository),
+        typeof(ITelegramTaskBindingRepository),
     ];
 
     [Fact]
@@ -78,6 +79,9 @@ public sealed class StorageContractTests
             typeof(IRunnerExecutionRepository),
             typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.RunnerExecutions))?.PropertyType);
         Assert.Equal(typeof(ITelegramUserRepository), typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.TelegramUsers))?.PropertyType);
+        Assert.Equal(
+            typeof(ITelegramTaskBindingRepository),
+            typeof(IUnitOfWork).GetProperty(nameof(IUnitOfWork.TelegramTaskBindings))?.PropertyType);
     }
 
     private static void AssertProviderNeutral(Type type)

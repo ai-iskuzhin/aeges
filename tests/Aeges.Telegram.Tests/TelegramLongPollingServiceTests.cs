@@ -447,6 +447,37 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
+    public async Task PollOnceAsync_reloads_durable_task_binding_after_restart()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Wire notifications",
+            "Notify the topic when task status changes.",
+            DateTimeOffset.UtcNow);
+        var facade = new FakeTelegramApplicationFacade { WatchedTask = task };
+        facade.TaskBindings.Add(RuntimeTelegramTaskBinding.Create(
+            -1001,
+            77,
+            task.Id,
+            detailMessageId: 9001,
+            DateTimeOffset.UtcNow));
+        var gateway = new FakeTelegramBotGateway();
+        var service = CreateService(gateway, facade);
+
+        await service.PollOnceAsync(null, new TelegramLongPollingOptions(), CancellationToken.None);
+        task.StartPlanning(DateTimeOffset.UtcNow);
+
+        await service.PollOnceAsync(42, new TelegramLongPollingOptions(), CancellationToken.None);
+
+        Assert.Single(gateway.EditedResponses);
+        Assert.Equal(-1001, gateway.EditedResponses[0].ChatId);
+        Assert.Equal(9001, gateway.EditedResponses[0].MessageId);
+        Assert.Contains("Status: planning", gateway.EditedResponses[0].Response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PollOnceAsync_skips_stale_callback_query_errors_without_retrying_batch()
     {
         var logs = new List<TelegramLongPollingLogEntry>();
@@ -644,6 +675,8 @@ public sealed class TelegramLongPollingServiceTests
     {
         public RuntimeTask? WatchedTask { get; init; }
 
+        public List<RuntimeTelegramTaskBinding> TaskBindings { get; } = [];
+
         public Task<TelegramUserAuthorization> EnsureTelegramUserAsync(
             long chatId,
             RuntimeTelegramUserProfile profile,
@@ -799,6 +832,44 @@ public sealed class TelegramLongPollingServiceTests
                     $"Task '{taskId}' was not found.");
 
             return Task.FromResult(result);
+        }
+
+        public Task RecordTaskBindingAsync(
+            long chatId,
+            int? messageThreadId,
+            TaskId taskId,
+            int? detailMessageId,
+            CancellationToken cancellationToken)
+        {
+            TaskBindings.RemoveAll(binding =>
+                binding.ChatId == chatId
+                && binding.MessageThreadId == messageThreadId
+                && binding.TaskId == taskId);
+            TaskBindings.Add(RuntimeTelegramTaskBinding.Create(
+                chatId,
+                messageThreadId,
+                taskId,
+                detailMessageId,
+                DateTimeOffset.UtcNow));
+
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<RuntimeTelegramTaskBinding>> ListTaskBindingsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeTelegramTaskBinding>>(TaskBindings);
+
+        public Task ForgetTaskBindingAsync(
+            long chatId,
+            int? messageThreadId,
+            TaskId taskId,
+            CancellationToken cancellationToken)
+        {
+            TaskBindings.RemoveAll(binding =>
+                binding.ChatId == chatId
+                && binding.MessageThreadId == messageThreadId
+                && binding.TaskId == taskId);
+
+            return Task.CompletedTask;
         }
 
         public Task<Aeges.Application.ApplicationResult<TelegramTaskReviewSnapshot>> GetTaskReviewAsync(

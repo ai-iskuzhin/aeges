@@ -38,6 +38,10 @@ public sealed class AegesDbContextTests
                 "talk_sessions",
                 "talk_messages",
                 "transport_callback_actions",
+                "telegram_users",
+                "telegram_project_access",
+                "telegram_project_group_access",
+                "telegram_task_bindings",
             };
 
             Assert.True(expectedTableNames.IsSubsetOf(tableNames));
@@ -85,6 +89,7 @@ public sealed class AegesDbContextTests
             "telegram_users",
             "telegram_project_access",
             "telegram_project_group_access",
+            "telegram_task_bindings",
         };
 
         Assert.True(expectedTableNames.SetEquals(tableNames));

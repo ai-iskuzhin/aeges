@@ -106,6 +106,8 @@ public sealed class TelegramCallbackRegistryTests
 
         public ITelegramUserRepository TelegramUsers => throw new NotSupportedException();
 
+        public ITelegramTaskBindingRepository TelegramTaskBindings => throw new NotSupportedException();
+
         public int SaveChangesCount { get; private set; }
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken)

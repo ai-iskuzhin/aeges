@@ -31,6 +31,7 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
         TalkMessages = new SqliteTalkMessageRepository(context);
         TransportCallbackActions = new SqliteTransportCallbackActionRepository(context);
         TelegramUsers = new SqliteTelegramUserRepository(context);
+        TelegramTaskBindings = new SqliteTelegramTaskBindingRepository(context);
     }
 
     /// <inheritdoc />
@@ -74,6 +75,9 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
 
     /// <inheritdoc />
     public ITelegramUserRepository TelegramUsers { get; }
+
+    /// <inheritdoc />
+    public ITelegramTaskBindingRepository TelegramTaskBindings { get; }
 
     /// <inheritdoc />
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken) =>

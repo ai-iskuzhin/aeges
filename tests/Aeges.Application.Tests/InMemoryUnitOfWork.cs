@@ -21,6 +21,7 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
         TalkMessages = new TalkMessageRepository();
         TransportCallbackActions = new TransportCallbackActionRepository();
         TelegramUsers = new TelegramUserRepository();
+        TelegramTaskBindings = new TelegramTaskBindingRepository();
     }
 
     public ITaskRepository Tasks { get; }
@@ -50,6 +51,8 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
     public ITransportCallbackActionRepository TransportCallbackActions { get; }
 
     public ITelegramUserRepository TelegramUsers { get; }
+
+    public ITelegramTaskBindingRepository TelegramTaskBindings { get; }
 
     public int SaveChangesCount { get; private set; }
 
@@ -359,6 +362,35 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
             }
 
             return Task.FromResult(expired.Length);
+        }
+    }
+
+    private sealed class TelegramTaskBindingRepository : ITelegramTaskBindingRepository
+    {
+        private readonly Dictionary<(long ChatId, int? MessageThreadId, TaskId TaskId), RuntimeTelegramTaskBinding> bindings = [];
+
+        public Task UpsertAsync(RuntimeTelegramTaskBinding binding, CancellationToken cancellationToken)
+        {
+            bindings[(binding.ChatId, binding.MessageThreadId, binding.TaskId)] = binding;
+
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<RuntimeTelegramTaskBinding>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeTelegramTaskBinding>>(
+                bindings.Values
+                    .OrderByDescending(binding => binding.UpdatedAt)
+                    .ToArray());
+
+        public Task DeleteAsync(
+            long chatId,
+            int? messageThreadId,
+            TaskId taskId,
+            CancellationToken cancellationToken)
+        {
+            bindings.Remove((chatId, messageThreadId, taskId));
+
+            return Task.CompletedTask;
         }
     }
 

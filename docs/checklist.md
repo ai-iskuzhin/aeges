@@ -238,6 +238,7 @@ review, test, and document independently.
 - [x] Add button-driven Telegram task creation flow.
 - [x] Add count badges to Telegram menu buttons.
 - [x] Add Telegram task status buckets and watched-task status notifications.
+- [x] Persist Telegram task-to-chat/topic bindings for restart-safe status updates.
 - [x] Add project-scoped Telegram task browsing from the Projects page.
 - [x] Add non-destructive project archiving from Telegram project details.
 - [x] Add Telegram reviewing-task continuation with durable review feedback.

@@ -51,6 +51,8 @@ public sealed class AegesDbContext : DbContext
 
     internal DbSet<TelegramProjectGroupAccessRecord> TelegramProjectGroupAccess => Set<TelegramProjectGroupAccessRecord>();
 
+    internal DbSet<TelegramTaskBindingRecord> TelegramTaskBindings => Set<TelegramTaskBindingRecord>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

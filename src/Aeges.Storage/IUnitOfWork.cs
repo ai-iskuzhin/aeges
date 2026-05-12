@@ -76,6 +76,11 @@ public interface IUnitOfWork
     ITelegramUserRepository TelegramUsers { get; }
 
     /// <summary>
+    /// Gets the Telegram task binding repository.
+    /// </summary>
+    ITelegramTaskBindingRepository TelegramTaskBindings { get; }
+
+    /// <summary>
     /// Persists pending changes.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the operation.</param>

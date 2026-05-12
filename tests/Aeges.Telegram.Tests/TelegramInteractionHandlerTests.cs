@@ -967,6 +967,8 @@ public sealed class TelegramInteractionHandlerTests
 
         public string? TalkMessage { get; private set; }
 
+        public List<RuntimeTelegramTaskBinding> TaskBindings { get; } = [];
+
         public bool ApproveCalled { get; private set; }
 
         public bool CancelTaskCalled { get; private set; }
@@ -1284,6 +1286,44 @@ public sealed class TelegramInteractionHandlerTests
                 : ApplicationResult<RuntimeTask>.Failure("task_not_found", $"Task '{taskId}' was not found.");
 
             return System.Threading.Tasks.Task.FromResult(result);
+        }
+
+        public Task RecordTaskBindingAsync(
+            long chatId,
+            int? messageThreadId,
+            TaskId taskId,
+            int? detailMessageId,
+            CancellationToken cancellationToken)
+        {
+            TaskBindings.RemoveAll(binding =>
+                binding.ChatId == chatId
+                && binding.MessageThreadId == messageThreadId
+                && binding.TaskId == taskId);
+            TaskBindings.Add(RuntimeTelegramTaskBinding.Create(
+                chatId,
+                messageThreadId,
+                taskId,
+                detailMessageId,
+                Now));
+
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<RuntimeTelegramTaskBinding>> ListTaskBindingsAsync(CancellationToken cancellationToken) =>
+            System.Threading.Tasks.Task.FromResult<IReadOnlyList<RuntimeTelegramTaskBinding>>(TaskBindings);
+
+        public Task ForgetTaskBindingAsync(
+            long chatId,
+            int? messageThreadId,
+            TaskId taskId,
+            CancellationToken cancellationToken)
+        {
+            TaskBindings.RemoveAll(binding =>
+                binding.ChatId == chatId
+                && binding.MessageThreadId == messageThreadId
+                && binding.TaskId == taskId);
+
+            return System.Threading.Tasks.Task.CompletedTask;
         }
 
         public Task<ApplicationResult<TelegramTaskReviewSnapshot>> GetTaskReviewAsync(

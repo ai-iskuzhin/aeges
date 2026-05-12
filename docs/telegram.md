@@ -121,6 +121,10 @@ task notifications stay scoped to the topic where the task interaction runs.
 If topic creation fails, the bot replies in the original chat with the Telegram
 permission/API error.
 
+Task-to-chat/topic bindings are persisted in SQLite. After the Telegram
+transport restarts, it reloads those bindings and continues routing task status
+updates to the same chat or forum topic.
+
 When no task creation or task-continuation draft is active, ordinary Telegram
 text is sent to talk mode. Talk mode creates or continues a durable discussion
 session for the chat source, asks the configured runner for a response, and
