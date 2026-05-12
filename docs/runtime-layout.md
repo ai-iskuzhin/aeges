@@ -81,6 +81,9 @@ in `~/.aeges/runs/agent.pid.json`, and output is redirected to
 `~/.aeges/logs/agent.stdout.log` and `~/.aeges/logs/agent.stderr.log`.
 The stdout log includes launcher events and heartbeat snapshots. Unhandled
 agent failures are written to stderr with exception details.
+Starting a background agent or Telegram transport rotates existing stdout and
+stderr logs at 5 MB and keeps five historical files using suffixes `.1` through
+`.5`.
 `agent restart` stops the recorded worker when it is running, clears stale
 metadata when needed, and starts a fresh worker with the same options accepted
 by `agent start`.

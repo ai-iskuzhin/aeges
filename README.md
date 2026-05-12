@@ -212,7 +212,9 @@ Agent process metadata is stored in `~/.aeges/runs/agent.pid.json`. Agent logs
 are written to `~/.aeges/logs/agent.stdout.log` and
 `~/.aeges/logs/agent.stderr.log`. The stdout log includes launcher startup
 lines, agent startup lines, and heartbeat snapshots. Unhandled failures are
-written to stderr with exception details.
+written to stderr with exception details. When a background worker is started,
+existing stdout and stderr logs are rotated at 5 MB with five retained files
+(`.1` through `.5`).
 
 ## Runner Execution
 
@@ -315,8 +317,11 @@ aeges telegram stop
 Background process metadata is stored in `~/.aeges/runs/telegram.pid.json`.
 Transport logs are written to `~/.aeges/logs/telegram.stdout.log` and
 `~/.aeges/logs/telegram.stderr.log`. The stdout log includes launcher startup
-lines, transport startup lines, and polling batches. Recoverable Telegram
-transport failures and unhandled failures are written to stderr.
+lines, transport startup lines, and polling batches that process at least one
+update. Empty long-poll batches are intentionally quiet. Recoverable Telegram
+transport failures and unhandled failures are written to stderr. When the
+background transport starts, existing stdout and stderr logs are rotated at
+5 MB with five retained files (`.1` through `.5`).
 
 Telegram queues tasks; the agent worker processes them. The usual local setup is
 therefore:

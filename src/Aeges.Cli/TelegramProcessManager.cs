@@ -73,6 +73,7 @@ internal sealed class TelegramProcessManager
         var stderrPath = Path.Combine(layout.LogsPath, "telegram.stderr.log");
         var executablePath = ResolveExecutablePath();
         var arguments = BuildRunArguments(request);
+        PrepareProcessLogs(stdoutPath, stderrPath);
         await AppendLauncherLogAsync(
             stdoutPath,
             $"Starting Telegram transport executable={executablePath} config={request.ConfigPath ?? "(default)"}",
@@ -276,17 +277,22 @@ internal sealed class TelegramProcessManager
         string message,
         CancellationToken cancellationToken)
     {
-        var directory = Path.GetDirectoryName(path);
-
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        await File.AppendAllTextAsync(
+        await RuntimeLogFiles.AppendLineAsync(
             path,
-            $"{DateTimeOffset.UtcNow:O} [telegram-launcher] info: {message}{Environment.NewLine}",
+            $"{DateTimeOffset.UtcNow:O} [telegram-launcher] info: {message}",
             cancellationToken);
+    }
+
+    private static void PrepareProcessLogs(string stdoutPath, string stderrPath)
+    {
+        RuntimeLogFiles.RotateIfNeeded(
+            stdoutPath,
+            RuntimeLogFiles.DefaultMaxBytes,
+            RuntimeLogFiles.DefaultRetainedFiles);
+        RuntimeLogFiles.RotateIfNeeded(
+            stderrPath,
+            RuntimeLogFiles.DefaultMaxBytes,
+            RuntimeLogFiles.DefaultRetainedFiles);
     }
 
     private static ProcessStartInfo CreateUnixStartInfo(
