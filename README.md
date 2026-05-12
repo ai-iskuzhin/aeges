@@ -57,7 +57,7 @@ Install the CLI from the local checkout:
 ```bash
 dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
 AEGES_PACKAGE_SOURCE="$PWD/.artifacts/packages" \
-AEGES_VERSION=0.1.0-alpha.6 \
+AEGES_VERSION=0.1.0-alpha.7 \
 sh scripts/install.sh
 ```
 
@@ -90,11 +90,11 @@ Versioned GitHub releases are installed by passing `AEGES_VERSION`; the
 installer downloads the `.nupkg` and verifies `SHA256SUMS` before installing:
 
 ```bash
-curl -fsSL https://get.aeges.top/install.sh | AEGES_VERSION=0.1.0-alpha.6 sh
+curl -fsSL https://get.aeges.top/install.sh | AEGES_VERSION=0.1.0-alpha.7 sh
 ```
 
 ```powershell
-$env:AEGES_VERSION = "0.1.0-alpha.6"
+$env:AEGES_VERSION = "0.1.0-alpha.7"
 irm https://get.aeges.top/install.ps1 | iex
 ```
 
@@ -107,8 +107,8 @@ aeges update
 For a specific version or a local development package source:
 
 ```bash
-aeges update --version 0.1.0-alpha.6
-aeges update --version 0.1.0-alpha.6 --package-source "$PWD/.artifacts/packages"
+aeges update --version 0.1.0-alpha.7
+aeges update --version 0.1.0-alpha.7 --package-source "$PWD/.artifacts/packages"
 ```
 
 `aeges update` downloads release packages through the same GitHub release

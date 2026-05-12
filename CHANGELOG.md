@@ -8,6 +8,27 @@ All notable changes to Aeges are documented in this file.
 
 - Nothing yet.
 
+## [0.1.0-alpha.7] - 2026-05-12
+
+### Added
+
+- Added durable Telegram user management with first-user admin bootstrap,
+  pending user approval, denial, and per-project/per-group access grants.
+- Added Telegram access controls so non-admin users only see explicitly granted
+  projects and tasks.
+- Added runtime logs for foreground and background agent/Telegram processes.
+
+### Changed
+
+- Simplified `aeges telegram setup` so it asks for the bot token once and stores
+  it in the local secret file by default.
+- `aeges update` now prints progress before release resolution/download work.
+
+### Fixed
+
+- `aeges update` now skips the tool update when the resolved target version
+  already matches the installed CLI version.
+
 ## [0.1.0-alpha.6] - 2026-05-12
 
 ### Fixed
