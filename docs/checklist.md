@@ -90,6 +90,7 @@ review, test, and document independently.
       and optional background process start.
 - [x] Add `aeges update` runtime update command over release artifacts and
       local package sources.
+- [x] Add NuGet publishing support to the tag release workflow.
 - [x] Add `aeges task create`.
 - [x] Add `aeges task status`.
 - [x] Add `aeges agent run` host shell.

@@ -72,6 +72,12 @@ curl -fsSL https://get.aeges.top/install.sh | sh
 wget -qO- https://get.aeges.top/install.sh | sh
 ```
 
+After the package is published to NuGet, .NET tool installation also works:
+
+```bash
+dotnet tool install --global Aeges.Cli --prerelease
+```
+
 On Windows, the matching PowerShell UX should be:
 
 ```powershell

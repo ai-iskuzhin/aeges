@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  NUGET_TOKEN: ${{ secrets.NUGET_TOKEN }}
+
 jobs:
   github-release:
     name: Create GitHub Release
@@ -46,6 +49,18 @@ jobs:
       - name: Write checksums
         working-directory: artifacts/release
         run: sha256sum * > SHA256SUMS
+
+      - name: Publish NuGet package
+        if: env.NUGET_TOKEN != ''
+        run: >
+          dotnet nuget push artifacts/release/*.nupkg
+          --api-key "${NUGET_TOKEN}"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
+      - name: Skip NuGet package publish
+        if: env.NUGET_TOKEN == ''
+        run: echo "NUGET_TOKEN is not configured; skipping NuGet publish."
 
       - name: Extract changelog notes
         env:

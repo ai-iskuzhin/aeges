@@ -193,15 +193,45 @@ sh scripts/install.sh
 
 ## First Public Release: NuGet Tool
 
-When Aeges is ready for public package publishing, the primary cross-platform
-install command should become:
+Aeges can publish the CLI package to NuGet from version tags. Add a repository
+secret named `NUGET_TOKEN` with a NuGet API key that can push `Aeges.Cli`.
+
+Required NuGet setup:
+
+1. Create or use a NuGet.org account.
+2. Create an API key scoped to push packages.
+3. Add the key to GitHub repository secrets as `NUGET_TOKEN`.
+4. Push a version tag such as `v0.1.0-alpha.4`.
+
+The release workflow packs `src/Aeges.Cli`, uploads the package to GitHub
+Releases, and pushes the same `.nupkg` to NuGet when `NUGET_TOKEN` is present.
+If the secret is missing, the GitHub release still succeeds and NuGet publishing
+is skipped.
+
+Once the package is published, the primary cross-platform install command is:
 
 ```bash
 dotnet tool install --global Aeges.Cli
 ```
 
-This keeps the first public distribution simple and works consistently on
-Windows, macOS, and Linux for users who already have the .NET SDK.
+For prerelease packages:
+
+```bash
+dotnet tool install --global Aeges.Cli --prerelease
+```
+
+Updates can use the normal NuGet source once the package exists there:
+
+```bash
+dotnet tool update --global Aeges.Cli --prerelease
+```
+
+The Aeges-specific updater remains available and keeps the GitHub release
+checksum path:
+
+```bash
+aeges update
+```
 
 ## Release Shell Installer
 

@@ -30,6 +30,10 @@
     <Version>0.1.0-alpha.3</Version>
     <Authors>Aeges contributors</Authors>
     <Description>Reliable governed coding runtime CLI.</Description>
+    <PackageProjectUrl>https://github.com/ai-iskuzhin/aeges</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ai-iskuzhin/aeges</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageTags>aeges;cli;ai;coding-runtime;governance</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageOutputPath>../../.artifacts/packages</PackageOutputPath>
