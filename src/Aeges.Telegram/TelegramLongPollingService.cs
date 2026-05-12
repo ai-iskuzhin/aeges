@@ -92,7 +92,7 @@ public sealed class TelegramLongPollingService
                 await gateway.AnswerCallbackQueryAsync(callbackQueryId!, cancellationToken);
             }
 
-            if (!isCallback && update.Text is not null)
+            if (!isCallback && update.Text is not null && !TelegramInteractionHandler.IsStartCommand(update.Text))
             {
                 var pendingResponse = await handler.TokenizeResponseAsync(
                     update.ChatId,

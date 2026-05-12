@@ -20,11 +20,21 @@ public sealed class TelegramInteractionHandlerTests
         Assert.StartsWith("> Session: talk-001\n> Runner: codex", response.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("Talk:", response.Text, StringComparison.Ordinal);
         Assert.Contains("Talk response to: hello", response.Text, StringComparison.Ordinal);
-        Assert.Equal("Menu", response.Buttons.Rows[0][0].Text);
-        Assert.Equal(TelegramCallbackData.MainMenu, response.Buttons.Rows[0][0].CallbackData);
-        Assert.Equal("New task", response.Buttons.Rows[0][1].Text);
-        Assert.Equal(TelegramCallbackData.CreateTask, response.Buttons.Rows[0][1].CallbackData);
+        Assert.Empty(response.Buttons.Rows);
         Assert.Equal("hello", facade.TalkMessage);
+    }
+
+    [Fact]
+    public async Task HandleAsync_shows_main_menu_for_start_command()
+    {
+        var facade = new FakeTelegramApplicationFacade();
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(new TelegramUpdate(1001, Text: "/start"), CancellationToken.None);
+
+        Assert.Equal("Aeges control", response.Text);
+        Assert.Equal("New task", response.Buttons.Rows[0][0].Text);
+        Assert.Null(facade.TalkMessage);
     }
 
     [Fact]
@@ -39,10 +49,7 @@ public sealed class TelegramInteractionHandlerTests
             CancellationToken.None);
 
         Assert.Contains("already finished", response.Text, StringComparison.Ordinal);
-        Assert.Equal("Menu", response.Buttons.Rows[0][0].Text);
-        Assert.Equal(TelegramCallbackData.MainMenu, response.Buttons.Rows[0][0].CallbackData);
-        Assert.Equal("New task", response.Buttons.Rows[0][1].Text);
-        Assert.Equal(TelegramCallbackData.CreateTask, response.Buttons.Rows[0][1].CallbackData);
+        Assert.Empty(response.Buttons.Rows);
     }
 
     [Fact]

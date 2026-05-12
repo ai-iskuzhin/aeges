@@ -153,6 +153,20 @@ public sealed class TelegramInteractionHandler
             """,
             Buttons(Row(Button("Cancel", TelegramCallbackData.CancelPendingTextResponse))));
 
+    /// <summary>
+    /// Determines whether an inbound text message is the Telegram start command.
+    /// </summary>
+    /// <param name="text">The inbound text.</param>
+    /// <returns><see langword="true"/> when the text requests the main menu.</returns>
+    public static bool IsStartCommand(string? text)
+    {
+        var trimmed = text?.Trim();
+
+        return trimmed is "/start"
+            || (trimmed?.StartsWith("/start@", StringComparison.OrdinalIgnoreCase) ?? false)
+            || (trimmed?.StartsWith("/start ", StringComparison.Ordinal) ?? false);
+    }
+
     private bool IsAuthorized(long chatId) =>
         allowedChatIds.Count == 0 || allowedChatIds.Contains(chatId);
 
@@ -182,6 +196,14 @@ public sealed class TelegramInteractionHandler
         CancellationToken cancellationToken)
     {
         var text = update.Text?.Trim();
+
+        if (IsStartCommand(text))
+        {
+            drafts.TryRemove(update.ChatId, out _);
+            continuationDrafts.TryRemove(update.ChatId, out _);
+
+            return await MainMenuAsync(cancellationToken);
+        }
 
         if (continuationDrafts.TryGetValue(update.ChatId, out var continuationTaskId))
         {
@@ -288,9 +310,7 @@ public sealed class TelegramInteractionHandler
         {
             return new TelegramResponse(
                 $"{result.Error!.Code}: {result.Error.Message}",
-                Buttons(Row(
-                    Button("Menu", TelegramCallbackData.MainMenu),
-                    Button("New task", TelegramCallbackData.CreateTask))));
+                TelegramButtonMarkup.Empty);
         }
 
         var exchange = result.Value!;
@@ -301,9 +321,7 @@ public sealed class TelegramInteractionHandler
 
             {exchange.AssistantMessage.Content}
             """,
-            Buttons(Row(
-                Button("Menu", TelegramCallbackData.MainMenu),
-                Button("New task", TelegramCallbackData.CreateTask))));
+            TelegramButtonMarkup.Empty);
     }
 
     private async Task<TelegramResponse> SelectTaskProjectAsync(
@@ -869,9 +887,7 @@ public sealed class TelegramInteractionHandler
     private static TelegramResponse PendingTextResponseAlreadyFinished() =>
         new(
             "This message is already finished, or cancellation is not available for this processing step.",
-            Buttons(Row(
-                Button("Menu", TelegramCallbackData.MainMenu),
-                Button("New task", TelegramCallbackData.CreateTask))));
+            TelegramButtonMarkup.Empty);
 
     private static TelegramButtonMarkup BackButtons() =>
         Buttons(Row(Button("Back", TelegramCallbackData.MainMenu)));

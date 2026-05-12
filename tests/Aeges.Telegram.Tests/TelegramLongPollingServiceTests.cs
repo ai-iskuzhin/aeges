@@ -74,6 +74,35 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
+    public async Task PollOnceAsync_sends_menu_without_pending_message_for_start_command()
+    {
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    1001,
+                    Text: "/start",
+                    CallbackData: null,
+                    CallbackQueryId: null),
+            ],
+        };
+        var service = CreateService(gateway);
+
+        var result = await service.PollOnceAsync(
+            nextOffset: null,
+            new TelegramLongPollingOptions(),
+            CancellationToken.None);
+
+        Assert.Equal(42, result.NextOffset);
+        Assert.Equal(1, result.ProcessedUpdates);
+        Assert.Single(gateway.SentResponses);
+        Assert.Empty(gateway.EditedResponses);
+        Assert.Equal("Aeges control", gateway.SentResponses[0].Response.Text);
+    }
+
+    [Fact]
     public async Task PollOnceAsync_keeps_offset_when_no_updates_arrive()
     {
         var gateway = new FakeTelegramBotGateway();

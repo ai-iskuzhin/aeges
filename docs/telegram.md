@@ -78,9 +78,11 @@ aeges telegram start
 aeges agent start
 ```
 
+Send `/start` to show the main menu.
+
 To create work from Telegram:
 
-1. Tap `Menu` from a talk response or use an existing navigation message.
+1. Send `/start` or use an existing navigation message.
 2. Tap `New task`.
 3. Choose a project.
 4. Choose the machine that should process the task.
@@ -94,7 +96,8 @@ When no task creation or task-continuation draft is active, ordinary Telegram
 text is sent to talk mode. Talk mode creates or continues a durable discussion
 session for the chat source, asks the configured runner for a response, and
 stores both the operator message and assistant response outside the task
-lifecycle.
+lifecycle. Direct talk responses do not include navigation buttons; use
+`/start` when you want to return to the menu.
 
 For inbound text messages, the transport first sends a temporary working
 message with a `Cancel` button, then edits that same message with the final
