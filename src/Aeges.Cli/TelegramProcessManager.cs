@@ -247,29 +247,21 @@ internal sealed class TelegramProcessManager
         string stderrPath,
         CancellationToken cancellationToken)
     {
-        var childPidPath = Path.Combine(layout.RunsPath, "telegram.child.pid");
-        File.Delete(childPidPath);
-
         using var launcher = Process.Start(CreateUnixStartInfo(
             executablePath,
             arguments,
             stdoutPath,
-            stderrPath,
-            childPidPath))
+            stderrPath))
             ?? throw new InvalidOperationException("Failed to start Telegram transport process.");
-        await launcher.WaitForExitAsync(cancellationToken);
 
-        if (launcher.ExitCode != 0)
+        await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+
+        if (launcher.HasExited)
         {
-            throw new InvalidOperationException($"Telegram transport launcher exited with code {launcher.ExitCode}.");
+            throw new InvalidOperationException($"Telegram transport process exited with code {launcher.ExitCode}.");
         }
 
-        var childPidText = await File.ReadAllTextAsync(childPidPath, cancellationToken);
-        File.Delete(childPidPath);
-
-        return int.TryParse(childPidText.Trim(), out var childPid)
-            ? childPid
-            : throw new InvalidOperationException("Telegram transport launcher did not report a child process ID.");
+        return launcher.Id;
     }
 
     private static async Task AppendLauncherLogAsync(
@@ -299,8 +291,7 @@ internal sealed class TelegramProcessManager
         string executablePath,
         IReadOnlyList<string> arguments,
         string stdoutPath,
-        string stderrPath,
-        string childPidPath)
+        string stderrPath)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -312,7 +303,7 @@ internal sealed class TelegramProcessManager
         startInfo.FileName = "/bin/sh";
         startInfo.ArgumentList.Add("-c");
         startInfo.ArgumentList.Add(
-            $"nohup {QuoteShell(executablePath)} {string.Join(' ', arguments.Select(QuoteShell))} </dev/null >> {QuoteShell(stdoutPath)} 2>> {QuoteShell(stderrPath)} & echo $! > {QuoteShell(childPidPath)}");
+            $"exec nohup {QuoteShell(executablePath)} {string.Join(' ', arguments.Select(QuoteShell))} </dev/null >> {QuoteShell(stdoutPath)} 2>> {QuoteShell(stderrPath)}");
 
         return startInfo;
     }
