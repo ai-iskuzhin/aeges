@@ -8,6 +8,16 @@ All notable changes to Aeges are documented in this file.
 
 - Nothing yet.
 
+## [0.1.0-alpha.6] - 2026-05-12
+
+### Fixed
+
+- Pinned public installer defaults to the current alpha release so
+  `get.aeges.top` does not resolve through GitHub's non-prerelease `latest`
+  shortcut.
+- Updated `aeges update` to resolve the newest GitHub release that contains an
+  Aeges CLI package, including prerelease tags.
+
 ## [0.1.0-alpha.5] - 2026-05-12
 
 ### Added

@@ -86,19 +86,21 @@ For local development, use the checked-in installer from a local checkout:
 ```bash
 dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
 AEGES_PACKAGE_SOURCE="$PWD/.artifacts/packages" \
-AEGES_VERSION=0.1.0-alpha.5 \
+AEGES_VERSION=0.1.0-alpha.6 \
 sh scripts/install.sh
 ```
 
-The script installs or updates the CLI as a global .NET tool. It is intentionally
-thin: it does not install Codex, Telegram, background services, or machine-local
-configuration. Those remain explicit runtime setup steps.
+The public static installer pins the current prerelease version by default so
+GitHub's non-prerelease `latest` shortcut cannot drift back to an older alpha.
+The script installs or updates the CLI as a global .NET tool. It is
+intentionally thin: it does not install Codex, Telegram, background services, or
+machine-local configuration. Those remain explicit runtime setup steps.
 
 After the first install, users can update through the CLI itself:
 
 ```bash
 aeges update
-aeges update --version 0.1.0-alpha.5
+aeges update --version 0.1.0-alpha.6
 ```
 
 `aeges update` uses the same release artifact contract as the shell installers:
@@ -107,19 +109,19 @@ the package checksum, and runs `dotnet tool update --global` with the downloaded
 package directory as a source. Local development builds can be installed with:
 
 ```bash
-aeges update --version 0.1.0-alpha.5 --package-source "$PWD/.artifacts/packages"
+aeges update --version 0.1.0-alpha.6 --package-source "$PWD/.artifacts/packages"
 ```
 
 For a GitHub release download, specify a version:
 
 ```bash
-curl -fsSL https://get.aeges.top/install.sh | AEGES_VERSION=0.1.0-alpha.5 sh
+curl -fsSL https://get.aeges.top/install.sh | AEGES_VERSION=0.1.0-alpha.6 sh
 ```
 
 Supported installer environment variables:
 
 ```text
-AEGES_VERSION=0.1.0-alpha.5
+AEGES_VERSION=0.1.0-alpha.6
 AEGES_PACKAGE_SOURCE=/path/to/packages
 AEGES_DOWNLOAD_BASE_URL=https://github.com/ai-iskuzhin/aeges/releases/latest/download
 AEGES_GITHUB_REPOSITORY=ai-iskuzhin/aeges
@@ -143,7 +145,7 @@ irm https://get.aeges.top/install.ps1 | iex
 For a versioned GitHub release:
 
 ```powershell
-$env:AEGES_VERSION = "0.1.0-alpha.5"
+$env:AEGES_VERSION = "0.1.0-alpha.6"
 irm https://get.aeges.top/install.ps1 | iex
 ```
 
@@ -151,7 +153,7 @@ For a local checkout:
 
 ```powershell
 dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
-.\scripts\install.ps1 -PackageSource .\.artifacts\packages -Version 0.1.0-alpha.5
+.\scripts\install.ps1 -PackageSource .\.artifacts\packages -Version 0.1.0-alpha.6
 ```
 
 `install.ps1` supports the same configuration surface as `install.sh`:
@@ -173,7 +175,7 @@ The CLI is packaged as a .NET tool. From a local checkout:
 dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
 dotnet tool install --global Aeges.Cli \
   --add-source "$PWD/.artifacts/packages" \
-  --version 0.1.0-alpha.5
+  --version 0.1.0-alpha.6
 ```
 
 If `aeges` is still not found, add the .NET tool directory to `PATH`:
@@ -187,7 +189,7 @@ For repeated local installs during development:
 ```bash
 dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
 AEGES_PACKAGE_SOURCE="$PWD/.artifacts/packages" \
-AEGES_VERSION=0.1.0-alpha.5 \
+AEGES_VERSION=0.1.0-alpha.6 \
 sh scripts/install.sh
 ```
 
@@ -201,7 +203,7 @@ Required NuGet setup:
 1. Create or use a NuGet.org account.
 2. Create an API key scoped to push packages.
 3. Add the key to GitHub repository secrets as `NUGET_TOKEN`.
-4. Push a version tag such as `v0.1.0-alpha.5`.
+4. Push a version tag such as `v0.1.0-alpha.6`.
 
 The release workflow packs `src/Aeges.Cli`, uploads the package to GitHub
 Releases, and pushes the same `.nupkg` to NuGet when `NUGET_TOKEN` is present.
@@ -264,17 +266,17 @@ Aeges.Cli.<version>.nupkg
 SHA256SUMS
 ```
 
-For tag `v0.1.0-alpha.5`, the default remote package URL is:
+For tag `v0.1.0-alpha.6`, the default remote package URL is:
 
 ```text
-https://github.com/ai-iskuzhin/aeges/releases/download/v0.1.0-alpha.5/Aeges.Cli.0.1.0-alpha.5.nupkg
+https://github.com/ai-iskuzhin/aeges/releases/download/v0.1.0-alpha.6/Aeges.Cli.0.1.0-alpha.6.nupkg
 ```
 
 The release workflow builds, tests, packs the CLI tool, stages `install.sh` and
 `install.ps1`, generates SHA-256 checksums, extracts the matching
 `CHANGELOG.md` section, and creates a GitHub release with `gh release create`.
 Tags named `v*` publish a release. Tags containing a hyphen, such as
-`v0.1.0-alpha.5`, are marked as prereleases.
+`v0.1.0-alpha.6`, are marked as prereleases.
 
 ## macOS And Linux: Homebrew
 

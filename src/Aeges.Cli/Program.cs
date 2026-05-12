@@ -475,21 +475,25 @@ internal static class AegesCli
         Directory.CreateDirectory(downloadDirectory);
 
         var downloadBaseUrl = options.DownloadBaseUrl;
+        var version = options.Version;
         if (string.IsNullOrWhiteSpace(downloadBaseUrl))
         {
-            downloadBaseUrl = string.IsNullOrWhiteSpace(options.Version)
-                ? $"https://github.com/{options.GithubRepository}/releases/latest/download"
-                : $"https://github.com/{options.GithubRepository}/releases/download/v{options.Version}";
+            if (string.IsNullOrWhiteSpace(version))
+            {
+                version = await ResolveLatestGitHubReleaseVersionAsync(options.GithubRepository, cancellationToken);
+            }
+
+            downloadBaseUrl = $"https://github.com/{options.GithubRepository}/releases/download/v{version}";
         }
 
         using var client = new HttpClient();
         var checksums = await client.GetStringAsync(
             new Uri($"{downloadBaseUrl.TrimEnd('/')}/SHA256SUMS"),
             cancellationToken);
-        var packageFile = string.IsNullOrWhiteSpace(options.Version)
+        var packageFile = string.IsNullOrWhiteSpace(version)
             ? ResolvePackageFileFromChecksums(checksums, options.ToolPackage)
-            : $"{options.ToolPackage}.{options.Version}.nupkg";
-        var version = packageFile[options.ToolPackage.Length..^".nupkg".Length].TrimStart('.');
+            : $"{options.ToolPackage}.{version}.nupkg";
+        version = packageFile[options.ToolPackage.Length..^".nupkg".Length].TrimStart('.');
         var packagePath = Path.Combine(downloadDirectory, packageFile);
         var expectedHash = ResolvePackageHash(checksums, packageFile);
         var packageBytes = await client.GetByteArrayAsync(
@@ -507,6 +511,59 @@ internal static class AegesCli
         await File.WriteAllTextAsync(Path.Combine(downloadDirectory, "SHA256SUMS"), checksums, cancellationToken);
 
         return new AegesUpdatePlan(options.ToolPackage, version, downloadDirectory, packagePath);
+    }
+
+    private static async Task<string> ResolveLatestGitHubReleaseVersionAsync(
+        string githubRepository,
+        CancellationToken cancellationToken)
+    {
+        using var client = new HttpClient();
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Aeges.Cli");
+
+        var releasesJson = await client.GetStringAsync(
+            new Uri($"https://api.github.com/repos/{githubRepository}/releases?per_page=20"),
+            cancellationToken);
+        using var document = JsonDocument.Parse(releasesJson);
+
+        foreach (var release in document.RootElement.EnumerateArray())
+        {
+            if (release.TryGetProperty("draft", out var draft)
+                && draft.ValueKind == JsonValueKind.True)
+            {
+                continue;
+            }
+
+            if (!release.TryGetProperty("tag_name", out var tagNameProperty))
+            {
+                continue;
+            }
+
+            var tagName = tagNameProperty.GetString();
+
+            if (string.IsNullOrWhiteSpace(tagName))
+            {
+                continue;
+            }
+
+            var version = tagName.StartsWith("v", StringComparison.Ordinal)
+                ? tagName[1..]
+                : tagName;
+
+            if (!release.TryGetProperty("assets", out var assets))
+            {
+                continue;
+            }
+
+            if (assets.EnumerateArray().Any(asset =>
+                asset.TryGetProperty("name", out var name)
+                && string.Equals(name.GetString(), $"Aeges.Cli.{version}.nupkg", StringComparison.Ordinal)))
+            {
+                return version;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"No published GitHub release with an Aeges.Cli package was found for {githubRepository}.");
     }
 
     private static string ResolvePackageFileFromChecksums(string checksums, string toolPackage)
