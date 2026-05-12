@@ -95,6 +95,7 @@ Prepare the local runtime from the project you want Aeges to manage:
 ```bash
 aeges setup
 aeges status
+aeges version
 ```
 
 `aeges setup` is the friendly first-use wizard. It creates the local runtime
@@ -391,6 +392,7 @@ Useful options:
 ## CLI Commands
 
 ```text
+aeges version [--json]
 aeges setup [--project-id <id>] [--project-name <name>] [--path <path>] [--skip-telegram] [--no-start] [...]
 aeges init [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [...]
 aeges status [--config <path>] [--connection-string <value>] [--json]
@@ -418,6 +420,9 @@ aeges telegram restart [--poll-limit <int>] [--timeout-seconds <int>] [...]
 aeges telegram status [--json]
 aeges telegram stop [--json]
 ```
+
+`aeges version` prints the installed CLI version. The Telegram main menu shows
+the same runtime version when the transport is launched through the CLI.
 
 `aeges setup` is the recommended first command for local use. `aeges init` and
 `aeges db migrate` remain available as lower-level scriptable commands.

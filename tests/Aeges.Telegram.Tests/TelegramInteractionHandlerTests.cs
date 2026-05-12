@@ -38,6 +38,20 @@ public sealed class TelegramInteractionHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_shows_runtime_version_when_configured()
+    {
+        var facade = new FakeTelegramApplicationFacade();
+        var handler = new TelegramInteractionHandler(
+            facade,
+            new AegesTelegramConfiguration(),
+            runtimeVersion: "0.1.0-test");
+
+        var response = await handler.HandleAsync(new TelegramUpdate(1001, Text: "/start"), CancellationToken.None);
+
+        Assert.Equal("Aeges control\nVersion: 0.1.0-test", response.Text);
+    }
+
+    [Fact]
     public async Task HandleAsync_explains_pending_text_cancellation_limit()
     {
         var handler = new TelegramInteractionHandler(

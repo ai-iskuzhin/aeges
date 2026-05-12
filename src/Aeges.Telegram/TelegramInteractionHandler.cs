@@ -15,6 +15,7 @@ public sealed class TelegramInteractionHandler
     private const int ButtonGridColumns = 2;
     private readonly ITelegramApplicationFacade application;
     private readonly ITelegramCallbackRegistry? callbackRegistry;
+    private readonly string? runtimeVersion;
     private readonly HashSet<long> allowedChatIds;
     private readonly ConcurrentDictionary<long, TaskDraft> drafts = new();
     private readonly ConcurrentDictionary<long, TaskId> continuationDrafts = new();
@@ -25,13 +26,16 @@ public sealed class TelegramInteractionHandler
     /// <param name="application">The Telegram application facade.</param>
     /// <param name="configuration">The Telegram configuration.</param>
     /// <param name="callbackRegistry">The optional callback registry used to shorten Telegram callback payloads.</param>
+    /// <param name="runtimeVersion">The optional Aeges runtime version shown in Telegram menus.</param>
     public TelegramInteractionHandler(
         ITelegramApplicationFacade application,
         AegesTelegramConfiguration configuration,
-        ITelegramCallbackRegistry? callbackRegistry = null)
+        ITelegramCallbackRegistry? callbackRegistry = null,
+        string? runtimeVersion = null)
     {
         this.application = application;
         this.callbackRegistry = callbackRegistry;
+        this.runtimeVersion = string.IsNullOrWhiteSpace(runtimeVersion) ? null : runtimeVersion.Trim();
         allowedChatIds = [.. configuration.AllowedChatIds];
     }
 
@@ -178,7 +182,7 @@ public sealed class TelegramInteractionHandler
         var approvals = await application.ListPendingApprovalsAsync(MenuCountLimit, cancellationToken);
 
         return new TelegramResponse(
-            "Aeges control",
+            runtimeVersion is null ? "Aeges control" : $"Aeges control\nVersion: {runtimeVersion}",
             Buttons(
                 Row(
                     Button("New task", TelegramCallbackData.CreateTask),

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Reflection;
 using Aeges.Agent;
 using Aeges.Application;
 using Aeges.Application.Approvals;
@@ -59,6 +60,21 @@ internal static class AegesCli
         if (args is ["setup", .. var setupArgs])
         {
             return await RunSetupAsync(setupArgs, input, output, error, cancellationToken);
+        }
+
+        if (args is ["version", .. var versionArgs])
+        {
+            return await RunVersionAsync(versionArgs, output, error);
+        }
+
+        if (args is ["--version", .. var versionArgsAlias])
+        {
+            return await RunVersionAsync(versionArgsAlias, output, error);
+        }
+
+        if (args is ["-v", .. var versionArgsShort])
+        {
+            return await RunVersionAsync(versionArgsShort, output, error);
         }
 
         if (args is ["status", .. var localStatusArgs])
@@ -202,6 +218,27 @@ internal static class AegesCli
 
         var result = await InitializeRuntimeAsync(options, cancellationToken);
         await WriteInitResultAsync(result, options.Json, output);
+
+        return 0;
+    }
+
+    private static async Task<int> RunVersionAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error)
+    {
+        var options = CliOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await WriteVersionAsync(
+            new VersionOutput("aeges", GetVersion()),
+            options.Json,
+            output);
 
         return 0;
     }
@@ -636,7 +673,8 @@ internal static class AegesCli
         var handler = new TelegramInteractionHandler(
             facade,
             configuration.Telegram,
-            new TelegramCallbackRegistry(callbackActions, clock));
+            new TelegramCallbackRegistry(callbackActions, clock),
+            GetVersion());
         var pollingOptions = new TelegramLongPollingOptions(options.Limit, options.TimeoutSeconds);
 
         try
@@ -1323,6 +1361,21 @@ internal static class AegesCli
             TimeSpan.FromSeconds(configuration.Runners.Codex.TimeoutSeconds));
     }
 
+    private static string GetVersion()
+    {
+        var assembly = typeof(AegesCli).Assembly;
+        var informationalVersion = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion;
+
+        if (!string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return informationalVersion;
+        }
+
+        return assembly.GetName().Version?.ToString() ?? "unknown";
+    }
+
     private static async Task<LocalRuntimeStatusOutput> BuildLocalStatusAsync(
         CliOptions options,
         CancellationToken cancellationToken)
@@ -1612,7 +1665,8 @@ internal static class AegesCli
             return;
         }
 
-        await output.WriteLineAsync("Aeges local status");
+            await output.WriteLineAsync("Aeges local status");
+        await output.WriteLineAsync($"Version: {status.Version}");
         await output.WriteLineAsync($"Runtime: {status.RuntimeRootPath}");
         await output.WriteLineAsync($"Config: {status.ConfigPath}");
         await output.WriteLineAsync($"Database: {status.Database.DatabasePath ?? "(unknown)"}");
@@ -2147,6 +2201,26 @@ internal static class AegesCli
         await error.WriteLineAsync($"{errorValue.Code}: {errorValue.Message}");
     }
 
+    private static async Task WriteVersionAsync(
+        VersionOutput version,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                version,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"{version.Name} {version.Version}");
+    }
+
     private static async Task WriteSetupProcessResultAsync(
         string name,
         bool started,
@@ -2165,6 +2239,7 @@ internal static class AegesCli
     private static async Task WriteUsageAsync(TextWriter error)
     {
         await error.WriteLineAsync("Usage:");
+        await error.WriteLineAsync("  aeges version [--json]");
         await error.WriteLineAsync("  aeges setup [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--skip-telegram] [--no-start] [--config <path>] [--connection-string <value>]");
         await error.WriteLineAsync("  aeges init [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges status [--config <path>] [--connection-string <value>] [--json]");
@@ -3687,7 +3762,10 @@ internal static class AegesCli
 
     private sealed record TaskStatusCountOutput(string Status, int Count);
 
+    private sealed record VersionOutput(string Name, string Version);
+
     private sealed record LocalRuntimeStatusOutput(
+        string Version,
         string RuntimeRootPath,
         string ConfigPath,
         SqliteMigrationStatus Database,
@@ -3706,6 +3784,7 @@ internal static class AegesCli
             TelegramProcessStatus telegram,
             CodexRunnerAvailability codex) =>
             new(
+                GetVersion(),
                 layout.RootPath,
                 configPath,
                 database,
@@ -3727,6 +3806,7 @@ internal static class AegesCli
             int machineCount,
             IReadOnlyList<TaskStatusCountOutput> taskCounts) =>
             new(
+                GetVersion(),
                 layout.RootPath,
                 configPath,
                 database,
