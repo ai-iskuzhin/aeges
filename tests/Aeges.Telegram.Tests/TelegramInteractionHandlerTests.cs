@@ -100,10 +100,57 @@ public sealed class TelegramInteractionHandlerTests
             CancellationToken.None);
 
         Assert.Equal("Projects", response.Text);
-        Assert.Equal("Aeges", response.Buttons.Rows[0][0].Text);
-        Assert.Equal(TelegramCallbackData.ViewProject(new ProjectId("project-aeges")), response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("Ungrouped (1)", response.Buttons.Rows[0][0].Text);
+        Assert.Equal(TelegramCallbackData.ViewUngroupedProjects, response.Buttons.Rows[0][0].CallbackData);
         Assert.Equal("Back", response.Buttons.Rows[1][0].Text);
         Assert.Equal(TelegramCallbackData.MainMenu, response.Buttons.Rows[1][0].CallbackData);
+    }
+
+    [Fact]
+    public async Task HandleAsync_lists_projects_grouped_by_project_group()
+    {
+        var facade = new FakeTelegramApplicationFacade
+        {
+            ProjectGroups =
+            [
+                RuntimeProjectGroup.Create(new ProjectGroupId("analitex"), "Analitex", Now, "/workspace/analitex"),
+            ],
+            Projects =
+            [
+                RuntimeProject.Create(
+                    new ProjectId("analitex-api"),
+                    "analitex-api",
+                    "/workspace/analitex/api",
+                    Now,
+                    new ProjectGroupId("analitex")),
+                RuntimeProject.Create(new ProjectId("project-aeges"), "Aeges", "/workspace/aeges", Now),
+            ],
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ListProjects),
+            CancellationToken.None);
+
+        Assert.Equal("Projects", response.Text);
+        Assert.Equal("Analitex (1)", response.Buttons.Rows[0][0].Text);
+        Assert.Equal(TelegramCallbackData.ViewProjectGroup(new ProjectGroupId("analitex")), response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("Ungrouped (1)", response.Buttons.Rows[0][1].Text);
+
+        var groupResponse = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ViewProjectGroup(new ProjectGroupId("analitex"))),
+            CancellationToken.None);
+
+        Assert.Equal("Analitex projects", groupResponse.Text);
+        Assert.Equal("analitex-api", groupResponse.Buttons.Rows[0][0].Text);
+        Assert.Equal(TelegramCallbackData.ViewProject(new ProjectId("analitex-api")), groupResponse.Buttons.Rows[0][0].CallbackData);
+
+        var ungroupedResponse = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ViewUngroupedProjects),
+            CancellationToken.None);
+
+        Assert.Equal("Ungrouped projects", ungroupedResponse.Text);
+        Assert.Equal("Aeges", ungroupedResponse.Buttons.Rows[0][0].Text);
     }
 
     [Fact]
@@ -663,6 +710,8 @@ public sealed class TelegramInteractionHandlerTests
     {
         public IReadOnlyList<RuntimeProject> Projects { get; init; } = [];
 
+        public IReadOnlyList<RuntimeProjectGroup> ProjectGroups { get; init; } = [];
+
         public IReadOnlyList<RuntimeMachine> Machines { get; init; } = [];
 
         public IReadOnlyList<RuntimeTask> QueuedTasks { get; init; } = [];
@@ -713,6 +762,9 @@ public sealed class TelegramInteractionHandlerTests
             ListProjectsCallCount++;
             return System.Threading.Tasks.Task.FromResult(Projects);
         }
+
+        public Task<IReadOnlyList<RuntimeProjectGroup>> ListProjectGroupsAsync(CancellationToken cancellationToken) =>
+            System.Threading.Tasks.Task.FromResult(ProjectGroups);
 
         public Task<IReadOnlyList<RuntimeProject>> ListActiveProjectsAsync(CancellationToken cancellationToken) =>
             System.Threading.Tasks.Task.FromResult(

@@ -24,6 +24,7 @@ namespace Aeges.Telegram;
 public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
 {
     private readonly ProjectService projectService;
+    private readonly ProjectGroupService projectGroupService;
     private readonly MachineService machineService;
     private readonly TaskService taskService;
     private readonly TaskIterationService iterationService;
@@ -39,6 +40,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     /// Initializes a new instance of the <see cref="TelegramApplicationFacade"/> class.
     /// </summary>
     /// <param name="projectService">The project application service.</param>
+    /// <param name="projectGroupService">The project group application service.</param>
     /// <param name="machineService">The machine application service.</param>
     /// <param name="taskService">The task application service.</param>
     /// <param name="iterationService">The task iteration application service.</param>
@@ -51,6 +53,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     /// <param name="runtimeLayout">The runtime directory layout used to resolve local artifact previews.</param>
     public TelegramApplicationFacade(
         ProjectService projectService,
+        ProjectGroupService projectGroupService,
         MachineService machineService,
         TaskService taskService,
         TaskIterationService iterationService,
@@ -63,6 +66,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         RuntimeDirectoryLayout? runtimeLayout = null)
     {
         this.projectService = projectService;
+        this.projectGroupService = projectGroupService;
         this.machineService = machineService;
         this.taskService = taskService;
         this.iterationService = iterationService;
@@ -78,6 +82,10 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     /// <inheritdoc />
     public async Task<IReadOnlyList<RuntimeProject>> ListProjectsAsync(CancellationToken cancellationToken) =>
         await projectService.ListAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<RuntimeProjectGroup>> ListProjectGroupsAsync(CancellationToken cancellationToken) =>
+        await projectGroupService.ListAsync(cancellationToken);
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<RuntimeProject>> ListActiveProjectsAsync(CancellationToken cancellationToken) =>

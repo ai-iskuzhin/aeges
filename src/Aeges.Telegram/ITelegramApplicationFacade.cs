@@ -17,6 +17,13 @@ public interface ITelegramApplicationFacade
     Task<IReadOnlyList<RuntimeProject>> ListProjectsAsync(CancellationToken cancellationToken);
 
     /// <summary>
+    /// Lists registered project groups.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The registered project groups.</returns>
+    Task<IReadOnlyList<RuntimeProjectGroup>> ListProjectGroupsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
     /// Lists registered projects that can accept new tasks.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the operation.</param>

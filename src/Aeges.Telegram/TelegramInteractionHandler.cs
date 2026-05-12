@@ -84,6 +84,9 @@ public sealed class TelegramInteractionHandler
                 await ListTasksByStatusAsync(status, cancellationToken),
             _ when TelegramCallbackData.TryParseListProjectTasksByStatus(callbackData, out var projectId, out var status) =>
                 await ListProjectTasksByStatusAsync(projectId, status, cancellationToken),
+            TelegramCallbackData.ViewUngroupedProjects => await ListProjectGroupProjectsAsync(null, cancellationToken),
+            _ when TelegramCallbackData.TryParseViewProjectGroup(callbackData, out var groupId) =>
+                await ListProjectGroupProjectsAsync(groupId, cancellationToken),
             _ when TelegramCallbackData.TryParseArchiveProject(callbackData, out var projectId) =>
                 await ArchiveProjectAsync(projectId, cancellationToken),
             _ when TelegramCallbackData.TryParseViewProject(callbackData, out var projectId) =>
@@ -462,17 +465,73 @@ public sealed class TelegramInteractionHandler
     private async Task<TelegramResponse> ListProjectsAsync(CancellationToken cancellationToken)
     {
         var projects = await application.ListProjectsAsync(cancellationToken);
+        var groups = await application.ListProjectGroupsAsync(cancellationToken);
 
         if (projects.Count == 0)
         {
             return new TelegramResponse("No projects are registered.", BackButtons());
         }
 
-        var rows = Grid(projects.Select(project => Button(ProjectButtonText(project), TelegramCallbackData.ViewProject(project.Id))))
+        var activeGroups = groups
+            .Where(group => !group.IsArchived)
+            .OrderBy(group => group.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var groupedProjectCounts = projects
+            .Where(project => project.GroupId is not null)
+            .GroupBy(project => project.GroupId!.Value.Value)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+        var ungroupedCount = projects.Count(project => project.GroupId is null);
+        var buttons = activeGroups
+            .Select(group =>
+            {
+                groupedProjectCounts.TryGetValue(group.Id.Value, out var count);
+                return Button($"{group.Name} ({count})", TelegramCallbackData.ViewProjectGroup(group.Id));
+            })
+            .ToList();
+
+        if (ungroupedCount > 0)
+        {
+            buttons.Add(Button($"Ungrouped ({ungroupedCount})", TelegramCallbackData.ViewUngroupedProjects));
+        }
+
+        var rows = Grid(buttons)
             .Append(Row(Button("Back", TelegramCallbackData.MainMenu)))
             .ToArray();
 
         return new TelegramResponse("Projects", Buttons(rows));
+    }
+
+    private async Task<TelegramResponse> ListProjectGroupProjectsAsync(
+        ProjectGroupId? groupId,
+        CancellationToken cancellationToken)
+    {
+        var projects = await application.ListProjectsAsync(cancellationToken);
+        var groups = await application.ListProjectGroupsAsync(cancellationToken);
+        var group = groupId is null ? null : groups.FirstOrDefault(candidate => candidate.Id == groupId);
+
+        if (groupId is not null && group is null)
+        {
+            return new TelegramResponse($"Project group '{groupId}' was not found.", BackToProjectsButtons());
+        }
+
+        var groupedProjects = projects
+            .Where(project => project.GroupId == groupId)
+            .OrderBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (groupedProjects.Length == 0)
+        {
+            return new TelegramResponse(
+                groupId is null ? "No ungrouped projects are registered." : $"No projects are registered in {group!.Name}.",
+                BackToProjectsButtons());
+        }
+
+        var rows = Grid(groupedProjects.Select(project => Button(ProjectButtonText(project), TelegramCallbackData.ViewProject(project.Id))))
+            .Append(Row(Button("Back", TelegramCallbackData.ListProjects)))
+            .ToArray();
+        var title = groupId is null ? "Ungrouped projects" : $"{group!.Name} projects";
+
+        return new TelegramResponse(title, Buttons(rows));
     }
 
     private async Task<TelegramResponse> ViewProjectAsync(
@@ -535,6 +594,7 @@ public sealed class TelegramInteractionHandler
             $"Project: {project.Id}",
             $"Name: {project.Name}",
             $"Status: {(project.IsArchived ? "archived" : "active")}",
+            $"Group: {project.GroupId?.Value ?? "ungrouped"}",
             $"Path: {project.Path}",
         ];
 

@@ -902,6 +902,7 @@ internal static class AegesCli
         var clock = new SystemClock();
         var facade = new TelegramApplicationFacade(
             new ProjectService(unitOfWork, clock),
+            new ProjectGroupService(unitOfWork, clock),
             new MachineService(unitOfWork, clock),
             new TaskService(unitOfWork, clock),
             new TaskIterationService(unitOfWork, clock),

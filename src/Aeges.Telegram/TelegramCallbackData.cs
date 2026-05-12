@@ -86,6 +86,18 @@ public static class TelegramCallbackData
     public static string ViewProject(ProjectId projectId) => $"ae:p:{projectId.Value}";
 
     /// <summary>
+    /// Gets the ungrouped project list callback payload.
+    /// </summary>
+    public const string ViewUngroupedProjects = "ae:g:-";
+
+    /// <summary>
+    /// Creates a project group details callback payload.
+    /// </summary>
+    /// <param name="groupId">The project group identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string ViewProjectGroup(ProjectGroupId groupId) => $"ae:g:{groupId.Value}";
+
+    /// <summary>
     /// Creates a project archive callback payload.
     /// </summary>
     /// <param name="projectId">The project identifier.</param>
@@ -442,6 +454,36 @@ public static class TelegramCallbackData
         }
 
         projectId = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to parse a project group details callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="groupId">The parsed project group identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseViewProjectGroup(string payload, out ProjectGroupId groupId)
+    {
+        const string prefix = "ae:g:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal)
+            && payload.Length > prefix.Length
+            && payload != ViewUngroupedProjects)
+        {
+            try
+            {
+                groupId = new ProjectGroupId(payload[prefix.Length..]);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                groupId = default;
+                return false;
+            }
+        }
+
+        groupId = default;
         return false;
     }
 

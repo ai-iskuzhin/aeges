@@ -387,6 +387,9 @@ public sealed class TelegramLongPollingServiceTests
         public Task<IReadOnlyList<RuntimeProject>> ListProjectsAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RuntimeProject>>([]);
 
+        public Task<IReadOnlyList<RuntimeProjectGroup>> ListProjectGroupsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeProjectGroup>>([]);
+
         public Task<IReadOnlyList<RuntimeProject>> ListActiveProjectsAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RuntimeProject>>([]);
 
