@@ -90,18 +90,22 @@ $env:AEGES_VERSION = "0.1.0-alpha.3"
 irm https://get.aeges.top/install.ps1 | iex
 ```
 
-Initialize the local runtime from the project you want Aeges to manage:
+Prepare the local runtime from the project you want Aeges to manage:
 
 ```bash
-aeges init
+aeges setup
 aeges status
 ```
 
-`aeges init` creates the local runtime directories, applies SQLite migrations,
-registers the current directory as a project, and registers the local machine.
-You can still perform those steps explicitly:
+`aeges setup` is the friendly first-use wizard. It creates the local runtime
+directories, applies SQLite migrations, registers the current directory as a
+project, registers the local machine, can configure Telegram, and can start the
+background agent and Telegram transport.
+
+You can still perform those steps explicitly for scripts or operator workflows:
 
 ```bash
+aeges init
 aeges db migrate
 
 aeges project add \
@@ -387,6 +391,7 @@ Useful options:
 ## CLI Commands
 
 ```text
+aeges setup [--project-id <id>] [--project-name <name>] [--path <path>] [--skip-telegram] [--no-start] [...]
 aeges init [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [...]
 aeges status [--config <path>] [--connection-string <value>] [--json]
 aeges talk [message] [--new] [--session-id <id>] [...]
@@ -413,6 +418,9 @@ aeges telegram restart [--poll-limit <int>] [--timeout-seconds <int>] [...]
 aeges telegram status [--json]
 aeges telegram stop [--json]
 ```
+
+`aeges setup` is the recommended first command for local use. `aeges init` and
+`aeges db migrate` remain available as lower-level scriptable commands.
 
 `aeges status` is the quickest local health check. It reports the runtime
 directory, config path, database migration state, agent and Telegram process

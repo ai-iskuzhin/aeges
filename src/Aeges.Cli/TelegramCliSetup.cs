@@ -130,7 +130,7 @@ internal static class TelegramCliSetup
             configuration.Telegram.AllowedChatIds);
     }
 
-    private static bool HasConfiguredToken(AegesTelegramConfiguration configuration)
+    internal static bool HasConfiguredToken(AegesTelegramConfiguration configuration)
     {
         if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(configuration.BotTokenEnvironmentVariable)))
         {

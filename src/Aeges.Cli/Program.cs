@@ -56,6 +56,11 @@ internal static class AegesCli
             return await RunInitAsync(initArgs, output, error, cancellationToken);
         }
 
+        if (args is ["setup", .. var setupArgs])
+        {
+            return await RunSetupAsync(setupArgs, input, output, error, cancellationToken);
+        }
+
         if (args is ["status", .. var localStatusArgs])
         {
             return await RunLocalStatusAsync(localStatusArgs, output, error, cancellationToken);
@@ -197,6 +202,111 @@ internal static class AegesCli
 
         var result = await InitializeRuntimeAsync(options, cancellationToken);
         await WriteInitResultAsync(result, options.Json, output);
+
+        return 0;
+    }
+
+    private static async Task<int> RunSetupAsync(
+        string[] args,
+        TextReader input,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = SetupOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await output.WriteLineAsync("Aeges setup");
+        await output.WriteLineAsync();
+
+        var initResult = await InitializeRuntimeAsync(options, cancellationToken);
+        await WriteInitResultAsync(initResult, json: false, output);
+        await output.WriteLineAsync();
+
+        var configPath = ResolveConfigPath(options);
+        var configuration = LoadConfiguration(options);
+        var telegramConfigured = TelegramCliSetup.HasConfiguredToken(configuration.Telegram);
+
+        if (!options.SkipTelegram)
+        {
+            var setupTelegram = telegramConfigured
+                ? await PromptYesNoAsync(
+                    input,
+                    output,
+                    "Telegram is already configured. Re-run Telegram setup",
+                    defaultValue: false,
+                    cancellationToken)
+                : await PromptYesNoAsync(
+                    input,
+                    output,
+                    "Set up Telegram now",
+                    defaultValue: true,
+                    cancellationToken);
+
+            if (setupTelegram)
+            {
+                await TelegramCliSetup.RunWizardAsync(
+                    configuration,
+                    configPath,
+                    input,
+                    output,
+                    cancellationToken);
+
+                await SaveConfigurationAsync(configPath, configuration, cancellationToken);
+                telegramConfigured = TelegramCliSetup.HasConfiguredToken(configuration.Telegram);
+                await output.WriteLineAsync();
+            }
+        }
+
+        if (!options.NoStart)
+        {
+            if (await PromptYesNoAsync(input, output, "Start local agent now", defaultValue: true, cancellationToken))
+            {
+                var agent = await new AgentProcessManager().StartAsync(
+                    new AgentProcessStartRequest(
+                        options.ConfigPath,
+                        options.ConnectionString,
+                        options.MachineId,
+                        options.MachineName,
+                        options.Platform,
+                        configuration.Runners.Default,
+                        PollIntervalSeconds: 5,
+                        QueuePreviewLimit: 100,
+                        ClaimQueuedTask: true,
+                        ExecuteRunner: true,
+                        CreateWorktree: true),
+                    cancellationToken);
+
+                await WriteSetupProcessResultAsync("Agent", agent.Started, agent.AlreadyRunning, output);
+            }
+
+            if (telegramConfigured
+                && await PromptYesNoAsync(input, output, "Start Telegram transport now", defaultValue: true, cancellationToken))
+            {
+                var telegram = await new TelegramProcessManager().StartAsync(
+                    new TelegramProcessStartRequest(
+                        options.ConfigPath,
+                        options.ConnectionString,
+                        PollLimit: 50,
+                        TimeoutSeconds: 30),
+                    cancellationToken);
+
+                await WriteSetupProcessResultAsync("Telegram", telegram.Started, telegram.AlreadyRunning, output);
+            }
+            else if (!telegramConfigured && !options.SkipTelegram)
+            {
+                await output.WriteLineAsync("Telegram was not started because no bot token is configured.");
+            }
+        }
+
+        await output.WriteLineAsync();
+        await output.WriteLineAsync("Setup complete.");
+        await output.WriteLineAsync("Run: aeges status");
 
         return 0;
     }
@@ -1392,6 +1502,43 @@ internal static class AegesCli
         await stream.WriteAsync("\n"u8.ToArray(), cancellationToken);
     }
 
+    private static async Task<bool> PromptYesNoAsync(
+        TextReader input,
+        TextWriter output,
+        string label,
+        bool defaultValue,
+        CancellationToken cancellationToken)
+    {
+        var suffix = defaultValue ? "Y/n" : "y/N";
+
+        while (true)
+        {
+            await output.WriteAsync($"{label} [{suffix}]: ");
+            var value = await input.ReadLineAsync(cancellationToken);
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return defaultValue;
+            }
+
+            value = value.Trim();
+
+            if (value.Equals("y", StringComparison.OrdinalIgnoreCase)
+                || value.Equals("yes", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (value.Equals("n", StringComparison.OrdinalIgnoreCase)
+                || value.Equals("no", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            await output.WriteLineAsync("Enter yes or no.");
+        }
+    }
+
     private static AgentRunOptions CreateAgentRunOptions(AgentRunCliOptions options)
     {
         var configuration = LoadConfiguration(options);
@@ -1486,7 +1633,7 @@ internal static class AegesCli
 
         if (!status.Database.IsUpToDate)
         {
-            await output.WriteLineAsync("Next step: aeges db migrate");
+            await output.WriteLineAsync("Next step: aeges setup");
             return;
         }
 
@@ -2000,9 +2147,25 @@ internal static class AegesCli
         await error.WriteLineAsync($"{errorValue.Code}: {errorValue.Message}");
     }
 
+    private static async Task WriteSetupProcessResultAsync(
+        string name,
+        bool started,
+        bool alreadyRunning,
+        TextWriter output)
+    {
+        var status = started
+            ? "started"
+            : alreadyRunning
+                ? "already running"
+                : "not started";
+
+        await output.WriteLineAsync($"{name}: {status}");
+    }
+
     private static async Task WriteUsageAsync(TextWriter error)
     {
         await error.WriteLineAsync("Usage:");
+        await error.WriteLineAsync("  aeges setup [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--skip-telegram] [--no-start] [--config <path>] [--connection-string <value>]");
         await error.WriteLineAsync("  aeges init [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges status [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges talk [message] [--new] [--session-id <id>] [--config <path>] [--connection-string <value>] [--json]");
@@ -2181,19 +2344,19 @@ internal static class AegesCli
         private static TalkCliOptions ErrorResult(string error) => new() { Error = error };
     }
 
-    private sealed class InitOptions : CliOptions
+    private class InitOptions : CliOptions
     {
-        public string? ProjectId { get; private init; }
+        public string? ProjectId { get; protected init; }
 
-        public string? ProjectName { get; private init; }
+        public string? ProjectName { get; protected init; }
 
-        public string? ProjectPath { get; private init; }
+        public string? ProjectPath { get; protected init; }
 
-        public string? MachineId { get; private init; }
+        public string? MachineId { get; protected init; }
 
-        public string? MachineName { get; private init; }
+        public string? MachineName { get; protected init; }
 
-        public string? Platform { get; private init; }
+        public string? Platform { get; protected init; }
 
         public new static InitOptions Parse(string[] args)
         {
@@ -2290,6 +2453,116 @@ internal static class AegesCli
         }
 
         private static InitOptions ErrorResult(string error) => new() { Error = error };
+    }
+
+    private sealed class SetupOptions : InitOptions
+    {
+        public bool SkipTelegram { get; private init; }
+
+        public bool NoStart { get; private init; }
+
+        public new static SetupOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? projectId = null;
+            string? projectName = null;
+            string? projectPath = null;
+            string? machineId = null;
+            string? machineName = null;
+            string? platform = null;
+            var skipTelegram = false;
+            var noStart = false;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        return ErrorResult("setup is interactive and does not support --json. Use 'aeges init --json' for scripted initialization.");
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--project-id":
+                        if (!TryReadValue(args, ref index, out projectId))
+                        {
+                            return ErrorResult("--project-id requires a value.");
+                        }
+
+                        break;
+                    case "--project-name":
+                        if (!TryReadValue(args, ref index, out projectName))
+                        {
+                            return ErrorResult("--project-name requires a value.");
+                        }
+
+                        break;
+                    case "--path":
+                        if (!TryReadValue(args, ref index, out projectPath))
+                        {
+                            return ErrorResult("--path requires a value.");
+                        }
+
+                        break;
+                    case "--machine-id":
+                        if (!TryReadValue(args, ref index, out machineId))
+                        {
+                            return ErrorResult("--machine-id requires a value.");
+                        }
+
+                        break;
+                    case "--machine-name":
+                        if (!TryReadValue(args, ref index, out machineName))
+                        {
+                            return ErrorResult("--machine-name requires a value.");
+                        }
+
+                        break;
+                    case "--platform":
+                        if (!TryReadValue(args, ref index, out platform))
+                        {
+                            return ErrorResult("--platform requires a value.");
+                        }
+
+                        break;
+                    case "--skip-telegram":
+                        skipTelegram = true;
+                        break;
+                    case "--no-start":
+                        noStart = true;
+                        break;
+                    default:
+                        return ErrorResult($"Unknown option '{args[index]}'.");
+                }
+            }
+
+            return new SetupOptions
+            {
+                ConfigPath = configPath,
+                ConnectionString = connectionString,
+                ProjectId = projectId,
+                ProjectName = projectName,
+                ProjectPath = projectPath,
+                MachineId = machineId,
+                MachineName = machineName,
+                Platform = platform,
+                SkipTelegram = skipTelegram,
+                NoStart = noStart,
+            };
+        }
+
+        private static SetupOptions ErrorResult(string error) => new() { Error = error };
     }
 
     private sealed class TaskCreateOptions : CliOptions
