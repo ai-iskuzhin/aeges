@@ -42,6 +42,8 @@ return await AegesCli.RunAsync(args, Console.In, Console.Out, Console.Error, can
 
 internal static class AegesCli
 {
+    private static readonly AsyncLocal<CliTrace?> CurrentTrace = new();
+
     public static async Task<int> RunAsync(
         string[] args,
         TextWriter output,
@@ -50,6 +52,48 @@ internal static class AegesCli
         await RunAsync(args, Console.In, output, error, cancellationToken);
 
     public static async Task<int> RunAsync(
+        string[] args,
+        TextReader input,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (args is ["-v"])
+        {
+            return await RunCoreAsync(args, input, output, error, cancellationToken);
+        }
+
+        var traceOptions = CliTraceOptions.Parse(args);
+        var trace = new CliTrace(traceOptions.Verbose, error);
+        var previousTrace = CurrentTrace.Value;
+        CurrentTrace.Value = trace;
+        var stopwatch = Stopwatch.StartNew();
+
+        await trace.WriteAsync($"command: {FormatTraceCommand(traceOptions.Args)}");
+        await trace.WriteAsync($"version: {GetVersion()}");
+        await trace.WriteAsync($"cwd: {Environment.CurrentDirectory}");
+
+        try
+        {
+            var exitCode = await RunCoreAsync(traceOptions.Args, input, output, error, cancellationToken);
+            await trace.WriteAsync($"exit-code: {exitCode}");
+            await trace.WriteAsync($"elapsed-ms: {stopwatch.ElapsedMilliseconds}");
+
+            return exitCode;
+        }
+        catch (Exception exception)
+        {
+            await trace.WriteAsync($"exception: {exception.GetType().Name}: {exception.Message}");
+            await trace.WriteAsync($"elapsed-ms: {stopwatch.ElapsedMilliseconds}");
+            throw;
+        }
+        finally
+        {
+            CurrentTrace.Value = previousTrace;
+        }
+    }
+
+    private static async Task<int> RunCoreAsync(
         string[] args,
         TextReader input,
         TextWriter output,
@@ -300,7 +344,14 @@ internal static class AegesCli
                 await output.FlushAsync(cancellationToken);
             }
 
+            await TraceAsync("update: resolving plan");
             var plan = await CreateUpdatePlanAsync(options, cancellationToken);
+            await TraceAsync($"update: target={plan.TargetVersion ?? "latest"} source={plan.PackageSource}");
+            if (!string.IsNullOrWhiteSpace(plan.DownloadedPackagePath))
+            {
+                await TraceAsync($"update: downloaded-package={plan.DownloadedPackagePath}");
+            }
+
             var currentVersion = GetVersion();
 
             if (options.DryRun)
@@ -314,6 +365,7 @@ internal static class AegesCli
 
             if (IsCurrentVersion(plan.TargetVersion, currentVersion))
             {
+                await TraceAsync("update: target matches current version");
                 await WriteUpdateResultAsync(
                     AegesUpdateResult.FromUpToDate(currentVersion, plan.TargetVersion, plan.PackageSource, plan.ToolPackage),
                     options.Json,
@@ -325,6 +377,9 @@ internal static class AegesCli
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && !options.Direct)
             {
+                await TraceAsync(options.Elevated
+                    ? "update: scheduling elevated Windows deferred updater"
+                    : "update: scheduling Windows deferred updater");
                 var deferred = await ScheduleWindowsDeferredUpdateAsync(
                     plan,
                     options.Elevated,
@@ -345,10 +400,16 @@ internal static class AegesCli
                 return 0;
             }
 
+            await TraceAsync("update: running dotnet tool update");
             var update = await RunDotnetToolAsync("update", plan, cancellationToken);
+            await TraceAsync($"update: dotnet tool update exit={update.ExitCode}");
             var install = update.ExitCode == 0
                 ? null
                 : await RunDotnetToolAsync("install", plan, cancellationToken);
+            if (install is not null)
+            {
+                await TraceAsync($"update: dotnet tool install exit={install.ExitCode}");
+            }
             var effective = update.ExitCode == 0 ? update : install!;
             var result = new AegesUpdateResult(
                 update.ExitCode == 0 || install?.ExitCode == 0,
@@ -405,6 +466,7 @@ internal static class AegesCli
         await output.WriteLineAsync();
 
         var configPath = ResolveConfigPath(options);
+        await TraceAsync("telegram run: loading configuration");
         var configuration = LoadConfiguration(options);
         var telegramConfigured = TelegramCliSetup.HasConfiguredToken(configuration.Telegram);
 
@@ -803,7 +865,9 @@ internal static class AegesCli
             return 2;
         }
 
+        await TraceAsync("status: building local runtime status");
         var status = await BuildLocalStatusAsync(options, cancellationToken);
+        await TraceAsync($"status: database-up-to-date={status.Database.IsUpToDate}");
         await WriteLocalStatusAsync(status, options.Json, output);
 
         return status.Database.IsUpToDate ? 0 : 1;
@@ -875,6 +939,7 @@ internal static class AegesCli
             return 2;
         }
 
+        await TraceAsync("db status: reading migration status");
         var service = CreateMigrationService(options);
         var status = await service.GetStatusAsync(cancellationToken);
         await WriteStatusAsync(status, options.Json, output);
@@ -896,14 +961,17 @@ internal static class AegesCli
             return 2;
         }
 
+        await TraceAsync("agent run: creating local runtime");
         var runtime = new LocalAgentRuntime();
         var agentOptions = CreateAgentRunOptions(options);
+        await TraceAsync($"agent run: machine={agentOptions.MachineId} runner={agentOptions.RunnerId} once={options.Once}");
 
         try
         {
             if (options.Once)
             {
                 var snapshot = await runtime.RunOnceAsync(agentOptions, cancellationToken);
+                await TraceAsync($"agent run: queued={snapshot.QueuedTaskCount} claimed={snapshot.ClaimedTaskId ?? "(none)"}");
                 await WriteAgentSnapshotAsync(snapshot, options.Json, output);
                 return 0;
             }
@@ -954,6 +1022,7 @@ internal static class AegesCli
             return 2;
         }
 
+        await TraceAsync("agent start: starting background process");
         var manager = new AgentProcessManager();
         var result = await manager.StartAsync(
             new AgentProcessStartRequest(
@@ -970,6 +1039,7 @@ internal static class AegesCli
                 options.CreateWorktree),
             cancellationToken);
 
+        await TraceAsync($"agent start: pid={result.Status.Metadata?.ProcessId.ToString(CultureInfo.InvariantCulture) ?? "(none)"} running={result.Status.IsRunning}");
         await WriteAgentProcessStartResultAsync(result, options.Json, output);
 
         return 0;
@@ -989,8 +1059,10 @@ internal static class AegesCli
             return 2;
         }
 
+        await TraceAsync("agent restart: stopping background process");
         var manager = new AgentProcessManager();
         await manager.StopAsync(cancellationToken);
+        await TraceAsync("agent restart: starting background process");
         var result = await manager.StartAsync(
             new AgentProcessStartRequest(
                 options.ConfigPath,
@@ -1006,6 +1078,7 @@ internal static class AegesCli
                 options.CreateWorktree),
             cancellationToken);
 
+        await TraceAsync($"agent restart: pid={result.Status.Metadata?.ProcessId.ToString(CultureInfo.InvariantCulture) ?? "(none)"} running={result.Status.IsRunning}");
         await WriteAgentProcessRestartResultAsync(result, options.Json, output);
 
         return 0;
@@ -1025,6 +1098,7 @@ internal static class AegesCli
             return 2;
         }
 
+        await TraceAsync("agent status: reading process metadata");
         var status = await new AgentProcessManager().GetStatusAsync(cancellationToken);
         await WriteAgentProcessStatusAsync(status, options.Json, output);
 
@@ -1045,6 +1119,7 @@ internal static class AegesCli
             return 2;
         }
 
+        await TraceAsync("agent stop: stopping background process");
         var result = await new AgentProcessManager().StopAsync(cancellationToken);
         await WriteAgentProcessStopResultAsync(result, options.Json, output);
 
@@ -1065,8 +1140,10 @@ internal static class AegesCli
             return 2;
         }
 
+        await TraceAsync("db migrate: applying migrations");
         var service = CreateMigrationService(options);
         var status = await service.MigrateAsync(cancellationToken);
+        await TraceAsync($"db migrate: applied={status.AppliedMigrations.Count} pending={status.PendingMigrations.Count}");
         await WriteStatusAsync(status, options.Json, output);
 
         return 0;
@@ -1099,6 +1176,7 @@ internal static class AegesCli
             return 1;
         }
 
+        await TraceAsync("telegram run: acquiring runtime lock");
         using var telegramRunLock = TelegramRuntimeLock.TryAcquire();
 
         if (telegramRunLock is null)
@@ -1108,6 +1186,7 @@ internal static class AegesCli
             return 1;
         }
 
+        await TraceAsync("telegram run: opening database");
         await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
         var unitOfWork = new SqliteUnitOfWork(context);
         var clock = new SystemClock();
@@ -1142,7 +1221,9 @@ internal static class AegesCli
 
             if (options.Once)
             {
+                await TraceAsync("telegram run: polling once");
                 var result = await service.PollOnceAsync(null, pollingOptions, cancellationToken);
+                await TraceAsync($"telegram run: processed-updates={result.ProcessedUpdates}");
                 await WriteTelegramPollingResultAsync(result, options.Json, output);
                 return 0;
             }
@@ -1211,6 +1292,7 @@ internal static class AegesCli
             return 1;
         }
 
+        await TraceAsync("telegram start: starting background process");
         var manager = new TelegramProcessManager();
         var result = await manager.StartAsync(
             new TelegramProcessStartRequest(
@@ -1220,6 +1302,7 @@ internal static class AegesCli
                 options.TimeoutSeconds),
             cancellationToken);
 
+        await TraceAsync($"telegram start: pid={result.Status.Metadata?.ProcessId.ToString(CultureInfo.InvariantCulture) ?? "(none)"} running={result.Status.IsRunning}");
         await WriteTelegramProcessStartResultAsync(result, options.Json, output);
 
         return 0;
@@ -1251,8 +1334,10 @@ internal static class AegesCli
             return 1;
         }
 
+        await TraceAsync("telegram restart: stopping background process");
         var manager = new TelegramProcessManager();
         await manager.StopAsync(cancellationToken);
+        await TraceAsync("telegram restart: starting background process");
         var result = await manager.StartAsync(
             new TelegramProcessStartRequest(
                 options.ConfigPath,
@@ -1261,6 +1346,7 @@ internal static class AegesCli
                 options.TimeoutSeconds),
             cancellationToken);
 
+        await TraceAsync($"telegram restart: pid={result.Status.Metadata?.ProcessId.ToString(CultureInfo.InvariantCulture) ?? "(none)"} running={result.Status.IsRunning}");
         await WriteTelegramProcessRestartResultAsync(result, options.Json, output);
 
         return 0;
@@ -1280,6 +1366,7 @@ internal static class AegesCli
             return 2;
         }
 
+        await TraceAsync("telegram status: reading process metadata");
         var status = await new TelegramProcessManager().GetStatusAsync(cancellationToken);
         await WriteTelegramProcessStatusAsync(status, options.Json, output);
 
@@ -1300,6 +1387,7 @@ internal static class AegesCli
             return 2;
         }
 
+        await TraceAsync("telegram stop: stopping background process");
         var result = await new TelegramProcessManager().StopAsync(cancellationToken);
         await WriteTelegramProcessStopResultAsync(result, options.Json, output);
 
@@ -2256,6 +2344,44 @@ internal static class AegesCli
         }
 
         return candidate;
+    }
+
+    private static async Task TraceAsync(string message)
+    {
+        if (CurrentTrace.Value is { } trace)
+        {
+            await trace.WriteAsync(message);
+        }
+    }
+
+    private static string FormatTraceCommand(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            return "(none)";
+        }
+
+        var redacted = new List<string>(args.Length);
+        var redactNext = false;
+
+        foreach (var arg in args)
+        {
+            if (redactNext)
+            {
+                redacted.Add("(redacted)");
+                redactNext = false;
+                continue;
+            }
+
+            redacted.Add(arg);
+
+            if (arg is "--connection-string" or "--bot-token" or "--token")
+            {
+                redactNext = true;
+            }
+        }
+
+        return string.Join(' ', redacted.Select(QuoteCommandArgument));
     }
 
     private static SqliteMigrationService CreateMigrationService(CliOptions options)
@@ -3538,6 +3664,7 @@ internal static class AegesCli
     private static async Task WriteUsageAsync(TextWriter error)
     {
         await error.WriteLineAsync("Usage:");
+        await error.WriteLineAsync("  Add -v or --verbose to any command to print execution trace lines to stderr.");
         await error.WriteLineAsync("  aeges version [--json]");
         await error.WriteLineAsync("  aeges update [--version <version>] [--package-source <path>] [--download-base-url <url>] [--github-repository <owner/repo>] [--dry-run] [--direct] [--elevated] [--json]");
         await error.WriteLineAsync("  aeges setup [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--skip-telegram] [--no-start] [--config <path>] [--connection-string <value>]");
@@ -3635,6 +3762,50 @@ internal static class AegesCli
             value = args[index];
 
             return true;
+        }
+    }
+
+    private sealed record CliTraceOptions(bool Verbose, string[] Args)
+    {
+        public static CliTraceOptions Parse(string[] args)
+        {
+            var stripped = new List<string>(args.Length);
+            var verbose = false;
+
+            foreach (var arg in args)
+            {
+                if (arg is "-v" or "--verbose")
+                {
+                    verbose = true;
+                    continue;
+                }
+
+                stripped.Add(arg);
+            }
+
+            return new CliTraceOptions(verbose, [.. stripped]);
+        }
+    }
+
+    private sealed class CliTrace
+    {
+        private readonly bool enabled;
+        private readonly TextWriter writer;
+
+        public CliTrace(bool enabled, TextWriter writer)
+        {
+            this.enabled = enabled;
+            this.writer = writer;
+        }
+
+        public async Task WriteAsync(string message)
+        {
+            if (!enabled)
+            {
+                return;
+            }
+
+            await writer.WriteLineAsync($"trace: {message}");
         }
     }
 

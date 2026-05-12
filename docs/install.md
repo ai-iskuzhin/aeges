@@ -111,6 +111,10 @@ aeges update
 aeges update --version 0.1.0-alpha.7
 ```
 
+Add `-v` or `--verbose` to any Aeges command to print execution traces to
+stderr. This is useful when diagnosing installer/update issues because JSON and
+normal command output remain on stdout.
+
 `aeges update` uses the same release artifact contract as the shell installers:
 it downloads `SHA256SUMS`, resolves the matching `Aeges.Cli` package, verifies
 the package checksum, and runs `dotnet tool update --global` with the downloaded

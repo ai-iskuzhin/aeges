@@ -446,6 +446,7 @@ Useful options:
 --connection-string <value>       Use a specific SQLite database for this command.
 --json                            Print deterministic JSON output when supported.
 --no-interactive                  Disable prompts for script/CI usage.
+-v, --verbose                     Print execution trace lines to stderr.
 ```
 
 ## CLI Commands
@@ -483,6 +484,10 @@ aeges telegram stop [--json]
 
 `aeges version` prints the installed CLI version. The Telegram main menu shows
 the same runtime version when the transport is launched through the CLI.
+
+Add `-v` or `--verbose` to any command to trace execution. Trace lines are
+written to stderr, so stdout remains parseable for normal text and JSON output.
+Connection-string values are redacted from the trace.
 
 `aeges update` updates the installed global .NET tool from GitHub release
 artifacts by default. Use `--dry-run` to inspect the update plan. On Windows,

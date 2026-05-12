@@ -5,6 +5,44 @@ namespace Aeges.Cli.Tests;
 public sealed class AegesCliUpdateTests
 {
     [Fact]
+    public async Task Verbose_flag_writes_trace_to_stderr_without_polluting_stdout()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await AegesCli.RunAsync(
+            ["version", "-v"],
+            TextReader.Null,
+            output,
+            error,
+            CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("aeges ", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("trace: command: version", error.ToString(), StringComparison.Ordinal);
+        Assert.Contains("trace: exit-code: 0", error.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Verbose_flag_keeps_json_stdout_parseable()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await AegesCli.RunAsync(
+            ["version", "--json", "--verbose"],
+            TextReader.Null,
+            output,
+            error,
+            CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+        using var document = JsonDocument.Parse(output.ToString());
+        Assert.Equal("aeges", document.RootElement.GetProperty("Name").GetString());
+        Assert.Contains("trace: command: version --json", error.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Update_dry_run_describes_release_update_plan()
     {
         var output = new StringWriter();
