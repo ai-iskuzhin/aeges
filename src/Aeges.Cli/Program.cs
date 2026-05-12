@@ -767,6 +767,11 @@ internal static class AegesCli
             }
 
             await output.WriteLineAsync($"Agent running for machine '{agentOptions.MachineId}'. Press Ctrl+C to stop.");
+            await WriteRuntimeLogAsync(
+                output,
+                "agent",
+                "info",
+                $"Started machine={agentOptions.MachineId} runner={agentOptions.RunnerId} pollInterval={options.PollInterval} claimQueued={agentOptions.ClaimQueuedTask} createWorktree={agentOptions.CreateWorktree} executeRunner={agentOptions.ExecuteRunner}");
 
             // The initial shell deliberately performs bounded heartbeats only.
             // Task dispatch will be layered in later behind governed workflow checks.
@@ -781,8 +786,15 @@ internal static class AegesCli
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            await WriteRuntimeLogAsync(output, "agent", "info", "Stopped by cancellation.");
             await output.WriteLineAsync("Agent stopped.");
             return 0;
+        }
+        catch (Exception exception)
+        {
+            await WriteRuntimeLogAsync(error, "agent", "error", $"Unhandled failure: {exception.GetType().Name}: {exception.Message}");
+            await error.WriteLineAsync(exception.ToString());
+            return 1;
         }
     }
 
@@ -980,7 +992,10 @@ internal static class AegesCli
         try
         {
             var gateway = TelegramBotClientFactory.CreateGateway(configuration.Telegram, cancellationToken);
-            var service = new TelegramLongPollingService(gateway, handler);
+            var service = new TelegramLongPollingService(
+                gateway,
+                handler,
+                logSink: (entry, token) => WriteTelegramRuntimeLogAsync(entry, output, error, token));
 
             if (options.Once)
             {
@@ -990,6 +1005,11 @@ internal static class AegesCli
             }
 
             await output.WriteLineAsync("Telegram transport running. Press Ctrl+C to stop.");
+            await WriteRuntimeLogAsync(
+                output,
+                "telegram",
+                "info",
+                $"Started config={configPath} database={context.Database.GetDbConnection().DataSource} limit={options.Limit} timeoutSeconds={options.TimeoutSeconds}");
 
             await service.RunAsync(pollingOptions, cancellationToken);
 
@@ -997,13 +1017,21 @@ internal static class AegesCli
         }
         catch (TelegramTransportException exception)
         {
+            await WriteRuntimeLogAsync(error, "telegram", "error", $"Transport startup failed: {exception.Message}");
             await error.WriteLineAsync(exception.Message);
             return 1;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            await WriteRuntimeLogAsync(output, "telegram", "info", "Stopped by cancellation.");
             await output.WriteLineAsync("Telegram transport stopped.");
             return 0;
+        }
+        catch (Exception exception)
+        {
+            await WriteRuntimeLogAsync(error, "telegram", "error", $"Unhandled failure: {exception.GetType().Name}: {exception.Message}");
+            await error.WriteLineAsync(exception.ToString());
+            return 1;
         }
     }
 
@@ -3012,6 +3040,59 @@ internal static class AegesCli
         await output.WriteLineAsync($"Processed updates: {result.ProcessedUpdates}");
         await output.WriteLineAsync(
             $"Next offset: {(result.NextOffset is null ? "(none)" : result.NextOffset.Value.ToString())}");
+    }
+
+    private static async ValueTask WriteTelegramRuntimeLogAsync(
+        TelegramLongPollingLogEntry entry,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var writer = entry.Level == TelegramLongPollingLogLevel.Warning
+            ? error
+            : output;
+        var details = new List<string>();
+
+        if (entry.NextOffset is not null)
+        {
+            details.Add($"nextOffset={entry.NextOffset.Value}");
+        }
+
+        if (entry.ProcessedUpdates is not null)
+        {
+            details.Add($"processed={entry.ProcessedUpdates.Value}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.ExceptionType))
+        {
+            details.Add($"exception={entry.ExceptionType}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.ErrorMessage))
+        {
+            details.Add($"error={entry.ErrorMessage}");
+        }
+
+        var message = details.Count == 0
+            ? entry.Message
+            : $"{entry.Message} {string.Join(' ', details)}";
+        var level = entry.Level == TelegramLongPollingLogLevel.Warning
+            ? "warn"
+            : "info";
+
+        await WriteRuntimeLogAsync(writer, "telegram", level, message);
+    }
+
+    private static async Task WriteRuntimeLogAsync(
+        TextWriter writer,
+        string component,
+        string level,
+        string message)
+    {
+        await writer.WriteLineAsync($"{DateTimeOffset.UtcNow:O} [{component}] {level}: {message}");
+        await writer.FlushAsync();
     }
 
     private static async Task WriteTelegramProcessStartResultAsync(

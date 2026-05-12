@@ -251,6 +251,7 @@ public sealed class TelegramLongPollingServiceTests
     public async Task RunAsync_continues_after_transient_polling_failure()
     {
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var logs = new List<TelegramLongPollingLogEntry>();
         var gateway = new FakeTelegramBotGateway
         {
             ThrowTransientPollingFailureOnce = true,
@@ -265,7 +266,7 @@ public sealed class TelegramLongPollingServiceTests
             ],
         };
         gateway.ResponseEdited += (_, _) => cancellation.Cancel();
-        var service = CreateService(gateway, transientErrorDelay: TimeSpan.Zero);
+        var service = CreateService(gateway, transientErrorDelay: TimeSpan.Zero, logs: logs);
 
         await service.RunAsync(new TelegramLongPollingOptions(), cancellation.Token);
 
@@ -274,6 +275,13 @@ public sealed class TelegramLongPollingServiceTests
         Assert.Single(gateway.EditedResponses);
         Assert.Contains("Working on your message", gateway.SentResponses[0].Response.Text, StringComparison.Ordinal);
         Assert.Equal("talk_unavailable: Talk is not available in this test facade.", gateway.EditedResponses[0].Response.Text);
+        Assert.Contains(logs, entry =>
+            entry.Level == TelegramLongPollingLogLevel.Warning
+            && entry.Message.Contains("retrying", StringComparison.Ordinal)
+            && entry.ExceptionType == nameof(HttpRequestException));
+        Assert.Contains(logs, entry =>
+            entry.Level == TelegramLongPollingLogLevel.Information
+            && entry.ProcessedUpdates == 1);
     }
 
     [Fact]
@@ -292,13 +300,24 @@ public sealed class TelegramLongPollingServiceTests
     private static TelegramLongPollingService CreateService(
         FakeTelegramBotGateway gateway,
         FakeTelegramApplicationFacade? facade = null,
-        TimeSpan? transientErrorDelay = null)
+        TimeSpan? transientErrorDelay = null,
+        List<TelegramLongPollingLogEntry>? logs = null)
     {
         var handler = new TelegramInteractionHandler(
             facade ?? new FakeTelegramApplicationFacade(),
             new AegesTelegramConfiguration());
 
-        return new TelegramLongPollingService(gateway, handler, transientErrorDelay);
+        return new TelegramLongPollingService(
+            gateway,
+            handler,
+            transientErrorDelay,
+            logs is null
+                ? null
+                : (entry, _) =>
+                {
+                    logs.Add(entry);
+                    return ValueTask.CompletedTask;
+                });
     }
 
     private sealed class FakeTelegramBotGateway : ITelegramBotGateway

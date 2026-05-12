@@ -73,11 +73,19 @@ internal sealed class AgentProcessManager
         var stderrPath = Path.Combine(layout.LogsPath, "agent.stderr.log");
         var executablePath = ResolveExecutablePath();
         var arguments = BuildRunArguments(request);
+        await AppendLauncherLogAsync(
+            stdoutPath,
+            $"Starting agent worker executable={executablePath} config={request.ConfigPath ?? "(default)"}",
+            cancellationToken);
         var processId = await StartDetachedProcessAsync(
             executablePath,
             arguments,
             stdoutPath,
             stderrPath,
+            cancellationToken);
+        await AppendLauncherLogAsync(
+            stdoutPath,
+            $"Started agent worker pid={processId}",
             cancellationToken);
         var metadata = new AgentProcessMetadata(
             processId,
@@ -291,6 +299,24 @@ internal sealed class AgentProcessManager
         return int.TryParse(childPidText.Trim(), out var childPid)
             ? childPid
             : throw new InvalidOperationException("Agent worker launcher did not report a child process ID.");
+    }
+
+    private static async Task AppendLauncherLogAsync(
+        string path,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        var directory = Path.GetDirectoryName(path);
+
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        await File.AppendAllTextAsync(
+            path,
+            $"{DateTimeOffset.UtcNow:O} [agent-launcher] info: {message}{Environment.NewLine}",
+            cancellationToken);
     }
 
     private static ProcessStartInfo CreateUnixStartInfo(

@@ -203,7 +203,9 @@ aeges telegram stop
 `start` launches `telegram run --no-interactive` in the background, writes
 metadata to `~/.aeges/runs/telegram.pid.json`, and redirects output to
 `~/.aeges/logs/telegram.stdout.log` and
-`~/.aeges/logs/telegram.stderr.log`. `status` reports whether that pid is still
+`~/.aeges/logs/telegram.stderr.log`. Startup and successful polling batches go
+to stdout. Recoverable Telegram transport failures, including retryable network
+or API request errors, go to stderr. `status` reports whether that pid is still
 alive, `stop` terminates it and removes the metadata file, and `restart` stops
 the recorded process before starting a fresh transport with the same options
 accepted by `telegram start`.

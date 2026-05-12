@@ -13,6 +13,7 @@ public sealed class TelegramLongPollingService
     private readonly TelegramInteractionHandler handler;
     private readonly ConcurrentDictionary<TaskWatchKey, TaskWatch> taskWatches = new();
     private readonly TimeSpan transientErrorDelay;
+    private readonly TelegramLongPollingLogSink? logSink;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TelegramLongPollingService"/> class.
@@ -20,14 +21,17 @@ public sealed class TelegramLongPollingService
     /// <param name="gateway">The Telegram network gateway.</param>
     /// <param name="handler">The deterministic interaction handler.</param>
     /// <param name="transientErrorDelay">The delay before retrying after a transient Telegram transport error.</param>
+    /// <param name="logSink">The optional sanitized diagnostic event sink.</param>
     public TelegramLongPollingService(
         ITelegramBotGateway gateway,
         TelegramInteractionHandler handler,
-        TimeSpan? transientErrorDelay = null)
+        TimeSpan? transientErrorDelay = null,
+        TelegramLongPollingLogSink? logSink = null)
     {
         this.gateway = gateway;
         this.handler = handler;
         this.transientErrorDelay = transientErrorDelay ?? TimeSpan.FromSeconds(2);
+        this.logSink = logSink;
     }
 
     /// <summary>
@@ -47,6 +51,13 @@ public sealed class TelegramLongPollingService
             {
                 var result = await PollOnceAsync(nextOffset, options, cancellationToken);
                 nextOffset = result.NextOffset;
+                await LogAsync(
+                    new TelegramLongPollingLogEntry(
+                        TelegramLongPollingLogLevel.Information,
+                        "Polling batch completed.",
+                        result.NextOffset,
+                        result.ProcessedUpdates),
+                    cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -54,6 +65,15 @@ public sealed class TelegramLongPollingService
             }
             catch (Exception exception) when (IsTransientTelegramTransportException(exception))
             {
+                await LogAsync(
+                    new TelegramLongPollingLogEntry(
+                        TelegramLongPollingLogLevel.Warning,
+                        "Transient Telegram polling failure; retrying.",
+                        nextOffset,
+                        ExceptionType: exception.GetType().Name,
+                        ErrorMessage: exception.Message),
+                    cancellationToken);
+
                 if (transientErrorDelay > TimeSpan.Zero)
                 {
                     await Task.Delay(transientErrorDelay, cancellationToken);
@@ -259,6 +279,16 @@ public sealed class TelegramLongPollingService
 
     private static bool IsTransientTelegramTransportException(Exception exception) =>
         exception is RequestException or HttpRequestException or IOException;
+
+    private async ValueTask LogAsync(
+        TelegramLongPollingLogEntry entry,
+        CancellationToken cancellationToken)
+    {
+        if (logSink is not null)
+        {
+            await logSink(entry, cancellationToken);
+        }
+    }
 
     private readonly record struct TaskWatchKey(long ChatId, TaskId TaskId);
 

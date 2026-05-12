@@ -79,6 +79,8 @@ process. By default it enables worktree creation and runner execution so tasks
 queued from Telegram can be processed automatically. Process metadata is stored
 in `~/.aeges/runs/agent.pid.json`, and output is redirected to
 `~/.aeges/logs/agent.stdout.log` and `~/.aeges/logs/agent.stderr.log`.
+The stdout log includes launcher events and heartbeat snapshots. Unhandled
+agent failures are written to stderr with exception details.
 `agent restart` stops the recorded worker when it is running, clears stale
 metadata when needed, and starts a fresh worker with the same options accepted
 by `agent start`.
