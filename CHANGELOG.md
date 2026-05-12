@@ -8,6 +8,13 @@ All notable changes to Aeges are documented in this file.
 
 - Nothing yet.
 
+## [0.1.0-alpha.3] - 2026-05-12
+
+### Fixed
+
+- Fixed PowerShell installer interpolation for package checksum success output.
+- Added a regression test for ambiguous unscoped PowerShell variable interpolation.
+
 ## [0.1.0-alpha.2] - 2026-05-12
 
 ### Added
