@@ -41,6 +41,18 @@ public interface ITelegramBotGateway
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Creates a forum topic in a Telegram supergroup.
+    /// </summary>
+    /// <param name="chatId">The target Telegram supergroup identifier.</param>
+    /// <param name="name">The topic name.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The created forum topic.</returns>
+    Task<TelegramForumTopic> CreateForumTopicAsync(
+        long chatId,
+        string name,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Edits an existing response message with updated text and inline buttons.
     /// </summary>
     /// <param name="chatId">The target Telegram chat identifier.</param>

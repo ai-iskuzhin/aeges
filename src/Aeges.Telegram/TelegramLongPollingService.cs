@@ -15,6 +15,7 @@ public sealed class TelegramLongPollingService
     private readonly ConcurrentDictionary<TaskWatchKey, TaskWatch> taskWatches = new();
     private readonly TimeSpan transientErrorDelay;
     private readonly TelegramLongPollingLogSink? logSink;
+    private TelegramBotIdentity? botIdentity;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TelegramLongPollingService"/> class.
@@ -116,6 +117,13 @@ public sealed class TelegramLongPollingService
                 if (isCallback)
                 {
                     await gateway.AnswerCallbackQueryAsync(callbackQueryId!, cancellationToken);
+                }
+
+                if (await TryStartTaskTopicAsync(update, cancellationToken))
+                {
+                    nextOffset = Math.Max(nextOffset ?? 0, update.UpdateId + 1);
+                    processed++;
+                    continue;
                 }
 
                 if (!isCallback && update.Text is not null && !TelegramInteractionHandler.IsStartCommand(update.Text))
@@ -236,6 +244,66 @@ public sealed class TelegramLongPollingService
         await NotifyTaskWatchersAsync(cancellationToken);
 
         return new TelegramLongPollingResult(nextOffset, processed);
+    }
+
+    private async Task<bool> TryStartTaskTopicAsync(
+        TelegramBotUpdate update,
+        CancellationToken cancellationToken)
+    {
+        if (update.CallbackData is not null || update.Text is null || update.IsPrivateChat)
+        {
+            return false;
+        }
+
+        var identity = botIdentity ??= await gateway.GetIdentityAsync(cancellationToken);
+        if (!TryParseNewTaskCommand(update.Text, identity.Username, out var topicTitle))
+        {
+            return false;
+        }
+
+        var messageThreadId = update.MessageThreadId;
+
+        if (messageThreadId is null)
+        {
+            try
+            {
+                var topic = await gateway.CreateForumTopicAsync(update.ChatId, topicTitle, cancellationToken);
+                messageThreadId = topic.MessageThreadId;
+            }
+            catch (Exception exception) when (exception is RequestException or ApiRequestException)
+            {
+                var response = new TelegramResponse(
+                    $"""
+                    I could not create a task topic in this supergroup.
+
+                    The bot probably needs administrator access with topic management enabled.
+
+                    Error:
+                    {TelegramMarkdown.Quote(exception.Message)}
+                    """,
+                    TelegramButtonMarkup.Empty);
+                await gateway.SendResponseAsync(update.ChatId, update.MessageThreadId, response, cancellationToken);
+
+                return true;
+            }
+        }
+
+        var taskCreationResponse = await handler.HandleAsync(
+            new TelegramUpdate(
+                update.ChatId,
+                CallbackData: TelegramCallbackData.CreateTask,
+                Username: update.Username,
+                FirstName: update.FirstName,
+                LastName: update.LastName,
+                SenderUserId: update.SenderUserId,
+                MessageId: update.MessageId,
+                MessageThreadId: messageThreadId,
+                ReplyToMessageId: update.ReplyToMessageId,
+                IsPrivateChat: false),
+            cancellationToken);
+        await gateway.SendResponseAsync(update.ChatId, messageThreadId, taskCreationResponse, cancellationToken);
+
+        return true;
     }
 
     private async Task TrackResponseAsync(
@@ -389,6 +457,45 @@ public sealed class TelegramLongPollingService
 
     private static string CreateTaskFingerprint(RuntimeTask task) =>
         $"{task.Status.ToStorageValue()}:{task.CurrentIteration}:{task.FailureReason}";
+
+    private static bool TryParseNewTaskCommand(
+        string text,
+        string? botUsername,
+        out string topicTitle)
+    {
+        topicTitle = "Aeges task";
+        var trimmed = text.Trim();
+
+        if (string.IsNullOrWhiteSpace(botUsername))
+        {
+            return false;
+        }
+
+        var mention = $"@{botUsername}";
+        if (!trimmed.StartsWith(mention, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var command = trimmed[mention.Length..].TrimStart();
+        if (!command.StartsWith("new task", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (command.Length > "new task".Length && !char.IsWhiteSpace(command["new task".Length]) && command["new task".Length] != ':')
+        {
+            return false;
+        }
+
+        var title = command["new task".Length..].TrimStart(' ', '\t', ':', '-');
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            topicTitle = title.Length <= 96 ? title : title[..96];
+        }
+
+        return true;
+    }
 
     private static bool IsTransientTelegramTransportException(Exception exception) =>
         !IsTelegramChatMigratedException(exception)

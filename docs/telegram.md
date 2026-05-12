@@ -107,6 +107,20 @@ To create work from Telegram:
 The task is created in `queued` state. If the local agent worker is running, it
 will claim and process the task on its next polling pass.
 
+In Telegram forum supergroups, General can also act as the task intake lane.
+Mention the bot with `new task` and an optional topic title:
+
+```text
+@aeges_bot new task Fix install docs
+```
+
+When the bot has administrator access with topic management enabled, it creates
+a forum topic named from the command and sends the normal task creation wizard
+inside that topic. Messages, buttons, task continuation prompts, and watched
+task notifications stay scoped to the topic where the task interaction runs.
+If topic creation fails, the bot replies in the original chat with the Telegram
+permission/API error.
+
 When no task creation or task-continuation draft is active, ordinary Telegram
 text is sent to talk mode. Talk mode creates or continues a durable discussion
 session for the chat source, asks the configured runner for a response, and

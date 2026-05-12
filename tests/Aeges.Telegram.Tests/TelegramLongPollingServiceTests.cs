@@ -106,6 +106,40 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
+    public async Task PollOnceAsync_creates_forum_topic_for_new_task_command_in_supergroup()
+    {
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    -1001,
+                    Text: "@aeges_test_bot new task Fix install docs",
+                    CallbackData: null,
+                    CallbackQueryId: null,
+                    Username: "operator",
+                    SenderUserId: 1001,
+                    IsPrivateChat: false),
+            ],
+        };
+        var service = CreateService(gateway);
+
+        var result = await service.PollOnceAsync(
+            nextOffset: null,
+            new TelegramLongPollingOptions(),
+            CancellationToken.None);
+
+        Assert.Equal(42, result.NextOffset);
+        Assert.Equal(1, result.ProcessedUpdates);
+        Assert.Single(gateway.CreatedTopics);
+        Assert.Equal((-1001, "Fix install docs"), gateway.CreatedTopics[0]);
+        Assert.Single(gateway.SentResponses);
+        Assert.Equal(777, gateway.SentResponses[0].MessageThreadId);
+        Assert.Contains("No active projects", gateway.SentResponses[0].Response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PollOnceAsync_sends_menu_without_pending_message_for_start_command()
     {
         var gateway = new FakeTelegramBotGateway
@@ -512,6 +546,8 @@ public sealed class TelegramLongPollingServiceTests
 
         public List<(long ChatId, int MessageId, TelegramResponse Response)> EditedResponses { get; } = [];
 
+        public List<(long ChatId, string Name)> CreatedTopics { get; } = [];
+
         public int? LastLimit { get; private set; }
 
         public int? LastTimeoutSeconds { get; private set; }
@@ -558,6 +594,15 @@ public sealed class TelegramLongPollingServiceTests
             }
 
             return Task.FromResult<int?>(SentResponses.Count);
+        }
+
+        public Task<TelegramForumTopic> CreateForumTopicAsync(
+            long chatId,
+            string name,
+            CancellationToken cancellationToken)
+        {
+            CreatedTopics.Add((chatId, name));
+            return Task.FromResult(new TelegramForumTopic(777, name));
         }
 
         public Task EditResponseAsync(
