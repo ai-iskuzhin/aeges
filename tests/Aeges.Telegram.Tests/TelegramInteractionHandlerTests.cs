@@ -1,5 +1,6 @@
 using Aeges.Application;
 using Aeges.Application.Configuration;
+using Aeges.Application.TelegramUsers;
 using Aeges.Core;
 using Aeges.Telegram;
 
@@ -81,6 +82,82 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Equal("This Telegram chat is not authorized for Aeges.", response.Text);
         Assert.Empty(response.Buttons.Rows);
         Assert.Equal(0, facade.ListProjectsCallCount);
+    }
+
+    [Fact]
+    public async Task HandleAsync_blocks_pending_telegram_user()
+    {
+        var pending = RuntimeTelegramUser.CreatePending(2002, Now);
+        var facade = new FakeTelegramApplicationFacade { TelegramUsers = [pending] };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(2002, Text: "hello"),
+            CancellationToken.None);
+
+        Assert.Contains("waiting for an Aeges Telegram administrator", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Status: pending", response.Text, StringComparison.Ordinal);
+        Assert.Empty(response.Buttons.Rows);
+        Assert.Null(facade.TalkMessage);
+    }
+
+    [Fact]
+    public async Task HandleAsync_lists_telegram_users_for_admins()
+    {
+        var pending = RuntimeTelegramUser.CreatePending(2002, Now);
+        var facade = new FakeTelegramApplicationFacade
+        {
+            TelegramUsers =
+            [
+                RuntimeTelegramUser.CreateFirstAdmin(1001, Now),
+                pending,
+            ],
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.UserMenu),
+            CancellationToken.None);
+
+        Assert.Contains("telegram-2002", response.Text, StringComparison.Ordinal);
+        Assert.Contains("user / pending", response.Text, StringComparison.Ordinal);
+        Assert.Equal(TelegramButtonStyle.Danger, response.Buttons.Rows[0][1].Style);
+    }
+
+    [Fact]
+    public async Task HandleAsync_renders_project_access_as_red_until_granted()
+    {
+        var user = RuntimeTelegramUser.CreatePending(2002, Now);
+        user.Approve(Now);
+        var projectId = new ProjectId("project-aeges");
+        var facade = new FakeTelegramApplicationFacade
+        {
+            TelegramUsers =
+            [
+                RuntimeTelegramUser.CreateFirstAdmin(1001, Now),
+                user,
+            ],
+            Projects =
+            [
+                RuntimeProject.Create(projectId, "Aeges", "/workspace/aeges", Now),
+            ],
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var blocked = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ViewTelegramUser(user.Id)),
+            CancellationToken.None);
+        var granted = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.SetTelegramProjectAccess(user.Id, projectId, allowed: true)),
+            CancellationToken.None);
+
+        var blockedProjectButton = blocked.Buttons.Rows.SelectMany(row => row).Single(button => button.Text == "Blocked Aeges");
+        var grantedProjectButton = granted.Buttons.Rows.SelectMany(row => row).Single(button => button.Text == "Allowed Aeges");
+
+        Assert.Contains("> Project grants: 0", blocked.Text, StringComparison.Ordinal);
+        Assert.Equal(TelegramButtonStyle.Danger, blockedProjectButton.Style);
+        Assert.Contains("> Project grants: 1", granted.Text, StringComparison.Ordinal);
+        Assert.Equal(TelegramButtonStyle.Success, grantedProjectButton.Style);
     }
 
     [Fact]
@@ -749,6 +826,15 @@ public sealed class TelegramInteractionHandlerTests
 
         public ApprovalRequest? Approval { get; init; }
 
+        public IReadOnlyList<RuntimeTelegramUser> TelegramUsers { get; init; } =
+        [
+            RuntimeTelegramUser.CreateFirstAdmin(1001, Now),
+        ];
+
+        public IReadOnlyList<RuntimeTelegramProjectAccess> TelegramProjectAccess { get; set; } = [];
+
+        public IReadOnlyList<RuntimeTelegramProjectGroupAccess> TelegramProjectGroupAccess { get; set; } = [];
+
         public TelegramRunnerSettings RunnerSettings { get; set; } =
             new("workspace-write", CodexBypassApprovalsAndSandbox: false);
 
@@ -781,6 +867,119 @@ public sealed class TelegramInteractionHandlerTests
         public int StartAgentCallCount { get; private set; }
 
         public string? ResolvedBy { get; private set; }
+
+        public Task<TelegramUserAuthorization> EnsureTelegramUserAsync(
+            long chatId,
+            CancellationToken cancellationToken)
+        {
+            var user = TelegramUsers.FirstOrDefault(user => user.ChatId == chatId)
+                ?? RuntimeTelegramUser.CreateFirstAdmin(chatId, Now);
+
+            return System.Threading.Tasks.Task.FromResult(new TelegramUserAuthorization(user, IsFirstAdmin: false));
+        }
+
+        public Task<IReadOnlyList<RuntimeTelegramUser>> ListTelegramUsersAsync(CancellationToken cancellationToken) =>
+            System.Threading.Tasks.Task.FromResult(TelegramUsers);
+
+        public Task<ApplicationResult<TelegramUserAccessSnapshot>> GetTelegramUserAccessAsync(
+            TelegramUserId userId,
+            CancellationToken cancellationToken)
+        {
+            var user = TelegramUsers.FirstOrDefault(user => user.Id == userId);
+
+            if (user is null)
+            {
+                return System.Threading.Tasks.Task.FromResult(
+                    ApplicationResult<TelegramUserAccessSnapshot>.Failure(
+                        "telegram_user_not_found",
+                        $"Telegram user '{userId}' was not found."));
+            }
+
+            return System.Threading.Tasks.Task.FromResult(
+                ApplicationResult<TelegramUserAccessSnapshot>.Success(
+                    new TelegramUserAccessSnapshot(
+                        user,
+                        TelegramProjectAccess.Where(access => access.UserId == userId).ToArray(),
+                        TelegramProjectGroupAccess.Where(access => access.UserId == userId).ToArray())));
+        }
+
+        public Task<ApplicationResult<RuntimeTelegramUser>> ApproveTelegramUserAsync(
+            TelegramUserId userId,
+            CancellationToken cancellationToken)
+        {
+            var user = TelegramUsers.FirstOrDefault(user => user.Id == userId);
+
+            if (user is null)
+            {
+                return System.Threading.Tasks.Task.FromResult(
+                    ApplicationResult<RuntimeTelegramUser>.Failure(
+                        "telegram_user_not_found",
+                        $"Telegram user '{userId}' was not found."));
+            }
+
+            user.Approve(Now);
+
+            return System.Threading.Tasks.Task.FromResult(ApplicationResult<RuntimeTelegramUser>.Success(user));
+        }
+
+        public Task<ApplicationResult<RuntimeTelegramUser>> DenyTelegramUserAsync(
+            TelegramUserId userId,
+            CancellationToken cancellationToken)
+        {
+            var user = TelegramUsers.FirstOrDefault(user => user.Id == userId);
+
+            if (user is null)
+            {
+                return System.Threading.Tasks.Task.FromResult(
+                    ApplicationResult<RuntimeTelegramUser>.Failure(
+                        "telegram_user_not_found",
+                        $"Telegram user '{userId}' was not found."));
+            }
+
+            user.Deny(Now);
+
+            return System.Threading.Tasks.Task.FromResult(ApplicationResult<RuntimeTelegramUser>.Success(user));
+        }
+
+        public Task<ApplicationResult<TelegramUserAccessSnapshot>> SetTelegramProjectAccessAsync(
+            TelegramUserId userId,
+            ProjectId projectId,
+            bool allowed,
+            CancellationToken cancellationToken)
+        {
+            var grants = TelegramProjectAccess
+                .Where(access => access.UserId != userId || access.ProjectId != projectId)
+                .ToList();
+
+            if (allowed)
+            {
+                grants.Add(new RuntimeTelegramProjectAccess(userId, projectId, Now));
+            }
+
+            TelegramProjectAccess = grants;
+
+            return GetTelegramUserAccessAsync(userId, cancellationToken);
+        }
+
+        public Task<ApplicationResult<TelegramUserAccessSnapshot>> SetTelegramProjectGroupAccessAsync(
+            TelegramUserId userId,
+            ProjectGroupId projectGroupId,
+            bool allowed,
+            CancellationToken cancellationToken)
+        {
+            var grants = TelegramProjectGroupAccess
+                .Where(access => access.UserId != userId || access.ProjectGroupId != projectGroupId)
+                .ToList();
+
+            if (allowed)
+            {
+                grants.Add(new RuntimeTelegramProjectGroupAccess(userId, projectGroupId, Now));
+            }
+
+            TelegramProjectGroupAccess = grants;
+
+            return GetTelegramUserAccessAsync(userId, cancellationToken);
+        }
 
         public Task<IReadOnlyList<RuntimeProject>> ListProjectsAsync(CancellationToken cancellationToken)
         {

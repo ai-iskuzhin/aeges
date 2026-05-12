@@ -8,6 +8,7 @@ using Aeges.Application.Projects;
 using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
 using Aeges.Application.Talk;
+using Aeges.Application.TelegramUsers;
 using Aeges.Application.Tasks;
 using Aeges.Core;
 using System.Diagnostics;
@@ -32,6 +33,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     private readonly RunnerExecutionService runnerExecutionService;
     private readonly ApprovalService approvalService;
     private readonly TalkService talkService;
+    private readonly TelegramUserService telegramUserService;
     private readonly RuntimeDirectoryLayout runtimeLayout;
     private readonly AegesConfiguration configuration;
     private readonly string configPath;
@@ -48,6 +50,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     /// <param name="runnerExecutionService">The runner execution application service.</param>
     /// <param name="approvalService">The approval application service.</param>
     /// <param name="talkService">The governed talk application service.</param>
+    /// <param name="telegramUserService">The Telegram user application service.</param>
     /// <param name="configuration">The loaded local runtime configuration.</param>
     /// <param name="configPath">The configuration file path to update for settings changes.</param>
     /// <param name="runtimeLayout">The runtime directory layout used to resolve local artifact previews.</param>
@@ -61,6 +64,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         RunnerExecutionService runnerExecutionService,
         ApprovalService approvalService,
         TalkService talkService,
+        TelegramUserService telegramUserService,
         AegesConfiguration configuration,
         string configPath,
         RuntimeDirectoryLayout? runtimeLayout = null)
@@ -74,10 +78,55 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         this.runnerExecutionService = runnerExecutionService;
         this.approvalService = approvalService;
         this.talkService = talkService;
+        this.telegramUserService = telegramUserService;
         this.configuration = configuration;
         this.configPath = configPath;
         this.runtimeLayout = runtimeLayout ?? RuntimeDirectoryLayout.CreateDefault();
     }
+
+    /// <inheritdoc />
+    public async Task<TelegramUserAuthorization> EnsureTelegramUserAsync(
+        long chatId,
+        CancellationToken cancellationToken) =>
+        await telegramUserService.EnsureAsync(chatId, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<RuntimeTelegramUser>> ListTelegramUsersAsync(CancellationToken cancellationToken) =>
+        await telegramUserService.ListAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<ApplicationResult<TelegramUserAccessSnapshot>> GetTelegramUserAccessAsync(
+        TelegramUserId userId,
+        CancellationToken cancellationToken) =>
+        await telegramUserService.GetAccessAsync(userId, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<ApplicationResult<RuntimeTelegramUser>> ApproveTelegramUserAsync(
+        TelegramUserId userId,
+        CancellationToken cancellationToken) =>
+        await telegramUserService.ApproveAsync(userId, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<ApplicationResult<RuntimeTelegramUser>> DenyTelegramUserAsync(
+        TelegramUserId userId,
+        CancellationToken cancellationToken) =>
+        await telegramUserService.DenyAsync(userId, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<ApplicationResult<TelegramUserAccessSnapshot>> SetTelegramProjectAccessAsync(
+        TelegramUserId userId,
+        ProjectId projectId,
+        bool allowed,
+        CancellationToken cancellationToken) =>
+        await telegramUserService.SetProjectAccessAsync(userId, projectId, allowed, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<ApplicationResult<TelegramUserAccessSnapshot>> SetTelegramProjectGroupAccessAsync(
+        TelegramUserId userId,
+        ProjectGroupId projectGroupId,
+        bool allowed,
+        CancellationToken cancellationToken) =>
+        await telegramUserService.SetProjectGroupAccessAsync(userId, projectGroupId, allowed, cancellationToken);
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<RuntimeProject>> ListProjectsAsync(CancellationToken cancellationToken) =>

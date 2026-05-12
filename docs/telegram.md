@@ -60,9 +60,19 @@ run` acquires a local runtime lock under `~/.aeges/runs/telegram.lock`, and
 This prevents duplicate pollers from sending duplicate responses to the same
 operator message.
 
-Allowed chat IDs are enforced before application services are called. An empty
-allowed-chat list is treated as open local MVP mode; configured chat IDs restrict
-the bot to those chats.
+Allowed chat IDs are enforced before application services are called and act as
+an optional hard outer allowlist. When that list is empty, Telegram access is
+managed by durable Aeges users instead of being open to everyone. The first chat
+that writes to the bot becomes an approved administrator. Later chats are saved
+as pending users and receive a waiting message until an administrator approves
+or denies them.
+
+Administrators can open `Users` from the main menu, approve pending users, deny
+users, and grant access to individual project groups or projects. User access is
+sparse by default: no grant means blocked. In the user details screen, red
+buttons mean blocked and green buttons mean allowed. Administrators can see all
+projects and tasks; non-admin users only see projects they were granted
+directly or through a granted project group.
 
 Machine status in Telegram reflects the local Aeges agent heartbeat, not whether
 the Telegram transport is running. A newly registered machine starts as
@@ -106,12 +116,12 @@ current cancel button is a visible transport affordance; true mid-turn runner
 cancellation will require the polling loop to process callback updates while
 the original text turn is still running.
 
-The main menu shows count badges for projects, machines, queued tasks, and
-pending approvals so operators can see queue shape without opening every view.
-The projects view lets operators select a project first, then browse that
+The main menu shows count badges for projects, machines, queued tasks, pending
+approvals, and users so operators can see queue shape without opening every
+view. The projects view lets operators select a project first, then browse that
 project's task buckets by lifecycle status. The global task menu still groups
-all tasks by lifecycle status: queued, planning, running, reviewing, waiting
-approval, completed, failed, and cancelled.
+all visible tasks by lifecycle status: queued, planning, running, reviewing,
+waiting approval, completed, failed, and cancelled.
 
 Project details include an `Archive` action for active projects. Archiving is a
 non-destructive operator action: tasks, artifacts, and history remain visible in

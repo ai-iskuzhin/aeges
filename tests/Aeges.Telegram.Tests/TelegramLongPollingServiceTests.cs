@@ -1,4 +1,5 @@
 using Aeges.Application.Configuration;
+using Aeges.Application.TelegramUsers;
 using Aeges.Core;
 using Aeges.Telegram;
 
@@ -402,6 +403,56 @@ public sealed class TelegramLongPollingServiceTests
     private sealed class FakeTelegramApplicationFacade : ITelegramApplicationFacade
     {
         public RuntimeTask? WatchedTask { get; init; }
+
+        public Task<TelegramUserAuthorization> EnsureTelegramUserAsync(
+            long chatId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(
+                new TelegramUserAuthorization(
+                    RuntimeTelegramUser.CreateFirstAdmin(chatId, DateTimeOffset.UtcNow),
+                    IsFirstAdmin: false));
+
+        public Task<IReadOnlyList<RuntimeTelegramUser>> ListTelegramUsersAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeTelegramUser>>([]);
+
+        public Task<Aeges.Application.ApplicationResult<TelegramUserAccessSnapshot>> GetTelegramUserAccessAsync(
+            TelegramUserId userId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<TelegramUserAccessSnapshot>.Failure(
+                "telegram_user_not_found",
+                $"Telegram user '{userId}' was not found."));
+
+        public Task<Aeges.Application.ApplicationResult<RuntimeTelegramUser>> ApproveTelegramUserAsync(
+            TelegramUserId userId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<RuntimeTelegramUser>.Failure(
+                "telegram_user_not_found",
+                $"Telegram user '{userId}' was not found."));
+
+        public Task<Aeges.Application.ApplicationResult<RuntimeTelegramUser>> DenyTelegramUserAsync(
+            TelegramUserId userId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<RuntimeTelegramUser>.Failure(
+                "telegram_user_not_found",
+                $"Telegram user '{userId}' was not found."));
+
+        public Task<Aeges.Application.ApplicationResult<TelegramUserAccessSnapshot>> SetTelegramProjectAccessAsync(
+            TelegramUserId userId,
+            ProjectId projectId,
+            bool allowed,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<TelegramUserAccessSnapshot>.Failure(
+                "telegram_user_not_found",
+                $"Telegram user '{userId}' was not found."));
+
+        public Task<Aeges.Application.ApplicationResult<TelegramUserAccessSnapshot>> SetTelegramProjectGroupAccessAsync(
+            TelegramUserId userId,
+            ProjectGroupId projectGroupId,
+            bool allowed,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<TelegramUserAccessSnapshot>.Failure(
+                "telegram_user_not_found",
+                $"Telegram user '{userId}' was not found."));
 
         public Task<IReadOnlyList<RuntimeProject>> ListProjectsAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RuntimeProject>>([]);

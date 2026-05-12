@@ -45,6 +45,12 @@ public sealed class AegesDbContext : DbContext
 
     internal DbSet<TransportCallbackActionRecord> TransportCallbackActions => Set<TransportCallbackActionRecord>();
 
+    internal DbSet<TelegramUserRecord> TelegramUsers => Set<TelegramUserRecord>();
+
+    internal DbSet<TelegramProjectAccessRecord> TelegramProjectAccess => Set<TelegramProjectAccessRecord>();
+
+    internal DbSet<TelegramProjectGroupAccessRecord> TelegramProjectGroupAccess => Set<TelegramProjectGroupAccessRecord>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

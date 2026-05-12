@@ -22,6 +22,14 @@ may store the bot token in a local secret file under `~/.aeges/secrets/`. This
 file is outside the repository, must not be committed, and is created with
 user-only permissions on Unix-like systems.
 
+Telegram operator access is durable runtime state. If no outer Telegram
+allowlist is configured, the first chat that writes to the bot is bootstrapped
+as an approved administrator and later chats are created as pending users.
+Administrators can approve or deny users and grant access to project groups or
+individual projects. Non-admin users have no project access until a grant exists.
+If `telegram.allowedChatIds` is configured, it remains a hard outer allowlist
+before durable user records are created or read.
+
 Approval should be required for destructive git commands, dependency changes,
 database migrations, file deletion, deployment changes, CI/CD modifications, and
 force push operations.

@@ -1,4 +1,5 @@
 using Aeges.Application.Configuration;
+using Aeges.Application.TelegramUsers;
 using Aeges.Core;
 using System.Collections.Concurrent;
 
@@ -49,68 +50,89 @@ public sealed class TelegramInteractionHandler
         TelegramUpdate update,
         CancellationToken cancellationToken)
     {
-        if (!IsAuthorized(update.ChatId))
+        if (!IsOuterAuthorized(update.ChatId))
         {
             return new TelegramResponse(
                 "This Telegram chat is not authorized for Aeges.",
                 TelegramButtonMarkup.Empty);
         }
 
+        var authorization = await application.EnsureTelegramUserAsync(update.ChatId, cancellationToken);
+
+        if (!authorization.IsApproved)
+        {
+            return RenderUnauthorizedUser(authorization.User);
+        }
+
         var callbackData = await ResolveCallbackDataAsync(update.ChatId, update.CallbackData?.Trim(), cancellationToken);
 
         if (callbackData is null or "")
         {
-            return await TokenizeResponseAsync(update.ChatId, await HandleTextAsync(update, cancellationToken), cancellationToken);
+            return await TokenizeResponseAsync(
+                update.ChatId,
+                await HandleTextAsync(update, authorization, cancellationToken),
+                cancellationToken);
         }
 
         var response = callbackData switch
         {
-            TelegramCallbackData.MainMenu => await MainMenuAsync(cancellationToken),
-            TelegramCallbackData.ListProjects => await ListProjectsAsync(cancellationToken),
+            TelegramCallbackData.MainMenu => await MainMenuAsync(authorization, cancellationToken),
+            TelegramCallbackData.ListProjects => await ListProjectsAsync(authorization, cancellationToken),
             TelegramCallbackData.ListMachines => await ListMachinesAsync(cancellationToken),
-            TelegramCallbackData.ListQueuedTasks => await ListQueuedTasksAsync(cancellationToken),
-            TelegramCallbackData.TaskMenu => await TaskMenuAsync(cancellationToken),
-            TelegramCallbackData.ListPendingApprovals => await ListPendingApprovalsAsync(cancellationToken),
-            TelegramCallbackData.SettingsMenu => await SettingsMenuAsync(cancellationToken),
+            TelegramCallbackData.ListQueuedTasks => await ListQueuedTasksAsync(authorization, cancellationToken),
+            TelegramCallbackData.TaskMenu => await TaskMenuAsync(authorization, cancellationToken),
+            TelegramCallbackData.ListPendingApprovals => await RequireAdmin(authorization, () => ListPendingApprovalsAsync(cancellationToken)),
+            TelegramCallbackData.SettingsMenu => await RequireAdmin(authorization, () => SettingsMenuAsync(cancellationToken)),
+            TelegramCallbackData.UserMenu => await RequireAdmin(authorization, () => ListTelegramUsersAsync(cancellationToken)),
             TelegramCallbackData.CancelPendingTextResponse => PendingTextResponseAlreadyFinished(),
-            TelegramCallbackData.CreateTask => await StartTaskCreationAsync(update.ChatId, cancellationToken),
+            TelegramCallbackData.CreateTask => await StartTaskCreationAsync(update.ChatId, authorization, cancellationToken),
             TelegramCallbackData.CancelCreateTask => CancelTaskCreation(update.ChatId),
             TelegramCallbackData.CancelContinueTask => CancelTaskContinuation(update.ChatId),
             _ when TelegramCallbackData.TryParseSetCodexSandboxMode(callbackData, out var sandboxMode) =>
-                await SetCodexSandboxModeAsync(sandboxMode, cancellationToken),
+                await RequireAdmin(authorization, () => SetCodexSandboxModeAsync(sandboxMode, cancellationToken)),
             _ when TelegramCallbackData.TryParseSetCodexBypassApprovalsAndSandbox(callbackData, out var bypassEnabled) =>
-                await SetCodexBypassApprovalsAndSandboxAsync(bypassEnabled, cancellationToken),
+                await RequireAdmin(authorization, () => SetCodexBypassApprovalsAndSandboxAsync(bypassEnabled, cancellationToken)),
             _ when TelegramCallbackData.TryParseListTasksByStatus(callbackData, out var status) =>
-                await ListTasksByStatusAsync(status, cancellationToken),
+                await ListTasksByStatusAsync(authorization, status, cancellationToken),
             _ when TelegramCallbackData.TryParseListProjectTasksByStatus(callbackData, out var projectId, out var status) =>
-                await ListProjectTasksByStatusAsync(projectId, status, cancellationToken),
-            TelegramCallbackData.ViewUngroupedProjects => await ListProjectGroupProjectsAsync(null, cancellationToken),
+                await ListProjectTasksByStatusAsync(authorization, projectId, status, cancellationToken),
+            TelegramCallbackData.ViewUngroupedProjects => await ListProjectGroupProjectsAsync(authorization, null, cancellationToken),
             _ when TelegramCallbackData.TryParseViewProjectGroup(callbackData, out var groupId) =>
-                await ListProjectGroupProjectsAsync(groupId, cancellationToken),
+                await ListProjectGroupProjectsAsync(authorization, groupId, cancellationToken),
             _ when TelegramCallbackData.TryParseConfirmArchiveProject(callbackData, out var projectId) =>
-                await ConfirmArchiveProjectAsync(projectId, cancellationToken),
+                await RequireAdmin(authorization, () => ConfirmArchiveProjectAsync(projectId, cancellationToken)),
             _ when TelegramCallbackData.TryParseArchiveProject(callbackData, out var projectId) =>
-                await ArchiveProjectAsync(projectId, cancellationToken),
+                await RequireAdmin(authorization, () => ArchiveProjectAsync(projectId, cancellationToken)),
             _ when TelegramCallbackData.TryParseViewProject(callbackData, out var projectId) =>
-                await ViewProjectAsync(projectId, cancellationToken),
+                await ViewProjectAsync(authorization, projectId, cancellationToken),
             _ when TelegramCallbackData.TryParseSelectTaskProject(callbackData, out var projectId) =>
-                await SelectTaskProjectAsync(update.ChatId, projectId, cancellationToken),
+                await SelectTaskProjectAsync(update.ChatId, authorization, projectId, cancellationToken),
             _ when TelegramCallbackData.TryParseSelectTaskMachine(callbackData, out var machineId) =>
                 await SelectTaskMachineAsync(update.ChatId, machineId, cancellationToken),
             _ when TelegramCallbackData.TryParseViewTask(callbackData, out var taskId) =>
-                await ViewTaskAsync(taskId, cancellationToken),
+                await ViewTaskAsync(authorization, taskId, cancellationToken),
             _ when TelegramCallbackData.TryParseCompleteTask(callbackData, out var taskId) =>
-                await CompleteTaskAsync(taskId, cancellationToken),
+                await CompleteTaskAsync(authorization, taskId, cancellationToken),
             _ when TelegramCallbackData.TryParseContinueTask(callbackData, out var taskId) =>
-                await StartTaskContinuationAsync(update.ChatId, taskId, cancellationToken),
+                await StartTaskContinuationAsync(update.ChatId, authorization, taskId, cancellationToken),
             _ when TelegramCallbackData.TryParseCancelTask(callbackData, out var taskId) =>
-                await CancelTaskAsync(taskId, cancellationToken),
+                await CancelTaskAsync(authorization, taskId, cancellationToken),
             _ when TelegramCallbackData.TryParseApproveApproval(callbackData, out var approvalId) =>
-                await ResolveApprovalAsync(approvalId, approved: true, update.ChatId, cancellationToken),
+                await RequireAdmin(authorization, () => ResolveApprovalAsync(approvalId, approved: true, update.ChatId, cancellationToken)),
             _ when TelegramCallbackData.TryParseRejectApproval(callbackData, out var approvalId) =>
-                await ResolveApprovalAsync(approvalId, approved: false, update.ChatId, cancellationToken),
+                await RequireAdmin(authorization, () => ResolveApprovalAsync(approvalId, approved: false, update.ChatId, cancellationToken)),
             _ when TelegramCallbackData.TryParseViewApproval(callbackData, out var approvalId) =>
-                await ViewApprovalAsync(approvalId, cancellationToken),
+                await RequireAdmin(authorization, () => ViewApprovalAsync(approvalId, cancellationToken)),
+            _ when TelegramCallbackData.TryParseViewTelegramUser(callbackData, out var userId) =>
+                await RequireAdmin(authorization, () => ViewTelegramUserAsync(userId, cancellationToken)),
+            _ when TelegramCallbackData.TryParseApproveTelegramUser(callbackData, out var userId) =>
+                await RequireAdmin(authorization, () => ApproveTelegramUserAsync(userId, cancellationToken)),
+            _ when TelegramCallbackData.TryParseDenyTelegramUser(callbackData, out var userId) =>
+                await RequireAdmin(authorization, () => DenyTelegramUserAsync(userId, cancellationToken)),
+            _ when TelegramCallbackData.TryParseSetTelegramProjectAccess(callbackData, out var userId, out var projectId, out var allowed) =>
+                await RequireAdmin(authorization, () => SetTelegramProjectAccessAsync(userId, projectId, allowed, cancellationToken)),
+            _ when TelegramCallbackData.TryParseSetTelegramProjectGroupAccess(callbackData, out var userId, out var groupId, out var allowed) =>
+                await RequireAdmin(authorization, () => SetTelegramProjectGroupAccessAsync(userId, groupId, allowed, cancellationToken)),
             _ => UnknownAction(),
         };
 
@@ -176,32 +198,73 @@ public sealed class TelegramInteractionHandler
             || (trimmed?.StartsWith("/start ", StringComparison.Ordinal) ?? false);
     }
 
-    private bool IsAuthorized(long chatId) =>
+    private bool IsOuterAuthorized(long chatId) =>
         allowedChatIds.Count == 0 || allowedChatIds.Contains(chatId);
 
-    private async Task<TelegramResponse> MainMenuAsync(CancellationToken cancellationToken)
+    private static TelegramResponse RenderUnauthorizedUser(RuntimeTelegramUser user)
     {
-        var projects = await application.ListProjectsAsync(cancellationToken);
+        var status = user.Status.ToStorageValue();
+        var message = user.Status == TelegramUserStatus.Pending
+            ? "Your access request is waiting for an Aeges Telegram administrator."
+            : "Your Telegram chat is denied access to Aeges.";
+
+        return new TelegramResponse(
+            $"{message}\n{TelegramMarkdown.Quote($"User: {user.Id}\nChat: {user.ChatId}\nStatus: {status}")}",
+            TelegramButtonMarkup.Empty);
+    }
+
+    private static async Task<TelegramResponse> RequireAdmin(
+        TelegramUserAuthorization authorization,
+        Func<Task<TelegramResponse>> action) =>
+        authorization.IsAdmin
+            ? await action()
+            : new TelegramResponse("Only Telegram administrators can use this action.", BackButtons());
+
+    private async Task<TelegramResponse> MainMenuAsync(
+        TelegramUserAuthorization authorization,
+        CancellationToken cancellationToken)
+    {
+        var projects = await ListAccessibleProjectsAsync(authorization, cancellationToken);
         var machines = await application.ListMachinesAsync(cancellationToken);
-        var queuedTasks = await application.ListQueuedTasksAsync(MenuCountLimit, cancellationToken);
-        var approvals = await application.ListPendingApprovalsAsync(MenuCountLimit, cancellationToken);
+        var queuedTasks = await FilterTasksAsync(
+            authorization,
+            await application.ListQueuedTasksAsync(MenuCountLimit, cancellationToken),
+            cancellationToken);
+        var approvals = authorization.IsAdmin
+            ? await application.ListPendingApprovalsAsync(MenuCountLimit, cancellationToken)
+            : [];
+        var users = authorization.IsAdmin
+            ? await application.ListTelegramUsersAsync(cancellationToken)
+            : [];
+        var firstRow = authorization.IsAdmin
+            ? Row(
+                Button("New task", TelegramCallbackData.CreateTask),
+                Button("Settings", TelegramCallbackData.SettingsMenu))
+            : Row(Button("New task", TelegramCallbackData.CreateTask));
+        var menuRows = new List<IReadOnlyList<TelegramButton>>
+        {
+            firstRow,
+            Row(
+                Button($"Projects ({projects.Count})", TelegramCallbackData.ListProjects),
+                Button($"Machines ({machines.Count})", TelegramCallbackData.ListMachines)),
+            Row(Button($"Tasks ({CountBadge(queuedTasks.Count, MenuCountLimit)} queued)", TelegramCallbackData.TaskMenu)),
+        };
+
+        if (authorization.IsAdmin)
+        {
+            menuRows.Add(Row(
+                Button($"Approvals ({CountBadge(approvals.Count, MenuCountLimit)})", TelegramCallbackData.ListPendingApprovals),
+                Button($"Users ({CountBadge(users.Count, MenuCountLimit)})", TelegramCallbackData.UserMenu)));
+        }
 
         return new TelegramResponse(
             runtimeVersion is null ? "Aeges control" : $"Aeges control\nVersion: {runtimeVersion}",
-            Buttons(
-                Row(
-                    Button("New task", TelegramCallbackData.CreateTask),
-                    Button("Settings", TelegramCallbackData.SettingsMenu)),
-                Row(
-                    Button($"Projects ({projects.Count})", TelegramCallbackData.ListProjects),
-                    Button($"Machines ({machines.Count})", TelegramCallbackData.ListMachines)),
-                Row(
-                    Button($"Tasks ({CountBadge(queuedTasks.Count, MenuCountLimit)} queued)", TelegramCallbackData.TaskMenu),
-                    Button($"Approvals ({CountBadge(approvals.Count, MenuCountLimit)})", TelegramCallbackData.ListPendingApprovals))));
+            Buttons([.. menuRows]));
     }
 
     private async Task<TelegramResponse> HandleTextAsync(
         TelegramUpdate update,
+        TelegramUserAuthorization authorization,
         CancellationToken cancellationToken)
     {
         var text = update.Text?.Trim();
@@ -211,7 +274,7 @@ public sealed class TelegramInteractionHandler
             drafts.TryRemove(update.ChatId, out _);
             continuationDrafts.TryRemove(update.ChatId, out _);
 
-            return await MainMenuAsync(cancellationToken);
+            return await MainMenuAsync(authorization, cancellationToken);
         }
 
         if (continuationDrafts.TryGetValue(update.ChatId, out var continuationTaskId))
@@ -223,7 +286,7 @@ public sealed class TelegramInteractionHandler
 
         if (!drafts.TryGetValue(update.ChatId, out var draft))
         {
-            return await SendTalkMessageAsync(update.ChatId, text, cancellationToken);
+            return await SendTalkMessageAsync(update.ChatId, authorization, text, cancellationToken);
         }
 
         if (string.IsNullOrWhiteSpace(text))
@@ -245,7 +308,7 @@ public sealed class TelegramInteractionHandler
         if (draft.Step != TaskDraftStep.AwaitingGoal || draft.Title is null || draft.MachineId is null)
         {
             drafts.TryRemove(update.ChatId, out _);
-            return await MainMenuAsync(cancellationToken);
+            return await MainMenuAsync(authorization, cancellationToken);
         }
 
         var result = await application.CreateTaskAsync(
@@ -285,9 +348,10 @@ public sealed class TelegramInteractionHandler
 
     private async Task<TelegramResponse> StartTaskCreationAsync(
         long chatId,
+        TelegramUserAuthorization authorization,
         CancellationToken cancellationToken)
     {
-        var projects = await application.ListActiveProjectsAsync(cancellationToken);
+        var projects = await ListAccessibleActiveProjectsAsync(authorization, cancellationToken);
 
         if (projects.Count == 0)
         {
@@ -305,12 +369,13 @@ public sealed class TelegramInteractionHandler
 
     private async Task<TelegramResponse> SendTalkMessageAsync(
         long chatId,
+        TelegramUserAuthorization authorization,
         string? text,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            return await MainMenuAsync(cancellationToken);
+            return await MainMenuAsync(authorization, cancellationToken);
         }
 
         var result = await application.SendTalkMessageAsync(chatId, text, cancellationToken);
@@ -335,6 +400,7 @@ public sealed class TelegramInteractionHandler
 
     private async Task<TelegramResponse> SelectTaskProjectAsync(
         long chatId,
+        TelegramUserAuthorization authorization,
         ProjectId projectId,
         CancellationToken cancellationToken)
     {
@@ -348,6 +414,11 @@ public sealed class TelegramInteractionHandler
         if (project.Value!.IsArchived)
         {
             return new TelegramResponse($"Project '{projectId}' is archived and cannot accept new tasks.", BackButtons());
+        }
+
+        if (!await CanAccessProjectAsync(authorization, project.Value, cancellationToken))
+        {
+            return new TelegramResponse("You do not have access to this project.", BackToProjectsButtons());
         }
 
         var machines = await application.ListMachinesAsync(cancellationToken);
@@ -395,6 +466,7 @@ public sealed class TelegramInteractionHandler
 
     private async Task<TelegramResponse> StartTaskContinuationAsync(
         long chatId,
+        TelegramUserAuthorization authorization,
         TaskId taskId,
         CancellationToken cancellationToken)
     {
@@ -405,7 +477,12 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse($"{task.Error!.Code}: {task.Error.Message}", BackButtons());
         }
 
-        if (task.Value!.Status != RuntimeTaskStatus.Reviewing)
+        if (!await CanAccessProjectAsync(authorization, task.Value!.ProjectId, cancellationToken))
+        {
+            return new TelegramResponse("You do not have access to this task.", TaskMenuButtons());
+        }
+
+        if (task.Value.Status != RuntimeTaskStatus.Reviewing)
         {
             return new TelegramResponse("Only reviewing tasks can be continued.", BackButtons());
         }
@@ -464,9 +541,11 @@ public sealed class TelegramInteractionHandler
         return new TelegramResponse("Task continuation cancelled.", BackButtons());
     }
 
-    private async Task<TelegramResponse> ListProjectsAsync(CancellationToken cancellationToken)
+    private async Task<TelegramResponse> ListProjectsAsync(
+        TelegramUserAuthorization authorization,
+        CancellationToken cancellationToken)
     {
-        var projects = await application.ListProjectsAsync(cancellationToken);
+        var projects = await ListAccessibleProjectsAsync(authorization, cancellationToken);
         var groups = await application.ListProjectGroupsAsync(cancellationToken);
 
         if (projects.Count == 0)
@@ -504,10 +583,11 @@ public sealed class TelegramInteractionHandler
     }
 
     private async Task<TelegramResponse> ListProjectGroupProjectsAsync(
+        TelegramUserAuthorization authorization,
         ProjectGroupId? groupId,
         CancellationToken cancellationToken)
     {
-        var projects = await application.ListProjectsAsync(cancellationToken);
+        var projects = await ListAccessibleProjectsAsync(authorization, cancellationToken);
         var groups = await application.ListProjectGroupsAsync(cancellationToken);
         var group = groupId is null ? null : groups.FirstOrDefault(candidate => candidate.Id == groupId);
 
@@ -537,6 +617,7 @@ public sealed class TelegramInteractionHandler
     }
 
     private async Task<TelegramResponse> ViewProjectAsync(
+        TelegramUserAuthorization authorization,
         ProjectId projectId,
         CancellationToken cancellationToken)
     {
@@ -545,6 +626,11 @@ public sealed class TelegramInteractionHandler
         if (!project.IsSuccess)
         {
             return new TelegramResponse($"{project.Error!.Code}: {project.Error.Message}", BackToProjectsButtons());
+        }
+
+        if (!await CanAccessProjectAsync(authorization, project.Value!, cancellationToken))
+        {
+            return new TelegramResponse("You do not have access to this project.", BackToProjectsButtons());
         }
 
         return await RenderProjectDetailsAsync(project.Value!, notice: null, cancellationToken);
@@ -654,6 +740,7 @@ public sealed class TelegramInteractionHandler
     }
 
     private async Task<TelegramResponse> ListProjectTasksByStatusAsync(
+        TelegramUserAuthorization authorization,
         ProjectId projectId,
         RuntimeTaskStatus status,
         CancellationToken cancellationToken)
@@ -663,6 +750,11 @@ public sealed class TelegramInteractionHandler
         if (!project.IsSuccess)
         {
             return new TelegramResponse($"{project.Error!.Code}: {project.Error.Message}", BackToProjectsButtons());
+        }
+
+        if (!await CanAccessProjectAsync(authorization, project.Value!, cancellationToken))
+        {
+            return new TelegramResponse("You do not have access to this project.", BackToProjectsButtons());
         }
 
         var tasks = await application.ListProjectTasksByStatusAsync(
@@ -689,6 +781,166 @@ public sealed class TelegramInteractionHandler
             Buttons(buttons));
     }
 
+    private async Task<TelegramResponse> ListTelegramUsersAsync(CancellationToken cancellationToken)
+    {
+        var users = await application.ListTelegramUsersAsync(cancellationToken);
+
+        if (users.Count == 0)
+        {
+            return new TelegramResponse("No Telegram users are registered yet.", BackButtons());
+        }
+
+        var rows = Grid(users.Select(user => Button(
+                $"{FormatTelegramUserStatus(user)} {user.ChatId}",
+                TelegramCallbackData.ViewTelegramUser(user.Id),
+                user.Status == TelegramUserStatus.Approved ? TelegramButtonStyle.Success : TelegramButtonStyle.Danger)))
+            .Append(Row(Button("Back", TelegramCallbackData.MainMenu)))
+            .ToArray();
+
+        return new TelegramResponse(
+            "Telegram users:\n" + string.Join('\n', users.Select(user => $"- {user.Id}: {user.Role.ToStorageValue()} / {user.Status.ToStorageValue()}")),
+            Buttons(rows));
+    }
+
+    private async Task<TelegramResponse> ViewTelegramUserAsync(
+        TelegramUserId userId,
+        CancellationToken cancellationToken)
+    {
+        var access = await application.GetTelegramUserAccessAsync(userId, cancellationToken);
+
+        if (!access.IsSuccess)
+        {
+            return new TelegramResponse($"{access.Error!.Code}: {access.Error.Message}", BackButtons());
+        }
+
+        return await RenderTelegramUserAccessAsync(access.Value!, null, cancellationToken);
+    }
+
+    private async Task<TelegramResponse> ApproveTelegramUserAsync(
+        TelegramUserId userId,
+        CancellationToken cancellationToken)
+    {
+        var result = await application.ApproveTelegramUserAsync(userId, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+        }
+
+        var access = await application.GetTelegramUserAccessAsync(userId, cancellationToken);
+        return access.IsSuccess
+            ? await RenderTelegramUserAccessAsync(access.Value!, "User approved.", cancellationToken)
+            : new TelegramResponse($"{access.Error!.Code}: {access.Error.Message}", BackButtons());
+    }
+
+    private async Task<TelegramResponse> DenyTelegramUserAsync(
+        TelegramUserId userId,
+        CancellationToken cancellationToken)
+    {
+        var result = await application.DenyTelegramUserAsync(userId, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+        }
+
+        var access = await application.GetTelegramUserAccessAsync(userId, cancellationToken);
+        return access.IsSuccess
+            ? await RenderTelegramUserAccessAsync(access.Value!, "User denied.", cancellationToken)
+            : new TelegramResponse($"{access.Error!.Code}: {access.Error.Message}", BackButtons());
+    }
+
+    private async Task<TelegramResponse> SetTelegramProjectAccessAsync(
+        TelegramUserId userId,
+        ProjectId projectId,
+        bool allowed,
+        CancellationToken cancellationToken)
+    {
+        var result = await application.SetTelegramProjectAccessAsync(userId, projectId, allowed, cancellationToken);
+
+        return result.IsSuccess
+            ? await RenderTelegramUserAccessAsync(result.Value!, allowed ? "Project access granted." : "Project access revoked.", cancellationToken)
+            : new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+    }
+
+    private async Task<TelegramResponse> SetTelegramProjectGroupAccessAsync(
+        TelegramUserId userId,
+        ProjectGroupId groupId,
+        bool allowed,
+        CancellationToken cancellationToken)
+    {
+        var result = await application.SetTelegramProjectGroupAccessAsync(userId, groupId, allowed, cancellationToken);
+
+        return result.IsSuccess
+            ? await RenderTelegramUserAccessAsync(result.Value!, allowed ? "Group access granted." : "Group access revoked.", cancellationToken)
+            : new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+    }
+
+    private async Task<TelegramResponse> RenderTelegramUserAccessAsync(
+        TelegramUserAccessSnapshot access,
+        string? notice,
+        CancellationToken cancellationToken)
+    {
+        var user = access.User;
+        var allowedProjects = access.ProjectAccess.Select(project => project.ProjectId).ToHashSet();
+        var allowedGroups = access.ProjectGroupAccess.Select(group => group.ProjectGroupId).ToHashSet();
+        var groups = await application.ListProjectGroupsAsync(cancellationToken);
+        var projects = await application.ListProjectsAsync(cancellationToken);
+        var buttons = new List<TelegramButton>();
+
+        if (user.Status != TelegramUserStatus.Approved)
+        {
+            buttons.Add(Button("Approve", TelegramCallbackData.ApproveTelegramUser(user.Id), TelegramButtonStyle.Success));
+        }
+
+        if (user.Status != TelegramUserStatus.Denied)
+        {
+            buttons.Add(Button("Deny", TelegramCallbackData.DenyTelegramUser(user.Id), TelegramButtonStyle.Danger));
+        }
+
+        buttons.AddRange(groups
+            .Where(group => !group.IsArchived)
+            .OrderBy(group => group.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                var allowed = allowedGroups.Contains(group.Id);
+                return Button(
+                    $"{AccessButtonPrefix(allowed)} group {group.Name}",
+                    TelegramCallbackData.SetTelegramProjectGroupAccess(user.Id, group.Id, !allowed),
+                    allowed ? TelegramButtonStyle.Success : TelegramButtonStyle.Danger);
+            }));
+        buttons.AddRange(projects
+            .Where(project => !project.IsArchived)
+            .OrderBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(project =>
+            {
+                var allowed = allowedProjects.Contains(project.Id);
+                return Button(
+                    $"{AccessButtonPrefix(allowed)} {project.Name}",
+                    TelegramCallbackData.SetTelegramProjectAccess(user.Id, project.Id, !allowed),
+                    allowed ? TelegramButtonStyle.Success : TelegramButtonStyle.Danger);
+            }));
+
+        var metadata = string.Join(
+            '\n',
+            [
+                $"User: {user.Id}",
+                $"Chat: {user.ChatId}",
+                $"Role: {user.Role.ToStorageValue()}",
+                $"Status: {user.Status.ToStorageValue()}",
+                $"Project grants: {allowedProjects.Count}",
+                $"Group grants: {allowedGroups.Count}",
+            ]);
+        var rows = Grid(buttons)
+            .Append(Row(Button("Back", TelegramCallbackData.UserMenu)))
+            .ToArray();
+        var prefix = string.IsNullOrWhiteSpace(notice)
+            ? "Telegram user:"
+            : $"{notice}\n\nTelegram user:";
+
+        return new TelegramResponse($"{prefix}\n{TelegramMarkdown.Quote(metadata)}", Buttons(rows));
+    }
+
     private async Task<TelegramResponse> ListMachinesAsync(CancellationToken cancellationToken)
     {
         var machines = await application.ListMachinesAsync(cancellationToken);
@@ -702,18 +954,25 @@ public sealed class TelegramInteractionHandler
         return new TelegramResponse(text, BackButtons());
     }
 
-    private async Task<TelegramResponse> ListQueuedTasksAsync(CancellationToken cancellationToken)
+    private async Task<TelegramResponse> ListQueuedTasksAsync(
+        TelegramUserAuthorization authorization,
+        CancellationToken cancellationToken)
     {
-        return await ListTasksByStatusAsync(RuntimeTaskStatus.Queued, cancellationToken);
+        return await ListTasksByStatusAsync(authorization, RuntimeTaskStatus.Queued, cancellationToken);
     }
 
-    private async Task<TelegramResponse> TaskMenuAsync(CancellationToken cancellationToken)
+    private async Task<TelegramResponse> TaskMenuAsync(
+        TelegramUserAuthorization authorization,
+        CancellationToken cancellationToken)
     {
         var buttons = new List<TelegramButton>();
 
         foreach (var status in TaskStatuses)
         {
-            var tasks = await application.ListTasksByStatusAsync(status, MenuCountLimit, cancellationToken);
+            var tasks = await FilterTasksAsync(
+                authorization,
+                await application.ListTasksByStatusAsync(status, MenuCountLimit, cancellationToken),
+                cancellationToken);
             buttons.Add(Button(
                 $"{FormatStatus(status)} ({CountBadge(tasks.Count, MenuCountLimit)})",
                 TelegramCallbackData.ListTasksByStatus(status)));
@@ -727,10 +986,14 @@ public sealed class TelegramInteractionHandler
     }
 
     private async Task<TelegramResponse> ListTasksByStatusAsync(
+        TelegramUserAuthorization authorization,
         RuntimeTaskStatus status,
         CancellationToken cancellationToken)
     {
-        var tasks = await application.ListTasksByStatusAsync(status, DefaultTaskLimit, cancellationToken);
+        var tasks = await FilterTasksAsync(
+            authorization,
+            await application.ListTasksByStatusAsync(status, DefaultTaskLimit, cancellationToken),
+            cancellationToken);
         var statusText = FormatStatus(status);
 
         if (tasks.Count == 0)
@@ -883,9 +1146,24 @@ public sealed class TelegramInteractionHandler
     }
 
     private async Task<TelegramResponse> ViewTaskAsync(
+        TelegramUserAuthorization authorization,
         TaskId taskId,
-        CancellationToken cancellationToken) =>
-        await RenderTaskDetailsAsync(taskId, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var task = await application.GetTaskAsync(taskId, cancellationToken);
+
+        if (!task.IsSuccess)
+        {
+            return new TelegramResponse($"{task.Error!.Code}: {task.Error.Message}", TaskMenuButtons());
+        }
+
+        if (!await CanAccessProjectAsync(authorization, task.Value!.ProjectId, cancellationToken))
+        {
+            return new TelegramResponse("You do not have access to this task.", TaskMenuButtons());
+        }
+
+        return await RenderTaskDetailsAsync(taskId, cancellationToken);
+    }
 
     public async Task<RuntimeTask?> GetTaskOrDefaultAsync(
         TaskId taskId,
@@ -897,9 +1175,22 @@ public sealed class TelegramInteractionHandler
     }
 
     private async Task<TelegramResponse> CancelTaskAsync(
+        TelegramUserAuthorization authorization,
         TaskId taskId,
         CancellationToken cancellationToken)
     {
+        var existing = await application.GetTaskAsync(taskId, cancellationToken);
+
+        if (!existing.IsSuccess)
+        {
+            return new TelegramResponse($"{existing.Error!.Code}: {existing.Error.Message}", BackButtons());
+        }
+
+        if (!await CanAccessProjectAsync(authorization, existing.Value!.ProjectId, cancellationToken))
+        {
+            return new TelegramResponse("You do not have access to this task.", TaskMenuButtons());
+        }
+
         var task = await application.CancelTaskAsync(taskId, cancellationToken);
 
         if (!task.IsSuccess)
@@ -913,9 +1204,22 @@ public sealed class TelegramInteractionHandler
     }
 
     private async Task<TelegramResponse> CompleteTaskAsync(
+        TelegramUserAuthorization authorization,
         TaskId taskId,
         CancellationToken cancellationToken)
     {
+        var existing = await application.GetTaskAsync(taskId, cancellationToken);
+
+        if (!existing.IsSuccess)
+        {
+            return new TelegramResponse($"{existing.Error!.Code}: {existing.Error.Message}", BackButtons());
+        }
+
+        if (!await CanAccessProjectAsync(authorization, existing.Value!.ProjectId, cancellationToken))
+        {
+            return new TelegramResponse("You do not have access to this task.", TaskMenuButtons());
+        }
+
         var task = await application.CompleteTaskAsync(taskId, cancellationToken);
 
         if (!task.IsSuccess)
@@ -923,7 +1227,7 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse($"{task.Error!.Code}: {task.Error.Message}", BackButtons());
         }
 
-        var response = await ListTasksByStatusAsync(RuntimeTaskStatus.Completed, cancellationToken);
+        var response = await ListTasksByStatusAsync(authorization, RuntimeTaskStatus.Completed, cancellationToken);
 
         return response with
         {
@@ -1104,6 +1408,108 @@ public sealed class TelegramInteractionHandler
 
     private static string ProjectButtonText(RuntimeProject project) =>
         project.IsArchived ? $"{project.Name} (archived)" : project.Name;
+
+    private async Task<IReadOnlyList<RuntimeProject>> ListAccessibleProjectsAsync(
+        TelegramUserAuthorization authorization,
+        CancellationToken cancellationToken)
+    {
+        var projects = await application.ListProjectsAsync(cancellationToken);
+
+        return authorization.IsAdmin
+            ? projects
+            : await FilterProjectsAsync(authorization, projects, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<RuntimeProject>> ListAccessibleActiveProjectsAsync(
+        TelegramUserAuthorization authorization,
+        CancellationToken cancellationToken)
+    {
+        var projects = await application.ListActiveProjectsAsync(cancellationToken);
+
+        return authorization.IsAdmin
+            ? projects
+            : await FilterProjectsAsync(authorization, projects, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<RuntimeProject>> FilterProjectsAsync(
+        TelegramUserAuthorization authorization,
+        IReadOnlyList<RuntimeProject> projects,
+        CancellationToken cancellationToken)
+    {
+        var access = await application.GetTelegramUserAccessAsync(authorization.User.Id, cancellationToken);
+
+        if (!access.IsSuccess)
+        {
+            return [];
+        }
+
+        var projectIds = access.Value!.ProjectAccess.Select(project => project.ProjectId).ToHashSet();
+        var groupIds = access.Value.ProjectGroupAccess.Select(group => group.ProjectGroupId).ToHashSet();
+
+        return [.. projects.Where(project =>
+            projectIds.Contains(project.Id)
+            || (project.GroupId is not null && groupIds.Contains(project.GroupId.Value)))];
+    }
+
+    private async Task<IReadOnlyList<RuntimeTask>> FilterTasksAsync(
+        TelegramUserAuthorization authorization,
+        IReadOnlyList<RuntimeTask> tasks,
+        CancellationToken cancellationToken)
+    {
+        if (authorization.IsAdmin)
+        {
+            return tasks;
+        }
+
+        var projects = await ListAccessibleProjectsAsync(authorization, cancellationToken);
+        var projectIds = projects.Select(project => project.Id).ToHashSet();
+
+        return [.. tasks.Where(task => projectIds.Contains(task.ProjectId))];
+    }
+
+    private async Task<bool> CanAccessProjectAsync(
+        TelegramUserAuthorization authorization,
+        ProjectId projectId,
+        CancellationToken cancellationToken)
+    {
+        if (authorization.IsAdmin)
+        {
+            return true;
+        }
+
+        var project = await application.GetProjectAsync(projectId, cancellationToken);
+
+        return project.IsSuccess && await CanAccessProjectAsync(authorization, project.Value!, cancellationToken);
+    }
+
+    private async Task<bool> CanAccessProjectAsync(
+        TelegramUserAuthorization authorization,
+        RuntimeProject project,
+        CancellationToken cancellationToken)
+    {
+        if (authorization.IsAdmin)
+        {
+            return true;
+        }
+
+        var access = await application.GetTelegramUserAccessAsync(authorization.User.Id, cancellationToken);
+
+        if (!access.IsSuccess)
+        {
+            return false;
+        }
+
+        var hasProjectAccess = access.Value!.ProjectAccess.Any(grant => grant.ProjectId == project.Id);
+        var hasGroupAccess = project.GroupId is not null
+            && access.Value.ProjectGroupAccess.Any(grant => grant.ProjectGroupId == project.GroupId.Value);
+
+        return hasProjectAccess || hasGroupAccess;
+    }
+
+    private static string FormatTelegramUserStatus(RuntimeTelegramUser user) =>
+        $"{user.Role.ToStorageValue()}/{user.Status.ToStorageValue()}";
+
+    private static string AccessButtonPrefix(bool allowed) => allowed ? "Allowed" : "Blocked";
 
     private static TelegramButton Button(
         string text,

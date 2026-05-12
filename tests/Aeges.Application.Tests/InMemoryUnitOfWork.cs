@@ -20,6 +20,7 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
         TalkSessions = new TalkSessionRepository();
         TalkMessages = new TalkMessageRepository();
         TransportCallbackActions = new TransportCallbackActionRepository();
+        TelegramUsers = new TelegramUserRepository();
     }
 
     public ITaskRepository Tasks { get; }
@@ -47,6 +48,8 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
     public ITalkMessageRepository TalkMessages { get; }
 
     public ITransportCallbackActionRepository TransportCallbackActions { get; }
+
+    public ITelegramUserRepository TelegramUsers { get; }
 
     public int SaveChangesCount { get; private set; }
 
@@ -170,6 +173,93 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
         public Task UpdateAsync(RuntimeProjectRoot root, CancellationToken cancellationToken)
         {
             roots[root.Id] = root;
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class TelegramUserRepository : ITelegramUserRepository
+    {
+        private readonly Dictionary<TelegramUserId, RuntimeTelegramUser> users = [];
+        private readonly Dictionary<(TelegramUserId UserId, ProjectId ProjectId), RuntimeTelegramProjectAccess> projectAccess = [];
+        private readonly Dictionary<(TelegramUserId UserId, ProjectGroupId ProjectGroupId), RuntimeTelegramProjectGroupAccess> groupAccess = [];
+
+        public Task<int> CountAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(users.Count);
+
+        public Task AddAsync(RuntimeTelegramUser user, CancellationToken cancellationToken)
+        {
+            users.Add(user.Id, user);
+
+            return Task.CompletedTask;
+        }
+
+        public Task<RuntimeTelegramUser?> GetByChatIdAsync(long chatId, CancellationToken cancellationToken) =>
+            Task.FromResult(users.Values.SingleOrDefault(user => user.ChatId == chatId));
+
+        public Task<RuntimeTelegramUser?> GetByIdAsync(TelegramUserId userId, CancellationToken cancellationToken) =>
+            Task.FromResult(users.GetValueOrDefault(userId));
+
+        public Task<IReadOnlyList<RuntimeTelegramUser>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeTelegramUser>>(users.Values.OrderBy(user => user.ChatId).ToArray());
+
+        public Task UpdateAsync(RuntimeTelegramUser user, CancellationToken cancellationToken)
+        {
+            users[user.Id] = user;
+
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<RuntimeTelegramProjectAccess>> ListProjectAccessAsync(
+            TelegramUserId userId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeTelegramProjectAccess>>(
+                projectAccess.Values.Where(access => access.UserId == userId).ToArray());
+
+        public Task<IReadOnlyList<RuntimeTelegramProjectGroupAccess>> ListProjectGroupAccessAsync(
+            TelegramUserId userId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeTelegramProjectGroupAccess>>(
+                groupAccess.Values.Where(access => access.UserId == userId).ToArray());
+
+        public Task SetProjectAccessAsync(
+            TelegramUserId userId,
+            ProjectId projectId,
+            bool allowed,
+            DateTimeOffset createdAt,
+            CancellationToken cancellationToken)
+        {
+            var key = (userId, projectId);
+
+            if (allowed)
+            {
+                projectAccess[key] = new RuntimeTelegramProjectAccess(userId, projectId, createdAt);
+            }
+            else
+            {
+                projectAccess.Remove(key);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task SetProjectGroupAccessAsync(
+            TelegramUserId userId,
+            ProjectGroupId projectGroupId,
+            bool allowed,
+            DateTimeOffset createdAt,
+            CancellationToken cancellationToken)
+        {
+            var key = (userId, projectGroupId);
+
+            if (allowed)
+            {
+                groupAccess[key] = new RuntimeTelegramProjectGroupAccess(userId, projectGroupId, createdAt);
+            }
+            else
+            {
+                groupAccess.Remove(key);
+            }
 
             return Task.CompletedTask;
         }

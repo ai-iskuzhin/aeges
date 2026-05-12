@@ -22,6 +22,8 @@ It stores durable runtime state and metadata:
 - talk sessions
 - talk messages
 - transport callback actions
+- Telegram users
+- Telegram project and group access grants
 
 Large artifact contents should live on disk. SQLite stores artifact identifiers,
 relative paths, size, checksum, type, and timestamps.
@@ -55,6 +57,7 @@ The current EF Core foundation includes:
 - `AddTalkSessions` for durable direct discussion state
 - `AddTransportCallbackActions` for short Telegram callback-token resolution
 - `AddProjectRootsAndGroups` for explicit project grouping and root scanning
+- `AddTelegramUsers` for Telegram user bootstrap, approvals, and access grants
 - SQLite pragma application for WAL, foreign keys, and busy timeout
 - SQLite project, machine, task, iteration, artifact, approval, and lock
   repositories backed by temporary-file tests
@@ -62,6 +65,8 @@ The current EF Core foundation includes:
 - SQLite runner execution repository for durable worker process launch records
 - SQLite transport callback action repository for resolving short transport
   button tokens back into runtime-owned logical actions
+- SQLite Telegram user repository for durable admin bootstrap, pending users,
+  approvals, and sparse project/project-group access grants
 - SQLite unit-of-work transaction tests for commit and rollback behavior
 
 ## Migrations

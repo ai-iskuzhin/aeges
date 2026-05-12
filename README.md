@@ -26,7 +26,8 @@ Yes, as an MVP for local governed execution. Today you can:
 - optionally create an isolated Git worktree before runner execution
 - optionally execute the deterministic mock runner or local Codex CLI runner
 - use Telegram long polling with buttons for projects, machines, queued tasks,
-  task cancellation, and approval approve/reject actions
+  task cancellation, approval actions, and Telegram user/project access
+  management
 
 The current MVP is intentionally small. There is no native package, web
 dashboard, remote control plane, advanced scheduler, or autonomous workflow loop

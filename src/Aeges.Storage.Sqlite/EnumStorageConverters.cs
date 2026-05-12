@@ -82,3 +82,35 @@ internal sealed class MachineStatusStorageConverter : ValueConverter<MachineStat
     {
     }
 }
+
+/// <summary>
+/// Converts Telegram user roles to and from their stable SQLite text values.
+/// </summary>
+internal sealed class TelegramUserRoleStorageConverter : ValueConverter<TelegramUserRole, string>
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TelegramUserRoleStorageConverter"/> class.
+    /// </summary>
+    public TelegramUserRoleStorageConverter()
+        : base(
+            role => role.ToStorageValue(),
+            value => TelegramUserRoleExtensions.FromStorageValue(value))
+    {
+    }
+}
+
+/// <summary>
+/// Converts Telegram user statuses to and from their stable SQLite text values.
+/// </summary>
+internal sealed class TelegramUserStatusStorageConverter : ValueConverter<TelegramUserStatus, string>
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TelegramUserStatusStorageConverter"/> class.
+    /// </summary>
+    public TelegramUserStatusStorageConverter()
+        : base(
+            status => status.ToStorageValue(),
+            value => TelegramUserStatusExtensions.FromStorageValue(value))
+    {
+    }
+}

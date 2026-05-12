@@ -82,6 +82,9 @@ public sealed class AegesDbContextTests
             "talk_sessions",
             "talk_messages",
             "transport_callback_actions",
+            "telegram_users",
+            "telegram_project_access",
+            "telegram_project_group_access",
         };
 
         Assert.True(expectedTableNames.SetEquals(tableNames));

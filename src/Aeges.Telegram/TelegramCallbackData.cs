@@ -43,6 +43,11 @@ public static class TelegramCallbackData
     public const string SettingsMenu = "ae:s";
 
     /// <summary>
+    /// Gets the Telegram user management callback payload.
+    /// </summary>
+    public const string UserMenu = "ae:u";
+
+    /// <summary>
     /// Gets the pending text response cancellation callback payload.
     /// </summary>
     public const string CancelPendingTextResponse = "ae:m:x";
@@ -110,6 +115,50 @@ public static class TelegramCallbackData
     /// <param name="projectId">The project identifier.</param>
     /// <returns>The callback payload.</returns>
     public static string ConfirmArchiveProject(ProjectId projectId) => $"ae:p:x:y:{projectId.Value}";
+
+    /// <summary>
+    /// Creates a Telegram user details callback payload.
+    /// </summary>
+    /// <param name="userId">The Telegram user identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string ViewTelegramUser(TelegramUserId userId) => $"ae:u:v:{userId.Value}";
+
+    /// <summary>
+    /// Creates a Telegram user approval callback payload.
+    /// </summary>
+    /// <param name="userId">The Telegram user identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string ApproveTelegramUser(TelegramUserId userId) => $"ae:u:y:{userId.Value}";
+
+    /// <summary>
+    /// Creates a Telegram user denial callback payload.
+    /// </summary>
+    /// <param name="userId">The Telegram user identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string DenyTelegramUser(TelegramUserId userId) => $"ae:u:n:{userId.Value}";
+
+    /// <summary>
+    /// Creates a Telegram project access toggle callback payload.
+    /// </summary>
+    /// <param name="userId">The Telegram user identifier.</param>
+    /// <param name="projectId">The project identifier.</param>
+    /// <param name="allowed">A value indicating whether access should be granted.</param>
+    /// <returns>The callback payload.</returns>
+    public static string SetTelegramProjectAccess(TelegramUserId userId, ProjectId projectId, bool allowed) =>
+        $"ae:u:p:{(allowed ? "1" : "0")}:{userId.Value}:{projectId.Value}";
+
+    /// <summary>
+    /// Creates a Telegram project group access toggle callback payload.
+    /// </summary>
+    /// <param name="userId">The Telegram user identifier.</param>
+    /// <param name="projectGroupId">The project group identifier.</param>
+    /// <param name="allowed">A value indicating whether access should be granted.</param>
+    /// <returns>The callback payload.</returns>
+    public static string SetTelegramProjectGroupAccess(
+        TelegramUserId userId,
+        ProjectGroupId projectGroupId,
+        bool allowed) =>
+        $"ae:u:g:{(allowed ? "1" : "0")}:{userId.Value}:{projectGroupId.Value}";
 
     /// <summary>
     /// Creates a project-scoped task status list callback payload.
@@ -553,6 +602,127 @@ public static class TelegramCallbackData
     }
 
     /// <summary>
+    /// Attempts to parse a Telegram user details callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="userId">The parsed Telegram user identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseViewTelegramUser(string payload, out TelegramUserId userId) =>
+        TryParseTelegramUser(payload, "ae:u:v:", out userId);
+
+    /// <summary>
+    /// Attempts to parse a Telegram user approval callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="userId">The parsed Telegram user identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseApproveTelegramUser(string payload, out TelegramUserId userId) =>
+        TryParseTelegramUser(payload, "ae:u:y:", out userId);
+
+    /// <summary>
+    /// Attempts to parse a Telegram user denial callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="userId">The parsed Telegram user identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseDenyTelegramUser(string payload, out TelegramUserId userId) =>
+        TryParseTelegramUser(payload, "ae:u:n:", out userId);
+
+    /// <summary>
+    /// Attempts to parse a Telegram project access toggle callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="userId">The parsed Telegram user identifier.</param>
+    /// <param name="projectId">The parsed project identifier.</param>
+    /// <param name="allowed">A value indicating whether access should be granted.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseSetTelegramProjectAccess(
+        string payload,
+        out TelegramUserId userId,
+        out ProjectId projectId,
+        out bool allowed)
+    {
+        const string prefix = "ae:u:p:";
+        userId = default;
+        projectId = default;
+        allowed = false;
+
+        if (!payload.StartsWith(prefix, StringComparison.Ordinal) || payload.Length <= prefix.Length + 2)
+        {
+            return false;
+        }
+
+        allowed = payload[prefix.Length] == '1';
+        var rest = payload[(prefix.Length + 2)..];
+        var delimiter = rest.IndexOf(':', StringComparison.Ordinal);
+
+        if (delimiter <= 0 || delimiter >= rest.Length - 1)
+        {
+            return false;
+        }
+
+        try
+        {
+            userId = new TelegramUserId(rest[..delimiter]);
+            projectId = new ProjectId(rest[(delimiter + 1)..]);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            userId = default;
+            projectId = default;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Attempts to parse a Telegram project group access toggle callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="userId">The parsed Telegram user identifier.</param>
+    /// <param name="projectGroupId">The parsed project group identifier.</param>
+    /// <param name="allowed">A value indicating whether access should be granted.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseSetTelegramProjectGroupAccess(
+        string payload,
+        out TelegramUserId userId,
+        out ProjectGroupId projectGroupId,
+        out bool allowed)
+    {
+        const string prefix = "ae:u:g:";
+        userId = default;
+        projectGroupId = default;
+        allowed = false;
+
+        if (!payload.StartsWith(prefix, StringComparison.Ordinal) || payload.Length <= prefix.Length + 2)
+        {
+            return false;
+        }
+
+        allowed = payload[prefix.Length] == '1';
+        var rest = payload[(prefix.Length + 2)..];
+        var delimiter = rest.IndexOf(':', StringComparison.Ordinal);
+
+        if (delimiter <= 0 || delimiter >= rest.Length - 1)
+        {
+            return false;
+        }
+
+        try
+        {
+            userId = new TelegramUserId(rest[..delimiter]);
+            projectGroupId = new ProjectGroupId(rest[(delimiter + 1)..]);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            userId = default;
+            projectGroupId = default;
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Attempts to parse a project-scoped task status list callback payload.
     /// </summary>
     /// <param name="payload">The callback payload.</param>
@@ -618,6 +788,26 @@ public static class TelegramCallbackData
     /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
     public static bool TryParseRejectApproval(string payload, out ApprovalId approvalId) =>
         TryParseApproval(payload, "ae:a:n:", out approvalId);
+
+    private static bool TryParseTelegramUser(string payload, string prefix, out TelegramUserId userId)
+    {
+        if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length > prefix.Length)
+        {
+            try
+            {
+                userId = new TelegramUserId(payload[prefix.Length..]);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                userId = default;
+                return false;
+            }
+        }
+
+        userId = default;
+        return false;
+    }
 
     private static bool TryParseApproval(string payload, string prefix, out ApprovalId approvalId)
     {

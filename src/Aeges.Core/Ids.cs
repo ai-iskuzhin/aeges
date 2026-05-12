@@ -117,6 +117,36 @@ public readonly record struct ProjectRootId
 }
 
 /// <summary>
+/// Identifies a Telegram user known to the local runtime.
+/// </summary>
+public readonly record struct TelegramUserId
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TelegramUserId"/> struct.
+    /// </summary>
+    /// <param name="value">The stable Telegram user identifier value.</param>
+    public TelegramUserId(string value)
+    {
+        Value = IdValue.Require(value);
+    }
+
+    /// <summary>
+    /// Gets the stable identifier value.
+    /// </summary>
+    public string Value { get; }
+
+    /// <summary>
+    /// Creates a Telegram user identifier from a Telegram chat identifier.
+    /// </summary>
+    /// <param name="chatId">The Telegram chat identifier.</param>
+    /// <returns>The Telegram user identifier.</returns>
+    public static TelegramUserId FromChatId(long chatId) => new($"telegram-{chatId}");
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+}
+
+/// <summary>
 /// Identifies a machine that can host or execute governed runtime work.
 /// </summary>
 public readonly record struct MachineId

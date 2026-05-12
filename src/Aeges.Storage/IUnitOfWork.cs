@@ -71,6 +71,11 @@ public interface IUnitOfWork
     ITransportCallbackActionRepository TransportCallbackActions { get; }
 
     /// <summary>
+    /// Gets the Telegram user repository.
+    /// </summary>
+    ITelegramUserRepository TelegramUsers { get; }
+
+    /// <summary>
     /// Persists pending changes.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the operation.</param>

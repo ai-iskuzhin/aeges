@@ -1,5 +1,6 @@
 using Aeges.Application;
 using Aeges.Application.Talk;
+using Aeges.Application.TelegramUsers;
 using Aeges.Core;
 
 namespace Aeges.Telegram;
@@ -9,6 +10,79 @@ namespace Aeges.Telegram;
 /// </summary>
 public interface ITelegramApplicationFacade
 {
+    /// <summary>
+    /// Ensures a Telegram chat has a durable user record and returns its authorization state.
+    /// </summary>
+    /// <param name="chatId">The Telegram chat identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The user authorization state.</returns>
+    Task<TelegramUserAuthorization> EnsureTelegramUserAsync(long chatId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Lists known Telegram users.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The known Telegram users.</returns>
+    Task<IReadOnlyList<RuntimeTelegramUser>> ListTelegramUsersAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Gets one Telegram user's access grants.
+    /// </summary>
+    /// <param name="userId">The Telegram user identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The access snapshot, or an expected failure.</returns>
+    Task<ApplicationResult<TelegramUserAccessSnapshot>> GetTelegramUserAccessAsync(
+        TelegramUserId userId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Approves a Telegram user.
+    /// </summary>
+    /// <param name="userId">The Telegram user identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The updated user, or an expected failure.</returns>
+    Task<ApplicationResult<RuntimeTelegramUser>> ApproveTelegramUserAsync(
+        TelegramUserId userId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Denies a Telegram user.
+    /// </summary>
+    /// <param name="userId">The Telegram user identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The updated user, or an expected failure.</returns>
+    Task<ApplicationResult<RuntimeTelegramUser>> DenyTelegramUserAsync(
+        TelegramUserId userId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sets project access for a Telegram user.
+    /// </summary>
+    /// <param name="userId">The Telegram user identifier.</param>
+    /// <param name="projectId">The project identifier.</param>
+    /// <param name="allowed">A value indicating whether access is granted.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The updated access snapshot, or an expected failure.</returns>
+    Task<ApplicationResult<TelegramUserAccessSnapshot>> SetTelegramProjectAccessAsync(
+        TelegramUserId userId,
+        ProjectId projectId,
+        bool allowed,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sets project group access for a Telegram user.
+    /// </summary>
+    /// <param name="userId">The Telegram user identifier.</param>
+    /// <param name="projectGroupId">The project group identifier.</param>
+    /// <param name="allowed">A value indicating whether access is granted.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The updated access snapshot, or an expected failure.</returns>
+    Task<ApplicationResult<TelegramUserAccessSnapshot>> SetTelegramProjectGroupAccessAsync(
+        TelegramUserId userId,
+        ProjectGroupId projectGroupId,
+        bool allowed,
+        CancellationToken cancellationToken);
+
     /// <summary>
     /// Lists registered projects.
     /// </summary>
