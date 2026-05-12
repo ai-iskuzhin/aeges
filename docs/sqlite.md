@@ -58,6 +58,8 @@ The current EF Core foundation includes:
 - `AddTransportCallbackActions` for short Telegram callback-token resolution
 - `AddProjectRootsAndGroups` for explicit project grouping and root scanning
 - `AddTelegramUsers` for Telegram user bootstrap, approvals, and access grants
+- `AddTelegramUserProfiles` for Telegram username, first name, and last name
+  metadata
 - SQLite pragma application for WAL, foreign keys, and busy timeout
 - SQLite project, machine, task, iteration, artifact, approval, and lock
   repositories backed by temporary-file tests
@@ -66,7 +68,8 @@ The current EF Core foundation includes:
 - SQLite transport callback action repository for resolving short transport
   button tokens back into runtime-owned logical actions
 - SQLite Telegram user repository for durable admin bootstrap, pending users,
-  approvals, and sparse project/project-group access grants
+  observed profile metadata, approvals, and sparse project/project-group access
+  grants
 - SQLite unit-of-work transaction tests for commit and rollback behavior
 
 ## Migrations

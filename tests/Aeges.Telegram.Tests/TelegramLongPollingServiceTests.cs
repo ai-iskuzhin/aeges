@@ -406,10 +406,11 @@ public sealed class TelegramLongPollingServiceTests
 
         public Task<TelegramUserAuthorization> EnsureTelegramUserAsync(
             long chatId,
+            RuntimeTelegramUserProfile profile,
             CancellationToken cancellationToken) =>
             Task.FromResult(
                 new TelegramUserAuthorization(
-                    RuntimeTelegramUser.CreateFirstAdmin(chatId, DateTimeOffset.UtcNow),
+                    RuntimeTelegramUser.CreateFirstAdmin(chatId, DateTimeOffset.UtcNow, profile),
                     IsFirstAdmin: false));
 
         public Task<IReadOnlyList<RuntimeTelegramUser>> ListTelegramUsersAsync(CancellationToken cancellationToken) =>

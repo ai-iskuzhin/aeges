@@ -120,7 +120,7 @@ public sealed class TelegramLongPollingService
                     cancellationToken);
                 var pendingMessageId = await gateway.SendResponseAsync(update.ChatId, pendingResponse, cancellationToken);
                 var finalResponse = await handler.HandleAsync(
-                    new TelegramUpdate(update.ChatId, update.Text, update.CallbackData),
+                    ToInteractionUpdate(update),
                     cancellationToken);
 
                 if (pendingMessageId is not null)
@@ -144,7 +144,7 @@ public sealed class TelegramLongPollingService
             }
 
             var response = await handler.HandleAsync(
-                new TelegramUpdate(update.ChatId, update.Text, update.CallbackData),
+                ToInteractionUpdate(update),
                 cancellationToken);
 
             if (isCallback && update.MessageId is not null)
@@ -273,6 +273,15 @@ public sealed class TelegramLongPollingService
             };
         }
     }
+
+    private static TelegramUpdate ToInteractionUpdate(TelegramBotUpdate update) =>
+        new(
+            update.ChatId,
+            update.Text,
+            update.CallbackData,
+            update.Username,
+            update.FirstName,
+            update.LastName);
 
     private static string CreateTaskFingerprint(RuntimeTask task) =>
         $"{task.Status.ToStorageValue()}:{task.CurrentIteration}:{task.FailureReason}";

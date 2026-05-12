@@ -30,20 +30,39 @@ public sealed class TelegramUserService
     /// <returns>The authorization state for the chat.</returns>
     public async Task<TelegramUserAuthorization> EnsureAsync(
         long chatId,
+        CancellationToken cancellationToken) =>
+        await EnsureAsync(chatId, RuntimeTelegramUserProfile.Empty, cancellationToken);
+
+    /// <summary>
+    /// Ensures an inbound Telegram chat has a durable user record and updates its observed profile.
+    /// </summary>
+    /// <param name="chatId">The Telegram chat identifier.</param>
+    /// <param name="profile">The observed Telegram profile.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The authorization state for the chat.</returns>
+    public async Task<TelegramUserAuthorization> EnsureAsync(
+        long chatId,
+        RuntimeTelegramUserProfile profile,
         CancellationToken cancellationToken)
     {
         var existing = await unitOfWork.TelegramUsers.GetByChatIdAsync(chatId, cancellationToken);
 
         if (existing is not null)
         {
+            if (!profile.IsEmpty && existing.UpdateProfile(profile, clock.Now))
+            {
+                await unitOfWork.TelegramUsers.UpdateAsync(existing, cancellationToken);
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
             return new TelegramUserAuthorization(existing, IsFirstAdmin: false);
         }
 
         var userCount = await unitOfWork.TelegramUsers.CountAsync(cancellationToken);
         var now = clock.Now;
         var user = userCount == 0
-            ? RuntimeTelegramUser.CreateFirstAdmin(chatId, now)
-            : RuntimeTelegramUser.CreatePending(chatId, now);
+            ? RuntimeTelegramUser.CreateFirstAdmin(chatId, now, profile)
+            : RuntimeTelegramUser.CreatePending(chatId, now, profile);
 
         await unitOfWork.TelegramUsers.AddAsync(user, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);

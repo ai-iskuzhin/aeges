@@ -87,8 +87,9 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     /// <inheritdoc />
     public async Task<TelegramUserAuthorization> EnsureTelegramUserAsync(
         long chatId,
+        RuntimeTelegramUserProfile profile,
         CancellationToken cancellationToken) =>
-        await telegramUserService.EnsureAsync(chatId, cancellationToken);
+        await telegramUserService.EnsureAsync(chatId, profile, cancellationToken);
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<RuntimeTelegramUser>> ListTelegramUsersAsync(CancellationToken cancellationToken) =>

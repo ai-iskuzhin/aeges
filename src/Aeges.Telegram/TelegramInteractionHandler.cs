@@ -2,6 +2,7 @@ using Aeges.Application.Configuration;
 using Aeges.Application.TelegramUsers;
 using Aeges.Core;
 using System.Collections.Concurrent;
+using System.Globalization;
 
 namespace Aeges.Telegram;
 
@@ -57,7 +58,7 @@ public sealed class TelegramInteractionHandler
                 TelegramButtonMarkup.Empty);
         }
 
-        var authorization = await application.EnsureTelegramUserAsync(update.ChatId, cancellationToken);
+        var authorization = await application.EnsureTelegramUserAsync(update.ChatId, update.ToUserProfile(), cancellationToken);
 
         if (!authorization.IsApproved)
         {
@@ -209,7 +210,7 @@ public sealed class TelegramInteractionHandler
             : "Your Telegram chat is denied access to Aeges.";
 
         return new TelegramResponse(
-            $"{message}\n{TelegramMarkdown.Quote($"User: {user.Id}\nChat: {user.ChatId}\nStatus: {status}")}",
+            $"{message}\n{TelegramMarkdown.Quote(FormatTelegramUserMetadata(user, includeGrants: false, 0, 0))}",
             TelegramButtonMarkup.Empty);
     }
 
@@ -791,14 +792,14 @@ public sealed class TelegramInteractionHandler
         }
 
         var rows = Grid(users.Select(user => Button(
-                $"{FormatTelegramUserStatus(user)} {user.ChatId}",
+                $"{FormatTelegramUserStatus(user)} {FormatTelegramUserDisplay(user)}",
                 TelegramCallbackData.ViewTelegramUser(user.Id),
                 user.Status == TelegramUserStatus.Approved ? TelegramButtonStyle.Success : TelegramButtonStyle.Danger)))
             .Append(Row(Button("Back", TelegramCallbackData.MainMenu)))
             .ToArray();
 
         return new TelegramResponse(
-            "Telegram users:\n" + string.Join('\n', users.Select(user => $"- {user.Id}: {user.Role.ToStorageValue()} / {user.Status.ToStorageValue()}")),
+            "Telegram users:\n" + string.Join('\n', users.Select(user => $"- {FormatTelegramUserDisplay(user)}: {user.Role.ToStorageValue()} / {user.Status.ToStorageValue()}")),
             Buttons(rows));
     }
 
@@ -905,7 +906,7 @@ public sealed class TelegramInteractionHandler
             {
                 var allowed = allowedGroups.Contains(group.Id);
                 return Button(
-                    $"{AccessButtonPrefix(allowed)} group {group.Name}",
+                    $"Group {group.Name}",
                     TelegramCallbackData.SetTelegramProjectGroupAccess(user.Id, group.Id, !allowed),
                     allowed ? TelegramButtonStyle.Success : TelegramButtonStyle.Danger);
             }));
@@ -916,21 +917,12 @@ public sealed class TelegramInteractionHandler
             {
                 var allowed = allowedProjects.Contains(project.Id);
                 return Button(
-                    $"{AccessButtonPrefix(allowed)} {project.Name}",
+                    project.Name,
                     TelegramCallbackData.SetTelegramProjectAccess(user.Id, project.Id, !allowed),
                     allowed ? TelegramButtonStyle.Success : TelegramButtonStyle.Danger);
             }));
 
-        var metadata = string.Join(
-            '\n',
-            [
-                $"User: {user.Id}",
-                $"Chat: {user.ChatId}",
-                $"Role: {user.Role.ToStorageValue()}",
-                $"Status: {user.Status.ToStorageValue()}",
-                $"Project grants: {allowedProjects.Count}",
-                $"Group grants: {allowedGroups.Count}",
-            ]);
+        var metadata = FormatTelegramUserMetadata(user, includeGrants: true, allowedProjects.Count, allowedGroups.Count);
         var rows = Grid(buttons)
             .Append(Row(Button("Back", TelegramCallbackData.UserMenu)))
             .ToArray();
@@ -1509,7 +1501,48 @@ public sealed class TelegramInteractionHandler
     private static string FormatTelegramUserStatus(RuntimeTelegramUser user) =>
         $"{user.Role.ToStorageValue()}/{user.Status.ToStorageValue()}";
 
-    private static string AccessButtonPrefix(bool allowed) => allowed ? "Allowed" : "Blocked";
+    private static string FormatTelegramUserDisplay(RuntimeTelegramUser user)
+    {
+        if (!string.IsNullOrWhiteSpace(user.Username))
+        {
+            return $"@{user.Username}";
+        }
+
+        var name = string.Join(
+            ' ',
+            new[] { user.FirstName, user.LastName }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+        return string.IsNullOrWhiteSpace(name) ? user.ChatId.ToString(CultureInfo.InvariantCulture) : name;
+    }
+
+    private static string FormatTelegramUserMetadata(
+        RuntimeTelegramUser user,
+        bool includeGrants,
+        int projectGrantCount,
+        int groupGrantCount)
+    {
+        var lines = new List<string>
+        {
+            $"User: {user.Id}",
+            $"Chat: {user.ChatId}",
+            $"Username: {FormatOptional(user.Username is null ? null : $"@{user.Username}")}",
+            $"First name: {FormatOptional(user.FirstName)}",
+            $"Last name: {FormatOptional(user.LastName)}",
+            $"Role: {user.Role.ToStorageValue()}",
+            $"Status: {user.Status.ToStorageValue()}",
+        };
+
+        if (includeGrants)
+        {
+            lines.Add($"Project grants: {projectGrantCount}");
+            lines.Add($"Group grants: {groupGrantCount}");
+        }
+
+        return string.Join('\n', lines);
+    }
+
+    private static string FormatOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "(none)" : value;
 
     private static TelegramButton Button(
         string text,

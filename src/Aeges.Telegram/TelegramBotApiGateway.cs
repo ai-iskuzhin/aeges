@@ -100,6 +100,7 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
         {
             var callback = update.CallbackQuery;
             var chatId = callback.Message?.Chat.Id ?? callback.From.Id;
+            var user = callback.From;
 
             return new TelegramBotUpdate(
                 update.Id,
@@ -107,17 +108,25 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
                 Text: null,
                 callback.Data,
                 callback.Id,
-                callback.Message?.MessageId);
+                callback.Message?.MessageId,
+                user.Username,
+                user.FirstName,
+                user.LastName);
         }
 
         if (update.Message is not null)
         {
+            var user = update.Message.From;
+
             return new TelegramBotUpdate(
                 update.Id,
                 update.Message.Chat.Id,
                 update.Message.Text,
                 CallbackData: null,
-                CallbackQueryId: null);
+                CallbackQueryId: null,
+                Username: user?.Username,
+                FirstName: user?.FirstName,
+                LastName: user?.LastName);
         }
 
         return null;

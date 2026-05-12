@@ -13,6 +13,9 @@ internal sealed class TelegramUserRecordConfiguration : IEntityTypeConfiguration
 
         builder.Property(user => user.Id).HasColumnName("id");
         builder.Property(user => user.ChatId).HasColumnName("chat_id").IsRequired();
+        builder.Property(user => user.Username).HasColumnName("username").HasMaxLength(256);
+        builder.Property(user => user.FirstName).HasColumnName("first_name").HasMaxLength(256);
+        builder.Property(user => user.LastName).HasColumnName("last_name").HasMaxLength(256);
         builder.Property(user => user.Role)
             .HasColumnName("role")
             .HasConversion<TelegramUserRoleStorageConverter>()
@@ -25,6 +28,7 @@ internal sealed class TelegramUserRecordConfiguration : IEntityTypeConfiguration
         builder.Property(user => user.UpdatedAt).HasColumnName("updated_at").IsRequired();
 
         builder.HasIndex(user => user.ChatId).IsUnique();
+        builder.HasIndex(user => user.Username);
         builder.HasIndex(user => user.Role);
         builder.HasIndex(user => user.Status);
     }

@@ -11,7 +11,10 @@ public sealed class SqliteTelegramUserRepositoryTests
         await using var database = await TemporarySqliteDatabase.CreateAsync();
         await using var context = database.CreateContext();
         var repository = new SqliteTelegramUserRepository(context);
-        var user = RuntimeTelegramUser.CreateFirstAdmin(1001, SqliteRepositorySeed.CreatedAt);
+        var user = RuntimeTelegramUser.CreateFirstAdmin(
+            1001,
+            SqliteRepositorySeed.CreatedAt,
+            new RuntimeTelegramUserProfile("aigiz", "Aigiz", "Iskuzhin"));
 
         await repository.AddAsync(user, CancellationToken.None);
         await context.SaveChangesAsync(CancellationToken.None);
@@ -20,8 +23,36 @@ public sealed class SqliteTelegramUserRepositoryTests
 
         Assert.NotNull(stored);
         Assert.Equal(user.Id, stored.Id);
+        Assert.Equal("aigiz", stored.Username);
+        Assert.Equal("Aigiz", stored.FirstName);
+        Assert.Equal("Iskuzhin", stored.LastName);
         Assert.Equal(TelegramUserRole.Admin, stored.Role);
         Assert.Equal(TelegramUserStatus.Approved, stored.Status);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_refreshes_telegram_user_profile()
+    {
+        await using var database = await TemporarySqliteDatabase.CreateAsync();
+        await using var context = database.CreateContext();
+        var repository = new SqliteTelegramUserRepository(context);
+        var user = RuntimeTelegramUser.CreatePending(2002, SqliteRepositorySeed.CreatedAt);
+
+        await repository.AddAsync(user, CancellationToken.None);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        user.UpdateProfile(
+            new RuntimeTelegramUserProfile("new-user", "New", "User"),
+            SqliteRepositorySeed.CreatedAt.AddMinutes(1));
+        await repository.UpdateAsync(user, CancellationToken.None);
+        await context.SaveChangesAsync(CancellationToken.None);
+
+        var stored = await repository.GetByChatIdAsync(2002, CancellationToken.None);
+
+        Assert.NotNull(stored);
+        Assert.Equal("new-user", stored.Username);
+        Assert.Equal("New", stored.FirstName);
+        Assert.Equal("User", stored.LastName);
     }
 
     [Fact]

@@ -18,6 +18,21 @@ internal sealed class TelegramUserRecord
     public long ChatId { get; set; }
 
     /// <summary>
+    /// Gets or sets the Telegram username without an at-sign, when available.
+    /// </summary>
+    public string? Username { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Telegram first name, when available.
+    /// </summary>
+    public string? FirstName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Telegram last name, when available.
+    /// </summary>
+    public string? LastName { get; set; }
+
+    /// <summary>
     /// Gets or sets the user's role.
     /// </summary>
     public TelegramUserRole Role { get; set; }

@@ -23,6 +23,43 @@ public sealed class TelegramUserServiceTests
     }
 
     [Fact]
+    public async Task EnsureAsync_saves_observed_profile_for_new_user()
+    {
+        var unitOfWork = new InMemoryUnitOfWork();
+        var service = new TelegramUserService(unitOfWork, new FixedClock(Now));
+
+        var authorization = await service.EnsureAsync(
+            1001,
+            new RuntimeTelegramUserProfile("aigiz", "Aigiz", "Iskuzhin"),
+            CancellationToken.None);
+
+        Assert.Equal("aigiz", authorization.User.Username);
+        Assert.Equal("Aigiz", authorization.User.FirstName);
+        Assert.Equal("Iskuzhin", authorization.User.LastName);
+    }
+
+    [Fact]
+    public async Task EnsureAsync_refreshes_observed_profile_for_existing_user()
+    {
+        var unitOfWork = new InMemoryUnitOfWork();
+        var service = new TelegramUserService(unitOfWork, new FixedClock(Now));
+        await service.EnsureAsync(
+            1001,
+            new RuntimeTelegramUserProfile("old", "Old", null),
+            CancellationToken.None);
+
+        var authorization = await service.EnsureAsync(
+            1001,
+            new RuntimeTelegramUserProfile("new", "New", "Name"),
+            CancellationToken.None);
+
+        Assert.Equal("new", authorization.User.Username);
+        Assert.Equal("New", authorization.User.FirstName);
+        Assert.Equal("Name", authorization.User.LastName);
+        Assert.Equal(2, unitOfWork.SaveChangesCount);
+    }
+
+    [Fact]
     public async Task EnsureAsync_creates_later_chats_as_pending_users()
     {
         var unitOfWork = new InMemoryUnitOfWork();

@@ -71,6 +71,9 @@ public sealed class SqliteTelegramUserRepository : ITelegramUserRepository
 
         record.Role = user.Role;
         record.Status = user.Status;
+        record.Username = user.Username;
+        record.FirstName = user.FirstName;
+        record.LastName = user.LastName;
         record.UpdatedAt = user.UpdatedAt;
     }
 
@@ -183,6 +186,9 @@ public sealed class SqliteTelegramUserRepository : ITelegramUserRepository
         {
             Id = user.Id.Value,
             ChatId = user.ChatId,
+            Username = user.Username,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
             Role = user.Role,
             Status = user.Status,
             CreatedAt = user.CreatedAt,
@@ -196,5 +202,6 @@ public sealed class SqliteTelegramUserRepository : ITelegramUserRepository
             record.Role,
             record.Status,
             record.CreatedAt,
-            record.UpdatedAt);
+            record.UpdatedAt,
+            new RuntimeTelegramUserProfile(record.Username, record.FirstName, record.LastName));
 }

@@ -14,9 +14,13 @@ public interface ITelegramApplicationFacade
     /// Ensures a Telegram chat has a durable user record and returns its authorization state.
     /// </summary>
     /// <param name="chatId">The Telegram chat identifier.</param>
+    /// <param name="profile">The observed Telegram user profile.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The user authorization state.</returns>
-    Task<TelegramUserAuthorization> EnsureTelegramUserAsync(long chatId, CancellationToken cancellationToken);
+    Task<TelegramUserAuthorization> EnsureTelegramUserAsync(
+        long chatId,
+        RuntimeTelegramUserProfile profile,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Lists known Telegram users.

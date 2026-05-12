@@ -30,6 +30,11 @@ individual projects. Non-admin users have no project access until a grant exists
 If `telegram.allowedChatIds` is configured, it remains a hard outer allowlist
 before durable user records are created or read.
 
+Telegram usernames, first names, and last names are stored as operator profile
+metadata in the local runtime database when Telegram includes them in updates.
+They are not secrets, but they are personal data and should be treated as local
+runtime state rather than committed project content.
+
 Approval should be required for destructive git commands, dependency changes,
 database migrations, file deletion, deployment changes, CI/CD modifications, and
 force push operations.

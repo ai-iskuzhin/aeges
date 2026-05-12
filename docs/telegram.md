@@ -74,6 +74,11 @@ buttons mean blocked and green buttons mean allowed. Administrators can see all
 projects and tasks; non-admin users only see projects they were granted
 directly or through a granted project group.
 
+Telegram user records also store the latest observed username, first name, and
+last name from inbound messages or button callbacks. These fields are operator
+profile metadata used to make approval and access screens recognizable; the
+Telegram chat ID remains the routing identifier.
+
 Machine status in Telegram reflects the local Aeges agent heartbeat, not whether
 the Telegram transport is running. A newly registered machine starts as
 `offline`; `aeges agent run --once --machine-id <id>` records a heartbeat and

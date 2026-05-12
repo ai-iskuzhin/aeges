@@ -92,10 +92,13 @@ public sealed class TelegramInteractionHandlerTests
         var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
 
         var response = await handler.HandleAsync(
-            new TelegramUpdate(2002, Text: "hello"),
+            new TelegramUpdate(2002, Text: "hello", Username: "new-user", FirstName: "New", LastName: "User"),
             CancellationToken.None);
 
         Assert.Contains("waiting for an Aeges Telegram administrator", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Username: @new-user", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> First name: New", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Last name: User", response.Text, StringComparison.Ordinal);
         Assert.Contains("> Status: pending", response.Text, StringComparison.Ordinal);
         Assert.Empty(response.Buttons.Rows);
         Assert.Null(facade.TalkMessage);
@@ -104,7 +107,10 @@ public sealed class TelegramInteractionHandlerTests
     [Fact]
     public async Task HandleAsync_lists_telegram_users_for_admins()
     {
-        var pending = RuntimeTelegramUser.CreatePending(2002, Now);
+        var pending = RuntimeTelegramUser.CreatePending(
+            2002,
+            Now,
+            new RuntimeTelegramUserProfile("guest", "Guest", "Operator"));
         var facade = new FakeTelegramApplicationFacade
         {
             TelegramUsers =
@@ -119,7 +125,7 @@ public sealed class TelegramInteractionHandlerTests
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.UserMenu),
             CancellationToken.None);
 
-        Assert.Contains("telegram-2002", response.Text, StringComparison.Ordinal);
+        Assert.Contains("@guest", response.Text, StringComparison.Ordinal);
         Assert.Contains("user / pending", response.Text, StringComparison.Ordinal);
         Assert.Equal(TelegramButtonStyle.Danger, response.Buttons.Rows[0][1].Style);
     }
@@ -151,8 +157,8 @@ public sealed class TelegramInteractionHandlerTests
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.SetTelegramProjectAccess(user.Id, projectId, allowed: true)),
             CancellationToken.None);
 
-        var blockedProjectButton = blocked.Buttons.Rows.SelectMany(row => row).Single(button => button.Text == "Blocked Aeges");
-        var grantedProjectButton = granted.Buttons.Rows.SelectMany(row => row).Single(button => button.Text == "Allowed Aeges");
+        var blockedProjectButton = blocked.Buttons.Rows.SelectMany(row => row).Single(button => button.Text == "Aeges");
+        var grantedProjectButton = granted.Buttons.Rows.SelectMany(row => row).Single(button => button.Text == "Aeges");
 
         Assert.Contains("> Project grants: 0", blocked.Text, StringComparison.Ordinal);
         Assert.Equal(TelegramButtonStyle.Danger, blockedProjectButton.Style);
@@ -870,10 +876,15 @@ public sealed class TelegramInteractionHandlerTests
 
         public Task<TelegramUserAuthorization> EnsureTelegramUserAsync(
             long chatId,
+            RuntimeTelegramUserProfile profile,
             CancellationToken cancellationToken)
         {
             var user = TelegramUsers.FirstOrDefault(user => user.ChatId == chatId)
-                ?? RuntimeTelegramUser.CreateFirstAdmin(chatId, Now);
+                ?? RuntimeTelegramUser.CreateFirstAdmin(chatId, Now, profile);
+            if (!profile.IsEmpty)
+            {
+                user.UpdateProfile(profile, Now);
+            }
 
             return System.Threading.Tasks.Task.FromResult(new TelegramUserAuthorization(user, IsFirstAdmin: false));
         }
