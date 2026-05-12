@@ -8,6 +8,23 @@ All notable changes to Aeges are documented in this file.
 
 - Nothing yet.
 
+## [0.1.0-alpha.4] - 2026-05-12
+
+### Added
+
+- Added `aeges setup` as a friendly first-use wizard over runtime initialization,
+  SQLite migrations, Telegram setup, and optional background process start.
+- Added `aeges version` and version display in local status and Telegram menus.
+- Added `aeges update` for updating the installed runtime from GitHub release
+  artifacts or a local package source.
+- Added NuGet publishing support to the release workflow through `NUGET_TOKEN`
+  in the `production` GitHub environment.
+
+### Changed
+
+- Documented NuGet tool installation and update paths alongside the shell
+  installer flow.
+
 ## [0.1.0-alpha.3] - 2026-05-12
 
 ### Fixed
