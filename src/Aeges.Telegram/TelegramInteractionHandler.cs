@@ -293,12 +293,13 @@ public sealed class TelegramInteractionHandler
                     Button("New task", TelegramCallbackData.CreateTask))));
         }
 
+        var exchange = result.Value!;
+
         return new TelegramResponse(
             $"""
-            {result.Value!.AssistantMessage.Content}
+            {TelegramMarkdown.Quote($"Session: {exchange.Session.Id}\nRunner: {exchange.Session.RunnerId}")}
 
-            Talk:
-            {TelegramMarkdown.Quote($"Session: {result.Value.Session.Id}\nRunner: {result.Value.Session.RunnerId}")}
+            {exchange.AssistantMessage.Content}
             """,
             Buttons(Row(
                 Button("Menu", TelegramCallbackData.MainMenu),

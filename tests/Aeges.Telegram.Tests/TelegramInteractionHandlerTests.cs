@@ -17,6 +17,8 @@ public sealed class TelegramInteractionHandlerTests
 
         var response = await handler.HandleAsync(new TelegramUpdate(1001, Text: "hello"), CancellationToken.None);
 
+        Assert.StartsWith("> Session: talk-001\n> Runner: codex", response.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Talk:", response.Text, StringComparison.Ordinal);
         Assert.Contains("Talk response to: hello", response.Text, StringComparison.Ordinal);
         Assert.Equal("Menu", response.Buttons.Rows[0][0].Text);
         Assert.Equal(TelegramCallbackData.MainMenu, response.Buttons.Rows[0][0].CallbackData);
