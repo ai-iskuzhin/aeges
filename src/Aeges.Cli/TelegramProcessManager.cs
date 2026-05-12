@@ -267,9 +267,19 @@ internal sealed class TelegramProcessManager
         var childPidText = await File.ReadAllTextAsync(childPidPath, cancellationToken);
         File.Delete(childPidPath);
 
-        return int.TryParse(childPidText.Trim(), out var childPid)
-            ? childPid
-            : throw new InvalidOperationException("Telegram transport launcher did not report a child process ID.");
+        if (!int.TryParse(childPidText.Trim(), out var childPid))
+        {
+            throw new InvalidOperationException("Telegram transport launcher did not report a child process ID.");
+        }
+
+        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+
+        if (!IsProcessRunning(childPid))
+        {
+            throw new InvalidOperationException("Telegram transport exited before it entered the polling loop.");
+        }
+
+        return childPid;
     }
 
     private static async Task AppendLauncherLogAsync(
