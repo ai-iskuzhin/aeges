@@ -27,7 +27,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>aeges</ToolCommandName>
     <PackageId>Aeges.Cli</PackageId>
-    <Version>0.1.0-alpha.1</Version>
+    <Version>0.1.0-alpha.2</Version>
     <Authors>Aeges contributors</Authors>
     <Description>Reliable governed coding runtime CLI.</Description>
     <PackageTags>aeges;cli;ai;coding-runtime;governance</PackageTags>
