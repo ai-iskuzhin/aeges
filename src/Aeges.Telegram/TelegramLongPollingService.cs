@@ -2,6 +2,7 @@ namespace Aeges.Telegram;
 
 using Aeges.Core;
 using System.Collections.Concurrent;
+using ApiRequestException = global::Telegram.Bot.Exceptions.ApiRequestException;
 using RequestException = global::Telegram.Bot.Exceptions.RequestException;
 
 /// <summary>
@@ -107,66 +108,81 @@ public sealed class TelegramLongPollingService
 
         foreach (var update in updates)
         {
-            var callbackQueryId = update.CallbackQueryId;
-            var isCallback = !string.IsNullOrWhiteSpace(callbackQueryId);
-
-            if (isCallback)
+            try
             {
-                await gateway.AnswerCallbackQueryAsync(callbackQueryId!, cancellationToken);
-            }
+                var callbackQueryId = update.CallbackQueryId;
+                var isCallback = !string.IsNullOrWhiteSpace(callbackQueryId);
 
-            if (!isCallback && update.Text is not null && !TelegramInteractionHandler.IsStartCommand(update.Text))
-            {
-                var pendingResponse = await handler.TokenizeResponseAsync(
-                    update.ChatId,
-                    TelegramInteractionHandler.RenderPendingTextResponse(update.Text),
-                    cancellationToken);
-                var pendingMessageId = await gateway.SendResponseAsync(update.ChatId, pendingResponse, cancellationToken);
-                var finalResponse = await handler.HandleAsync(
+                if (isCallback)
+                {
+                    await gateway.AnswerCallbackQueryAsync(callbackQueryId!, cancellationToken);
+                }
+
+                if (!isCallback && update.Text is not null && !TelegramInteractionHandler.IsStartCommand(update.Text))
+                {
+                    var pendingResponse = await handler.TokenizeResponseAsync(
+                        update.ChatId,
+                        TelegramInteractionHandler.RenderPendingTextResponse(update.Text),
+                        cancellationToken);
+                    var pendingMessageId = await gateway.SendResponseAsync(update.ChatId, pendingResponse, cancellationToken);
+                    var finalResponse = await handler.HandleAsync(
+                        ToInteractionUpdate(update),
+                        cancellationToken);
+
+                    if (pendingMessageId is not null)
+                    {
+                        await gateway.EditResponseAsync(
+                            update.ChatId,
+                            pendingMessageId.Value,
+                            finalResponse,
+                            cancellationToken);
+                        await TrackResponseAsync(update.ChatId, pendingMessageId, finalResponse, cancellationToken);
+                    }
+                    else
+                    {
+                        var finalMessageId = await gateway.SendResponseAsync(update.ChatId, finalResponse, cancellationToken);
+                        await TrackResponseAsync(update.ChatId, finalMessageId, finalResponse, cancellationToken);
+                    }
+
+                    nextOffset = Math.Max(nextOffset ?? 0, update.UpdateId + 1);
+                    processed++;
+                    continue;
+                }
+
+                var response = await handler.HandleAsync(
                     ToInteractionUpdate(update),
                     cancellationToken);
 
-                if (pendingMessageId is not null)
+                if (isCallback && update.MessageId is not null)
                 {
                     await gateway.EditResponseAsync(
                         update.ChatId,
-                        pendingMessageId.Value,
-                        finalResponse,
+                        update.MessageId.Value,
+                        response,
                         cancellationToken);
-                    await TrackResponseAsync(update.ChatId, pendingMessageId, finalResponse, cancellationToken);
                 }
                 else
                 {
-                    var finalMessageId = await gateway.SendResponseAsync(update.ChatId, finalResponse, cancellationToken);
-                    await TrackResponseAsync(update.ChatId, finalMessageId, finalResponse, cancellationToken);
+                    var sentMessageId = await gateway.SendResponseAsync(update.ChatId, response, cancellationToken);
+                    await TrackResponseAsync(update.ChatId, sentMessageId, response, cancellationToken);
                 }
 
-                nextOffset = Math.Max(nextOffset ?? 0, update.UpdateId + 1);
-                processed++;
-                continue;
+                if (isCallback && update.MessageId is not null)
+                {
+                    await TrackResponseAsync(update.ChatId, update.MessageId, response, cancellationToken);
+                }
             }
-
-            var response = await handler.HandleAsync(
-                ToInteractionUpdate(update),
-                cancellationToken);
-
-            if (isCallback && update.MessageId is not null)
+            catch (Exception exception) when (IsTelegramChatMigratedException(exception))
             {
-                await gateway.EditResponseAsync(
-                    update.ChatId,
-                    update.MessageId.Value,
-                    response,
+                await LogAsync(
+                    new TelegramLongPollingLogEntry(
+                        TelegramLongPollingLogLevel.Warning,
+                        "Telegram chat migrated to a supergroup; skipping update for the old chat id.",
+                        NextOffset: update.UpdateId + 1,
+                        ProcessedUpdates: processed + 1,
+                        ExceptionType: exception.GetType().Name,
+                        ErrorMessage: exception.Message),
                     cancellationToken);
-            }
-            else
-            {
-                var sentMessageId = await gateway.SendResponseAsync(update.ChatId, response, cancellationToken);
-                await TrackResponseAsync(update.ChatId, sentMessageId, response, cancellationToken);
-            }
-
-            if (isCallback && update.MessageId is not null)
-            {
-                await TrackResponseAsync(update.ChatId, update.MessageId, response, cancellationToken);
             }
 
             nextOffset = Math.Max(nextOffset ?? 0, update.UpdateId + 1);
@@ -237,44 +253,74 @@ public sealed class TelegramLongPollingService
 
             if (pair.Value.LastBotMessageIsTaskDetails && pair.Value.DetailMessageId is not null)
             {
-                var response = await handler.TokenizeResponseAsync(
-                    pair.Key.ChatId,
-                    await handler.RenderTaskDetailsAsync(task.Id, cancellationToken),
-                    cancellationToken);
-                await gateway.EditResponseAsync(pair.Key.ChatId, pair.Value.DetailMessageId.Value, response, cancellationToken);
-                taskWatches[pair.Key] = pair.Value with
+                try
                 {
-                    LastFingerprint = fingerprint,
-                    LastBotMessageIsTaskDetails = true,
-                };
+                    var response = await handler.TokenizeResponseAsync(
+                        pair.Key.ChatId,
+                        await handler.RenderTaskDetailsAsync(task.Id, cancellationToken),
+                        cancellationToken);
+                    await gateway.EditResponseAsync(pair.Key.ChatId, pair.Value.DetailMessageId.Value, response, cancellationToken);
+                    taskWatches[pair.Key] = pair.Value with
+                    {
+                        LastFingerprint = fingerprint,
+                        LastBotMessageIsTaskDetails = true,
+                    };
+                }
+                catch (Exception exception) when (IsTelegramChatMigratedException(exception))
+                {
+                    await ForgetMigratedTaskWatchAsync(pair.Key, exception, cancellationToken);
+                }
+
                 continue;
             }
 
-            var notification = await handler.TokenizeResponseAsync(
-                pair.Key.ChatId,
-                new TelegramResponse(
-                    $"""
-                    Task updated: {task.Id}
-                    Status: {task.Status.ToStorageValue()}
-                    Iterations: {task.CurrentIteration}/{task.MaxIterations}
-                    Failure:
-                    {TelegramMarkdown.Quote(task.FailureReason ?? "(none)")}
-                    """,
-                    new TelegramButtonMarkup(
-                    [
-                        [new TelegramButton("View task", TelegramCallbackData.ViewTask(task.Id))],
-                    ]),
-                    new TelegramResponseMetadata(TelegramResponseKind.TaskWatch, task.Id)),
-                cancellationToken);
-            await gateway.SendResponseAsync(pair.Key.ChatId, notification, cancellationToken);
-
-            taskWatches[pair.Key] = pair.Value with
+            try
             {
-                LastFingerprint = fingerprint,
-                DetailMessageId = null,
-                LastBotMessageIsTaskDetails = false,
-            };
+                var notification = await handler.TokenizeResponseAsync(
+                    pair.Key.ChatId,
+                    new TelegramResponse(
+                        $"""
+                        Task updated: {task.Id}
+                        Status: {task.Status.ToStorageValue()}
+                        Iterations: {task.CurrentIteration}/{task.MaxIterations}
+                        Failure:
+                        {TelegramMarkdown.Quote(task.FailureReason ?? "(none)")}
+                        """,
+                        new TelegramButtonMarkup(
+                        [
+                            [new TelegramButton("View task", TelegramCallbackData.ViewTask(task.Id))],
+                        ]),
+                        new TelegramResponseMetadata(TelegramResponseKind.TaskWatch, task.Id)),
+                    cancellationToken);
+                await gateway.SendResponseAsync(pair.Key.ChatId, notification, cancellationToken);
+
+                taskWatches[pair.Key] = pair.Value with
+                {
+                    LastFingerprint = fingerprint,
+                    DetailMessageId = null,
+                    LastBotMessageIsTaskDetails = false,
+                };
+            }
+            catch (Exception exception) when (IsTelegramChatMigratedException(exception))
+            {
+                await ForgetMigratedTaskWatchAsync(pair.Key, exception, cancellationToken);
+            }
         }
+    }
+
+    private async ValueTask ForgetMigratedTaskWatchAsync(
+        TaskWatchKey key,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        taskWatches.TryRemove(key, out _);
+        await LogAsync(
+            new TelegramLongPollingLogEntry(
+                TelegramLongPollingLogLevel.Warning,
+                "Telegram chat migrated to a supergroup; removing task watch for the old chat id.",
+                ExceptionType: exception.GetType().Name,
+                ErrorMessage: exception.Message),
+            cancellationToken);
     }
 
     private static TelegramUpdate ToInteractionUpdate(TelegramBotUpdate update) =>
@@ -295,7 +341,13 @@ public sealed class TelegramLongPollingService
         $"{task.Status.ToStorageValue()}:{task.CurrentIteration}:{task.FailureReason}";
 
     private static bool IsTransientTelegramTransportException(Exception exception) =>
-        exception is RequestException or HttpRequestException or IOException;
+        !IsTelegramChatMigratedException(exception)
+        && exception is RequestException or HttpRequestException or IOException;
+
+    private static bool IsTelegramChatMigratedException(Exception exception) =>
+        exception is ApiRequestException apiException
+        && (apiException.Parameters?.MigrateToChatId is not null
+            || apiException.Message.Contains("group chat was upgraded to a supergroup chat", StringComparison.OrdinalIgnoreCase));
 
     private async ValueTask LogAsync(
         TelegramLongPollingLogEntry entry,

@@ -2,6 +2,8 @@ using Aeges.Application.Configuration;
 using Aeges.Application.TelegramUsers;
 using Aeges.Core;
 using Aeges.Telegram;
+using Telegram.Bot.Exceptions;
+using Telegram.Bot.Types;
 
 namespace Aeges.Telegram.Tests;
 
@@ -306,6 +308,82 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
+    public async Task PollOnceAsync_skips_group_migration_errors_without_retrying_forever()
+    {
+        var logs = new List<TelegramLongPollingLogEntry>();
+        var gateway = new FakeTelegramBotGateway
+        {
+            ThrowChatMigrationOnSend = true,
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    -1001,
+                    Text: "/start",
+                    CallbackData: null,
+                    CallbackQueryId: null,
+                    IsPrivateChat: false),
+            ],
+        };
+        var service = CreateService(gateway, transientErrorDelay: TimeSpan.Zero, logs: logs);
+
+        var result = await service.PollOnceAsync(null, new TelegramLongPollingOptions(), CancellationToken.None);
+
+        Assert.Equal(42, result.NextOffset);
+        Assert.Equal(1, result.ProcessedUpdates);
+        Assert.Single(gateway.SentResponses);
+        Assert.Contains(logs, entry =>
+            entry.Level == TelegramLongPollingLogLevel.Warning
+            && entry.Message.Contains("migrated", StringComparison.OrdinalIgnoreCase)
+            && entry.ExceptionType == nameof(ApiRequestException));
+    }
+
+    [Fact]
+    public async Task PollOnceAsync_removes_task_watch_when_chat_migrates()
+    {
+        var logs = new List<TelegramLongPollingLogEntry>();
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Wire notifications",
+            "Notify the chat when task status changes.",
+            DateTimeOffset.UtcNow);
+        var facade = new FakeTelegramApplicationFacade { WatchedTask = task };
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    -1001,
+                    Text: null,
+                    CallbackData: TelegramCallbackData.ViewTask(task.Id),
+                    CallbackQueryId: "callback-001",
+                    MessageId: 9001),
+            ],
+        };
+        var service = CreateService(gateway, facade, logs: logs);
+
+        await service.PollOnceAsync(null, new TelegramLongPollingOptions(), CancellationToken.None);
+        task.StartPlanning(DateTimeOffset.UtcNow);
+        gateway.Updates = [];
+        gateway.ThrowChatMigrationOnEdit = true;
+
+        await service.PollOnceAsync(42, new TelegramLongPollingOptions(), CancellationToken.None);
+
+        gateway.ThrowChatMigrationOnEdit = false;
+        task.StartRunning(DateTimeOffset.UtcNow);
+        await service.PollOnceAsync(42, new TelegramLongPollingOptions(), CancellationToken.None);
+
+        Assert.Equal(2, gateway.EditedResponses.Count);
+        Assert.Contains(logs, entry =>
+            entry.Level == TelegramLongPollingLogLevel.Warning
+            && entry.Message.Contains("removing task watch", StringComparison.OrdinalIgnoreCase)
+            && entry.ExceptionType == nameof(ApiRequestException));
+    }
+
+    [Fact]
     public async Task RunAsync_stops_cleanly_when_cancelled()
     {
         using var cancellation = new CancellationTokenSource();
@@ -346,6 +424,10 @@ public sealed class TelegramLongPollingServiceTests
         public IReadOnlyList<TelegramBotUpdate> Updates { get; set; } = [];
 
         public bool ThrowTransientPollingFailureOnce { get; set; }
+
+        public bool ThrowChatMigrationOnSend { get; set; }
+
+        public bool ThrowChatMigrationOnEdit { get; set; }
 
         public int GetUpdatesCallCount { get; private set; }
 
@@ -397,6 +479,14 @@ public sealed class TelegramLongPollingServiceTests
         {
             SentResponses.Add((chatId, response));
             ResponseSent?.Invoke(this, EventArgs.Empty);
+            if (ThrowChatMigrationOnSend)
+            {
+                throw new ApiRequestException(
+                    "Bad Request: group chat was upgraded to a supergroup chat",
+                    400,
+                    new ResponseParameters { MigrateToChatId = -1001234 });
+            }
+
             return Task.FromResult<int?>(SentResponses.Count);
         }
 
@@ -408,6 +498,14 @@ public sealed class TelegramLongPollingServiceTests
         {
             EditedResponses.Add((chatId, messageId, response));
             ResponseEdited?.Invoke(this, EventArgs.Empty);
+            if (ThrowChatMigrationOnEdit)
+            {
+                throw new ApiRequestException(
+                    "Bad Request: group chat was upgraded to a supergroup chat",
+                    400,
+                    new ResponseParameters { MigrateToChatId = -1001234 });
+            }
+
             return Task.CompletedTask;
         }
 
