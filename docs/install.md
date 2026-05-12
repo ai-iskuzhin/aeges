@@ -114,10 +114,23 @@ aeges update --version 0.1.0-alpha.7
 `aeges update` uses the same release artifact contract as the shell installers:
 it downloads `SHA256SUMS`, resolves the matching `Aeges.Cli` package, verifies
 the package checksum, and runs `dotnet tool update --global` with the downloaded
-package directory as a source. Local development builds can be installed with:
+package directory as a source. On Windows, Aeges schedules a deferred updater by
+default because the currently running `aeges` process can lock the global tool
+files. Use `--direct` to force the immediate update path, or `--elevated` to ask
+Windows for administrator consent when the user-profile `.dotnet` directory has
+broken permissions. Local development builds can be installed with:
 
 ```bash
 aeges update --version 0.1.0-alpha.7 --package-source "$PWD/.artifacts/packages"
+```
+
+If Windows still reports `Access to the path ...\.dotnet... is denied`, stop
+background processes and retry:
+
+```powershell
+aeges agent stop
+aeges telegram stop
+aeges update
 ```
 
 For a GitHub release download, specify a version:

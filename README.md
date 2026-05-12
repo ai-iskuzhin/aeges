@@ -113,8 +113,12 @@ aeges update --version 0.1.0-alpha.7 --package-source "$PWD/.artifacts/packages"
 
 `aeges update` downloads release packages through the same GitHub release
 artifact contract as the installer, verifies `SHA256SUMS`, and updates the
-global .NET tool. Restart background processes after updating so they load the
-new runtime:
+global .NET tool. On Windows, self-update is handed off to a deferred updater
+that waits for the current `aeges` process to exit before replacing tool files.
+Use `--direct` to force an immediate `dotnet tool update`, or `--elevated` to
+request a UAC prompt when the user-profile `.dotnet` directory has broken
+permissions. Restart background processes after updating so they load the new
+runtime:
 
 ```bash
 aeges agent restart
@@ -448,7 +452,7 @@ Useful options:
 
 ```text
 aeges version [--json]
-aeges update [--version <version>] [--package-source <path>] [--dry-run] [--json]
+aeges update [--version <version>] [--package-source <path>] [--dry-run] [--direct] [--elevated] [--json]
 aeges setup [--project-id <id>] [--project-name <name>] [--path <path>] [--skip-telegram] [--no-start] [...]
 aeges init [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [...]
 aeges status [--config <path>] [--connection-string <value>] [--json]
@@ -481,7 +485,9 @@ aeges telegram stop [--json]
 the same runtime version when the transport is launched through the CLI.
 
 `aeges update` updates the installed global .NET tool from GitHub release
-artifacts by default. Use `--dry-run` to inspect the update plan.
+artifacts by default. Use `--dry-run` to inspect the update plan. On Windows,
+the default update is deferred to avoid replacing files that the current
+process has locked.
 
 `aeges setup` is the recommended first command for local use. `aeges init` and
 `aeges db migrate` remain available as lower-level scriptable commands.

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net.Http;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -322,6 +323,28 @@ internal static class AegesCli
 
             await WriteUpdateProgressAsync(plan, output);
 
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && !options.Direct)
+            {
+                var deferred = await ScheduleWindowsDeferredUpdateAsync(
+                    plan,
+                    options.Elevated,
+                    cancellationToken);
+
+                await WriteUpdateResultAsync(
+                    AegesUpdateResult.FromDeferred(
+                        currentVersion,
+                        plan.TargetVersion,
+                        plan.PackageSource,
+                        plan.ToolPackage,
+                        deferred.ScriptPath,
+                        deferred.LogPath,
+                        deferred.Elevated),
+                    options.Json,
+                    output);
+
+                return 0;
+            }
+
             var update = await RunDotnetToolAsync("update", plan, cancellationToken);
             var install = update.ExitCode == 0
                 ? null
@@ -331,10 +354,14 @@ internal static class AegesCli
                 update.ExitCode == 0 || install?.ExitCode == 0,
                 options.DryRun,
                 false,
+                false,
+                false,
                 currentVersion,
                 plan.TargetVersion,
                 plan.PackageSource,
                 plan.ToolPackage,
+                null,
+                null,
                 update.Command,
                 update.ExitCode,
                 install?.Command,
@@ -622,22 +649,7 @@ internal static class AegesCli
         AegesUpdatePlan plan,
         CancellationToken cancellationToken)
     {
-        var arguments = new List<string>
-        {
-            "tool",
-            verb,
-            "--global",
-            plan.ToolPackage,
-        };
-
-        if (!string.IsNullOrWhiteSpace(plan.TargetVersion) && plan.TargetVersion != "latest")
-        {
-            arguments.Add("--version");
-            arguments.Add(plan.TargetVersion);
-        }
-
-        arguments.Add("--add-source");
-        arguments.Add(plan.PackageSource);
+        var arguments = CreateDotnetToolArguments(verb, plan);
 
         var startInfo = new ProcessStartInfo("dotnet")
         {
@@ -662,6 +674,117 @@ internal static class AegesCli
             stdout.Trim(),
             stderr.Trim());
     }
+
+    private static IReadOnlyList<string> CreateDotnetToolArguments(
+        string verb,
+        AegesUpdatePlan plan)
+    {
+        var arguments = new List<string>
+        {
+            "tool",
+            verb,
+            "--global",
+            plan.ToolPackage,
+        };
+
+        if (!string.IsNullOrWhiteSpace(plan.TargetVersion) && plan.TargetVersion != "latest")
+        {
+            arguments.Add("--version");
+            arguments.Add(plan.TargetVersion);
+        }
+
+        arguments.Add("--add-source");
+        arguments.Add(plan.PackageSource);
+
+        return arguments;
+    }
+
+    private static async Task<WindowsDeferredUpdate> ScheduleWindowsDeferredUpdateAsync(
+        AegesUpdatePlan plan,
+        bool elevated,
+        CancellationToken cancellationToken)
+    {
+        var layout = RuntimeDirectoryLayout.CreateDefault();
+        var updateDirectory = Path.Combine(layout.RootPath, "tmp", "update");
+        Directory.CreateDirectory(updateDirectory);
+        Directory.CreateDirectory(layout.LogsPath);
+
+        var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        var scriptPath = Path.Combine(updateDirectory, $"aeges-update-{stamp}.ps1");
+        var logPath = Path.Combine(layout.LogsPath, $"update-{stamp}.log");
+        var processId = Environment.ProcessId.ToString(CultureInfo.InvariantCulture);
+        var updateArguments = FormatPowerShellArray(CreateDotnetToolArguments("update", plan));
+        var installArguments = FormatPowerShellArray(CreateDotnetToolArguments("install", plan));
+        var script = $$"""
+            $ErrorActionPreference = "Continue"
+            $logPath = {{FormatPowerShellString(logPath)}}
+            $parentProcessId = {{processId}}
+
+            function Write-AegesUpdateLog([string]$message) {
+                $timestamp = Get-Date -Format "o"
+                "$timestamp $message" | Out-File -FilePath $logPath -Append -Encoding utf8
+            }
+
+            Write-AegesUpdateLog "Waiting for aeges process $parentProcessId to exit."
+
+            try {
+                Wait-Process -Id $parentProcessId -ErrorAction SilentlyContinue
+            }
+            catch {
+                Write-AegesUpdateLog "Wait-Process failed: $($_.Exception.Message)"
+            }
+
+            Start-Sleep -Milliseconds 500
+            Write-AegesUpdateLog "Running dotnet tool update."
+
+            & dotnet @({{updateArguments}}) >> $logPath 2>&1
+            $updateExitCode = $LASTEXITCODE
+            Write-AegesUpdateLog "dotnet tool update exited with $updateExitCode."
+
+            if ($updateExitCode -ne 0) {
+                Write-AegesUpdateLog "Running dotnet tool install fallback."
+                & dotnet @({{installArguments}}) >> $logPath 2>&1
+                $installExitCode = $LASTEXITCODE
+                Write-AegesUpdateLog "dotnet tool install exited with $installExitCode."
+                exit $installExitCode
+            }
+
+            exit $updateExitCode
+            """;
+
+        await File.WriteAllTextAsync(scriptPath, script, Encoding.UTF8, cancellationToken);
+
+        var startInfo = new ProcessStartInfo("powershell.exe")
+        {
+            UseShellExecute = elevated,
+        };
+
+        if (elevated)
+        {
+            startInfo.Verb = "runas";
+        }
+        else
+        {
+            startInfo.CreateNoWindow = true;
+        }
+
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-ExecutionPolicy");
+        startInfo.ArgumentList.Add("Bypass");
+        startInfo.ArgumentList.Add("-File");
+        startInfo.ArgumentList.Add(scriptPath);
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start deferred Windows updater.");
+
+        return new WindowsDeferredUpdate(scriptPath, logPath, elevated);
+    }
+
+    private static string FormatPowerShellArray(IReadOnlyList<string> values) =>
+        string.Join(", ", values.Select(FormatPowerShellString));
+
+    private static string FormatPowerShellString(string value) =>
+        $"'{value.Replace("'", "''", StringComparison.Ordinal)}'";
 
     private static string QuoteCommandArgument(string value) =>
         value.Contains(' ', StringComparison.Ordinal) ? $"\"{value}\"" : value;
@@ -3347,6 +3470,24 @@ internal static class AegesCli
             return;
         }
 
+        if (result.DeferredUpdate)
+        {
+            await output.WriteLineAsync(result.Elevated
+                ? "Aeges update was handed off to an elevated Windows updater."
+                : "Aeges update was handed off to a deferred Windows updater.");
+            await output.WriteLineAsync($"Current version: {result.CurrentVersion}");
+            await output.WriteLineAsync($"Target version: {result.TargetVersion}");
+            await output.WriteLineAsync($"Log: {result.DeferredLogPath}");
+            await output.WriteLineAsync($"Script: {result.DeferredScriptPath}");
+            await output.WriteLineAsync("The updater waits for this aeges process to exit before replacing the global tool.");
+            await output.WriteLineAsync("If access is still denied, stop background processes first:");
+            await output.WriteLineAsync("  aeges agent stop");
+            await output.WriteLineAsync("  aeges telegram stop");
+            await output.WriteLineAsync("Then run: aeges update");
+            await output.WriteLineAsync("Use --elevated only when your user profile .dotnet folder has broken permissions.");
+            return;
+        }
+
         await output.WriteLineAsync(result.Updated ? "Aeges updated." : "Aeges update failed.");
         await output.WriteLineAsync($"Current process version: {result.CurrentVersion}");
         await output.WriteLineAsync($"Target version: {result.TargetVersion}");
@@ -3398,7 +3539,7 @@ internal static class AegesCli
     {
         await error.WriteLineAsync("Usage:");
         await error.WriteLineAsync("  aeges version [--json]");
-        await error.WriteLineAsync("  aeges update [--version <version>] [--package-source <path>] [--download-base-url <url>] [--github-repository <owner/repo>] [--dry-run] [--json]");
+        await error.WriteLineAsync("  aeges update [--version <version>] [--package-source <path>] [--download-base-url <url>] [--github-repository <owner/repo>] [--dry-run] [--direct] [--elevated] [--json]");
         await error.WriteLineAsync("  aeges setup [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--skip-telegram] [--no-start] [--config <path>] [--connection-string <value>]");
         await error.WriteLineAsync("  aeges init [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges status [--config <path>] [--connection-string <value>] [--json]");
@@ -3818,6 +3959,10 @@ internal static class AegesCli
 
         public bool DryRun { get; private init; }
 
+        public bool Direct { get; private init; }
+
+        public bool Elevated { get; private init; }
+
         public new static UpdateOptions Parse(string[] args)
         {
             string? version = null;
@@ -3826,6 +3971,8 @@ internal static class AegesCli
             var githubRepository = "ai-iskuzhin/aeges";
             var toolPackage = "Aeges.Cli";
             var dryRun = false;
+            var direct = false;
+            var elevated = false;
             var json = false;
 
             for (var index = 0; index < args.Length; index++)
@@ -3837,6 +3984,12 @@ internal static class AegesCli
                         break;
                     case "--dry-run":
                         dryRun = true;
+                        break;
+                    case "--direct":
+                        direct = true;
+                        break;
+                    case "--elevated":
+                        elevated = true;
                         break;
                     case "--version":
                         if (!TryReadValue(args, ref index, out version))
@@ -3889,6 +4042,8 @@ internal static class AegesCli
                 GithubRepository = githubRepository!,
                 ToolPackage = toolPackage!,
                 DryRun = dryRun,
+                Direct = direct,
+                Elevated = elevated,
             };
         }
 
@@ -5456,14 +5611,23 @@ internal static class AegesCli
         string StandardOutput,
         string StandardError);
 
+    private sealed record WindowsDeferredUpdate(
+        string ScriptPath,
+        string LogPath,
+        bool Elevated);
+
     private sealed record AegesUpdateResult(
         bool Updated,
         bool DryRun,
         bool UpToDate,
+        bool DeferredUpdate,
+        bool Elevated,
         string CurrentVersion,
         string? TargetVersion,
         string PackageSource,
         string ToolPackage,
+        string? DeferredScriptPath,
+        string? DeferredLogPath,
         string? UpdateCommand,
         int? UpdateExitCode,
         string? InstallCommand,
@@ -5482,10 +5646,14 @@ internal static class AegesCli
                 Updated: false,
                 DryRun: true,
                 UpToDate: false,
+                DeferredUpdate: false,
+                Elevated: false,
                 currentVersion,
                 targetVersion,
                 packageSource,
                 toolPackage,
+                DeferredScriptPath: null,
+                DeferredLogPath: null,
                 UpdateCommand: null,
                 UpdateExitCode: null,
                 InstallCommand: null,
@@ -5504,10 +5672,43 @@ internal static class AegesCli
                 Updated: false,
                 DryRun: false,
                 UpToDate: true,
+                DeferredUpdate: false,
+                Elevated: false,
                 currentVersion,
                 targetVersion,
                 packageSource,
                 toolPackage,
+                DeferredScriptPath: null,
+                DeferredLogPath: null,
+                UpdateCommand: null,
+                UpdateExitCode: null,
+                InstallCommand: null,
+                InstallExitCode: null,
+                UpdateStandardOutput: null,
+                UpdateStandardError: null,
+                InstallStandardOutput: null,
+                InstallStandardError: null);
+
+        public static AegesUpdateResult FromDeferred(
+            string currentVersion,
+            string? targetVersion,
+            string packageSource,
+            string toolPackage,
+            string scriptPath,
+            string logPath,
+            bool elevated) =>
+            new(
+                Updated: false,
+                DryRun: false,
+                UpToDate: false,
+                DeferredUpdate: true,
+                Elevated: elevated,
+                currentVersion,
+                targetVersion,
+                packageSource,
+                toolPackage,
+                scriptPath,
+                logPath,
                 UpdateCommand: null,
                 UpdateExitCode: null,
                 InstallCommand: null,

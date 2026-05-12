@@ -109,4 +109,20 @@ public sealed class AegesCliUpdateTests
         Assert.Equal("0.1.0-alpha.3", document.RootElement.GetProperty("TargetVersion").GetString());
         Assert.Equal("Aeges.Cli", document.RootElement.GetProperty("ToolPackage").GetString());
     }
+
+    [Fact]
+    public async Task Update_accepts_windows_self_update_options()
+    {
+        var output = new StringWriter();
+
+        var exitCode = await AegesCli.RunAsync(
+            ["update", "--dry-run", "--direct", "--elevated", "--version", "0.1.0-alpha.3"],
+            TextReader.Null,
+            output,
+            TextWriter.Null,
+            CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("Aeges update dry run.", output.ToString(), StringComparison.Ordinal);
+    }
 }
