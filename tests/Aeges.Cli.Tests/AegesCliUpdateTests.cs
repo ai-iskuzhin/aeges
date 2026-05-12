@@ -17,6 +17,7 @@ public sealed class AegesCliUpdateTests
             CancellationToken.None);
 
         Assert.Equal(0, exitCode);
+        Assert.StartsWith("Resolving Aeges update...", output.ToString(), StringComparison.Ordinal);
         Assert.Contains("Aeges update dry run.", output.ToString(), StringComparison.Ordinal);
         Assert.Contains("Target version: 0.1.0-alpha.3", output.ToString(), StringComparison.Ordinal);
         Assert.Contains("Source: (resolved from GitHub Releases)", output.ToString(), StringComparison.Ordinal);
@@ -47,6 +48,41 @@ public sealed class AegesCliUpdateTests
 
             Assert.Equal(0, exitCode);
             Assert.Contains($"Source: {packageSource}", output.ToString(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(packageSource, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Update_skips_dotnet_tool_update_when_target_matches_current_version()
+    {
+        var packageSource = Path.Combine(Path.GetTempPath(), "aeges-update-source", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageSource);
+        var versionOutput = new StringWriter();
+        await AegesCli.RunAsync(["version"], TextReader.Null, versionOutput, TextWriter.Null, CancellationToken.None);
+        var currentVersion = versionOutput.ToString().Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last();
+        var output = new StringWriter();
+
+        try
+        {
+            var exitCode = await AegesCli.RunAsync(
+                [
+                    "update",
+                    "--version",
+                    currentVersion,
+                    "--package-source",
+                    packageSource,
+                ],
+                TextReader.Null,
+                output,
+                TextWriter.Null,
+                CancellationToken.None);
+
+            Assert.Equal(0, exitCode);
+            Assert.Contains("Aeges is already up to date.", output.ToString(), StringComparison.Ordinal);
+            Assert.Contains($"Target version: {currentVersion}", output.ToString(), StringComparison.Ordinal);
         }
         finally
         {

@@ -292,12 +292,29 @@ internal static class AegesCli
 
         try
         {
+            if (!options.Json)
+            {
+                await output.WriteLineAsync("Resolving Aeges update...");
+                await output.WriteLineAsync($"Current version: {GetComparableVersion(GetVersion())}");
+                await output.FlushAsync(cancellationToken);
+            }
+
             var plan = await CreateUpdatePlanAsync(options, cancellationToken);
+            var currentVersion = GetVersion();
 
             if (options.DryRun)
             {
                 await WriteUpdateResultAsync(
-                    AegesUpdateResult.FromDryRun(GetVersion(), plan.TargetVersion, plan.PackageSource, plan.ToolPackage),
+                    AegesUpdateResult.FromDryRun(currentVersion, plan.TargetVersion, plan.PackageSource, plan.ToolPackage),
+                    options.Json,
+                    output);
+                return 0;
+            }
+
+            if (IsCurrentVersion(plan.TargetVersion, currentVersion))
+            {
+                await WriteUpdateResultAsync(
+                    AegesUpdateResult.FromUpToDate(currentVersion, plan.TargetVersion, plan.PackageSource, plan.ToolPackage),
                     options.Json,
                     output);
                 return 0;
@@ -313,7 +330,8 @@ internal static class AegesCli
             var result = new AegesUpdateResult(
                 update.ExitCode == 0 || install?.ExitCode == 0,
                 options.DryRun,
-                GetVersion(),
+                false,
+                currentVersion,
                 plan.TargetVersion,
                 plan.PackageSource,
                 plan.ToolPackage,
@@ -2213,6 +2231,33 @@ internal static class AegesCli
         return assembly.GetName().Version?.ToString() ?? "unknown";
     }
 
+    private static bool IsCurrentVersion(string? targetVersion, string currentVersion)
+    {
+        if (string.IsNullOrWhiteSpace(targetVersion) || targetVersion == "latest")
+        {
+            return false;
+        }
+
+        return string.Equals(
+            GetComparableVersion(currentVersion),
+            GetComparableVersion(targetVersion),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetComparableVersion(string version)
+    {
+        var comparable = version.Trim();
+
+        if (comparable.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+        {
+            comparable = comparable[1..];
+        }
+
+        var metadataIndex = comparable.IndexOf('+', StringComparison.Ordinal);
+
+        return metadataIndex < 0 ? comparable : comparable[..metadataIndex];
+    }
+
     private static async Task<LocalRuntimeStatusOutput> BuildLocalStatusAsync(
         CliOptions options,
         CancellationToken cancellationToken)
@@ -3289,6 +3334,15 @@ internal static class AegesCli
             await output.WriteLineAsync($"Current version: {result.CurrentVersion}");
             await output.WriteLineAsync($"Target version: {result.TargetVersion}");
             await output.WriteLineAsync($"Package: {result.ToolPackage}");
+            await output.WriteLineAsync($"Source: {result.PackageSource}");
+            return;
+        }
+
+        if (result.UpToDate)
+        {
+            await output.WriteLineAsync("Aeges is already up to date.");
+            await output.WriteLineAsync($"Current version: {result.CurrentVersion}");
+            await output.WriteLineAsync($"Target version: {result.TargetVersion}");
             await output.WriteLineAsync($"Source: {result.PackageSource}");
             return;
         }
@@ -5405,6 +5459,7 @@ internal static class AegesCli
     private sealed record AegesUpdateResult(
         bool Updated,
         bool DryRun,
+        bool UpToDate,
         string CurrentVersion,
         string? TargetVersion,
         string PackageSource,
@@ -5426,6 +5481,29 @@ internal static class AegesCli
             new(
                 Updated: false,
                 DryRun: true,
+                UpToDate: false,
+                currentVersion,
+                targetVersion,
+                packageSource,
+                toolPackage,
+                UpdateCommand: null,
+                UpdateExitCode: null,
+                InstallCommand: null,
+                InstallExitCode: null,
+                UpdateStandardOutput: null,
+                UpdateStandardError: null,
+                InstallStandardOutput: null,
+                InstallStandardError: null);
+
+        public static AegesUpdateResult FromUpToDate(
+            string currentVersion,
+            string? targetVersion,
+            string packageSource,
+            string toolPackage) =>
+            new(
+                Updated: false,
+                DryRun: false,
+                UpToDate: true,
                 currentVersion,
                 targetVersion,
                 packageSource,
