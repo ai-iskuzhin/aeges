@@ -44,6 +44,33 @@ public sealed class TelegramProcessManagerTests
         Assert.Equal(int.MaxValue, status.Metadata?.ProcessId);
     }
 
+    [Fact]
+    public void RuntimeLock_prevents_multiple_telegram_transports()
+    {
+        using var runtime = new TemporaryRuntimeDirectory();
+        using var firstLock = TelegramRuntimeLock.TryAcquire(runtime.Layout);
+
+        using var secondLock = TelegramRuntimeLock.TryAcquire(runtime.Layout);
+
+        Assert.NotNull(firstLock);
+        Assert.Null(secondLock);
+        Assert.False(TelegramRuntimeLock.CanAcquire(runtime.Layout));
+    }
+
+    [Fact]
+    public void RuntimeLock_releases_when_disposed()
+    {
+        using var runtime = new TemporaryRuntimeDirectory();
+        using (var firstLock = TelegramRuntimeLock.TryAcquire(runtime.Layout))
+        {
+            Assert.NotNull(firstLock);
+        }
+
+        using var secondLock = TelegramRuntimeLock.TryAcquire(runtime.Layout);
+
+        Assert.NotNull(secondLock);
+    }
+
     private sealed class TemporaryRuntimeDirectory : IDisposable
     {
         public TemporaryRuntimeDirectory()

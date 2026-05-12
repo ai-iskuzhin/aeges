@@ -54,6 +54,12 @@ fetches message and callback-query updates, acknowledges callback queries, then
 sends the handler response as a Telegram message with inline keyboard markup or
 edits the callback message in place.
 
+Only one local Telegram transport should poll a bot at a time. `aeges telegram
+run` acquires a local runtime lock under `~/.aeges/runs/telegram.lock`, and
+`aeges telegram start` checks that lock before launching a background transport.
+This prevents duplicate pollers from sending duplicate responses to the same
+operator message.
+
 Allowed chat IDs are enforced before application services are called. An empty
 allowed-chat list is treated as open local MVP mode; configured chat IDs restrict
 the bot to those chats.

@@ -247,6 +247,8 @@ review, test, and document independently.
       payloads within Telegram limits.
 - [x] Show a pending Telegram text response with a cancel button, then edit it
       with the final response.
+- [x] Add a local Telegram runtime lock so foreground and background pollers do
+      not process the same bot updates twice.
 - [ ] Add true mid-turn Telegram cancellation for long-running talk responses.
 
 ## Talk Mode
