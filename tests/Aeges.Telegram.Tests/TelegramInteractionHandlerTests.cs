@@ -573,6 +573,67 @@ public sealed class TelegramInteractionHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_requires_group_continuation_feedback_to_reply_to_prompt_from_same_user()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Fix smoke test",
+            "Update notes/status.txt.",
+            Now);
+        task.StartPlanning(Now);
+        task.AdvanceIteration(Now);
+        task.StartRunning(Now);
+        task.StartReview(Now);
+        var facade = new FakeTelegramApplicationFacade { Task = task };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var prompt = await handler.HandleAsync(
+            new TelegramUpdate(
+                -1001,
+                CallbackData: TelegramCallbackData.ContinueTask(task.Id),
+                SenderUserId: 1001,
+                MessageId: 9001,
+                MessageThreadId: 77,
+                IsPrivateChat: false),
+            CancellationToken.None);
+        var otherUser = await handler.HandleAsync(
+            new TelegramUpdate(
+                -1001,
+                Text: "Someone else tries to continue.",
+                SenderUserId: 2002,
+                MessageThreadId: 77,
+                ReplyToMessageId: 9001,
+                IsPrivateChat: false),
+            CancellationToken.None);
+        var notReply = await handler.HandleAsync(
+            new TelegramUpdate(
+                -1001,
+                Text: "Same user but not a reply.",
+                SenderUserId: 1001,
+                MessageThreadId: 77,
+                IsPrivateChat: false),
+            CancellationToken.None);
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(
+                -1001,
+                Text: "Please retry with sandbox disabled.",
+                SenderUserId: 1001,
+                MessageThreadId: 77,
+                ReplyToMessageId: 9001,
+                IsPrivateChat: false),
+            CancellationToken.None);
+
+        Assert.Equal("Reply to this message with the follow-up instructions for the next iteration.", prompt.Text);
+        Assert.Contains("waiting for the user who pressed Continue", otherUser.Text, StringComparison.Ordinal);
+        Assert.Contains("Reply to the bot follow-up prompt", notReply.Text, StringComparison.Ordinal);
+        Assert.True(facade.ContinueTaskCalled);
+        Assert.Equal("Please retry with sandbox disabled.", facade.ContinuedFeedback);
+        Assert.Contains("Task continued: task-001", response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task HandleAsync_completes_reviewing_task_from_button_callback()
     {
         var task = RuntimeTask.Create(

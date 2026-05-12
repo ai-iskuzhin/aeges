@@ -141,6 +141,12 @@ task bucket without a duplicate status notification. Press `Continue` and send
 follow-up feedback to store a `review` artifact and requeue the task for another
 bounded iteration.
 
+Continuation drafts are scoped to the user who pressed `Continue`. In private
+chats, the next non-empty message from that chat is accepted as feedback. In
+groups and supergroups, the feedback must come from the same Telegram sender in
+the same topic/thread and reply to the bot's follow-up prompt message. This
+prevents unrelated group discussion from accidentally becoming task feedback.
+
 Artifact paths shown in Telegram are runtime artifact paths under the local
 Aeges artifact root, such as `~/.aeges/artifacts/...`; they are not saved inside
 the target project checkout.

@@ -111,7 +111,11 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
                 callback.Message?.MessageId,
                 user.Username,
                 user.FirstName,
-                user.LastName);
+                user.LastName,
+                user.Id,
+                callback.Message?.MessageThreadId,
+                ReplyToMessageId: null,
+                IsPrivateChat: callback.Message?.Chat.Type == ChatType.Private || callback.Message is null && callback.From.Id == chatId);
         }
 
         if (update.Message is not null)
@@ -126,7 +130,11 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
                 CallbackQueryId: null,
                 Username: user?.Username,
                 FirstName: user?.FirstName,
-                LastName: user?.LastName);
+                LastName: user?.LastName,
+                SenderUserId: user?.Id,
+                MessageThreadId: update.Message.MessageThreadId,
+                ReplyToMessageId: update.Message.ReplyToMessage?.MessageId,
+                IsPrivateChat: update.Message.Chat.Type == ChatType.Private);
         }
 
         return null;

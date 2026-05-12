@@ -11,13 +11,23 @@ namespace Aeges.Telegram;
 /// <param name="Username">The Telegram username without an at-sign, when available.</param>
 /// <param name="FirstName">The Telegram first name, when available.</param>
 /// <param name="LastName">The Telegram last name, when available.</param>
+/// <param name="SenderUserId">The Telegram user identifier for the sender, when available.</param>
+/// <param name="MessageId">The inbound message identifier, or callback message identifier.</param>
+/// <param name="MessageThreadId">The Telegram forum topic/thread identifier, when available.</param>
+/// <param name="ReplyToMessageId">The message identifier this message replies to, when available.</param>
+/// <param name="IsPrivateChat">A value indicating whether the update came from a private chat.</param>
 public sealed record TelegramUpdate(
     long ChatId,
     string? Text = null,
     string? CallbackData = null,
     string? Username = null,
     string? FirstName = null,
-    string? LastName = null)
+    string? LastName = null,
+    long? SenderUserId = null,
+    int? MessageId = null,
+    int? MessageThreadId = null,
+    int? ReplyToMessageId = null,
+    bool IsPrivateChat = true)
 {
     /// <summary>
     /// Converts the observed Telegram sender fields into a domain profile.

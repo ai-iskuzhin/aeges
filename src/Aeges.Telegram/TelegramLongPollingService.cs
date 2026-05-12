@@ -284,7 +284,12 @@ public sealed class TelegramLongPollingService
             update.CallbackData,
             update.Username,
             update.FirstName,
-            update.LastName);
+            update.LastName,
+            update.SenderUserId,
+            update.MessageId,
+            update.MessageThreadId,
+            update.ReplyToMessageId,
+            update.IsPrivateChat);
 
     private static string CreateTaskFingerprint(RuntimeTask task) =>
         $"{task.Status.ToStorageValue()}:{task.CurrentIteration}:{task.FailureReason}";
