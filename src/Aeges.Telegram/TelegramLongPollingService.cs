@@ -344,10 +344,18 @@ public sealed class TelegramLongPollingService
             CreateTaskFingerprint(task),
             isDetails ? messageId : null,
             isDetails && messageId is not null);
+        await handler.RecordTaskBindingAsync(
+            chatId,
+            messageThreadId,
+            taskId,
+            isDetails ? messageId : null,
+            cancellationToken);
     }
 
     private async Task NotifyTaskWatchersAsync(CancellationToken cancellationToken)
     {
+        await LoadDurableTaskWatchesAsync(cancellationToken);
+
         foreach (var pair in taskWatches.ToArray())
         {
             var task = await handler.GetTaskOrDefaultAsync(pair.Key.TaskId, cancellationToken);
@@ -355,6 +363,11 @@ public sealed class TelegramLongPollingService
             if (task is null)
             {
                 taskWatches.TryRemove(pair.Key, out _);
+                await handler.ForgetTaskBindingAsync(
+                    pair.Key.ChatId,
+                    pair.Key.MessageThreadId,
+                    pair.Key.TaskId,
+                    cancellationToken);
                 continue;
             }
 
@@ -426,12 +439,51 @@ public sealed class TelegramLongPollingService
         }
     }
 
+    private async Task LoadDurableTaskWatchesAsync(CancellationToken cancellationToken)
+    {
+        var bindings = await handler.ListTaskBindingsAsync(cancellationToken);
+
+        foreach (var binding in bindings)
+        {
+            var key = new TaskWatchKey(binding.ChatId, binding.MessageThreadId, binding.TaskId);
+
+            if (taskWatches.ContainsKey(key))
+            {
+                continue;
+            }
+
+            var task = await handler.GetTaskOrDefaultAsync(binding.TaskId, cancellationToken);
+            if (task is null || IsTerminal(task.Status))
+            {
+                await handler.ForgetTaskBindingAsync(
+                    binding.ChatId,
+                    binding.MessageThreadId,
+                    binding.TaskId,
+                    cancellationToken);
+                continue;
+            }
+
+            taskWatches[key] = new TaskWatch(
+                binding.ChatId,
+                binding.MessageThreadId,
+                binding.TaskId,
+                CreateTaskFingerprint(task),
+                binding.DetailMessageId,
+                binding.DetailMessageId is not null);
+        }
+    }
+
     private async ValueTask ForgetMigratedTaskWatchAsync(
         TaskWatchKey key,
         Exception exception,
         CancellationToken cancellationToken)
     {
         taskWatches.TryRemove(key, out _);
+        await handler.ForgetTaskBindingAsync(
+            key.ChatId,
+            key.MessageThreadId,
+            key.TaskId,
+            cancellationToken);
         await LogAsync(
             new TelegramLongPollingLogEntry(
                 TelegramLongPollingLogLevel.Warning,
@@ -457,6 +509,9 @@ public sealed class TelegramLongPollingService
 
     private static string CreateTaskFingerprint(RuntimeTask task) =>
         $"{task.Status.ToStorageValue()}:{task.CurrentIteration}:{task.FailureReason}";
+
+    private static bool IsTerminal(RuntimeTaskStatus status) =>
+        status is RuntimeTaskStatus.Completed or RuntimeTaskStatus.Failed or RuntimeTaskStatus.Cancelled;
 
     private static bool TryParseNewTaskCommand(
         string text,

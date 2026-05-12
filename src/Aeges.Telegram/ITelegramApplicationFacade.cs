@@ -247,6 +247,43 @@ public interface ITelegramApplicationFacade
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Records where Telegram should route updates for a task.
+    /// </summary>
+    /// <param name="chatId">The Telegram chat identifier.</param>
+    /// <param name="messageThreadId">The Telegram forum topic identifier, when available.</param>
+    /// <param name="taskId">The task identifier.</param>
+    /// <param name="detailMessageId">The latest editable task details message, when available.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    Task RecordTaskBindingAsync(
+        long chatId,
+        int? messageThreadId,
+        TaskId taskId,
+        int? detailMessageId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Lists durable Telegram task routing bindings.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The durable Telegram task routing bindings.</returns>
+    Task<IReadOnlyList<RuntimeTelegramTaskBinding>> ListTaskBindingsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Forgets a Telegram task routing binding.
+    /// </summary>
+    /// <param name="chatId">The Telegram chat identifier.</param>
+    /// <param name="messageThreadId">The Telegram forum topic identifier, when available.</param>
+    /// <param name="taskId">The task identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    Task ForgetTaskBindingAsync(
+        long chatId,
+        int? messageThreadId,
+        TaskId taskId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Gets a task by identifier.
     /// </summary>
     /// <param name="taskId">The task identifier.</param>

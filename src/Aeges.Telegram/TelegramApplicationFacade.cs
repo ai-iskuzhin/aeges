@@ -8,6 +8,7 @@ using Aeges.Application.Projects;
 using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
 using Aeges.Application.Talk;
+using Aeges.Application.TelegramTaskBindings;
 using Aeges.Application.TelegramUsers;
 using Aeges.Application.Tasks;
 using Aeges.Core;
@@ -34,6 +35,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     private readonly ApprovalService approvalService;
     private readonly TalkService talkService;
     private readonly TelegramUserService telegramUserService;
+    private readonly TelegramTaskBindingService telegramTaskBindingService;
     private readonly RuntimeDirectoryLayout runtimeLayout;
     private readonly AegesConfiguration configuration;
     private readonly string configPath;
@@ -51,6 +53,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     /// <param name="approvalService">The approval application service.</param>
     /// <param name="talkService">The governed talk application service.</param>
     /// <param name="telegramUserService">The Telegram user application service.</param>
+    /// <param name="telegramTaskBindingService">The Telegram task binding application service.</param>
     /// <param name="configuration">The loaded local runtime configuration.</param>
     /// <param name="configPath">The configuration file path to update for settings changes.</param>
     /// <param name="runtimeLayout">The runtime directory layout used to resolve local artifact previews.</param>
@@ -65,6 +68,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         ApprovalService approvalService,
         TalkService talkService,
         TelegramUserService telegramUserService,
+        TelegramTaskBindingService telegramTaskBindingService,
         AegesConfiguration configuration,
         string configPath,
         RuntimeDirectoryLayout? runtimeLayout = null)
@@ -79,6 +83,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         this.approvalService = approvalService;
         this.talkService = talkService;
         this.telegramUserService = telegramUserService;
+        this.telegramTaskBindingService = telegramTaskBindingService;
         this.configuration = configuration;
         this.configPath = configPath;
         this.runtimeLayout = runtimeLayout ?? RuntimeDirectoryLayout.CreateDefault();
@@ -315,6 +320,32 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         await taskService.CreateAsync(
             new CreateTaskRequest(projectId, machineId, title, goal),
             cancellationToken);
+
+    /// <inheritdoc />
+    public async Task RecordTaskBindingAsync(
+        long chatId,
+        int? messageThreadId,
+        TaskId taskId,
+        int? detailMessageId,
+        CancellationToken cancellationToken) =>
+        await telegramTaskBindingService.RecordAsync(
+            chatId,
+            messageThreadId,
+            taskId,
+            detailMessageId,
+            cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<RuntimeTelegramTaskBinding>> ListTaskBindingsAsync(CancellationToken cancellationToken) =>
+        await telegramTaskBindingService.ListAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async Task ForgetTaskBindingAsync(
+        long chatId,
+        int? messageThreadId,
+        TaskId taskId,
+        CancellationToken cancellationToken) =>
+        await telegramTaskBindingService.ForgetAsync(chatId, messageThreadId, taskId, cancellationToken);
 
     /// <inheritdoc />
     public async Task<ApplicationResult<RuntimeTask>> GetTaskAsync(
