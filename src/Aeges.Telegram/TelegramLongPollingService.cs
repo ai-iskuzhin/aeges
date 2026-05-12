@@ -51,13 +51,16 @@ public sealed class TelegramLongPollingService
             {
                 var result = await PollOnceAsync(nextOffset, options, cancellationToken);
                 nextOffset = result.NextOffset;
-                await LogAsync(
-                    new TelegramLongPollingLogEntry(
-                        TelegramLongPollingLogLevel.Information,
-                        "Polling batch completed.",
-                        result.NextOffset,
-                        result.ProcessedUpdates),
-                    cancellationToken);
+                if (result.ProcessedUpdates > 0)
+                {
+                    await LogAsync(
+                        new TelegramLongPollingLogEntry(
+                            TelegramLongPollingLogLevel.Information,
+                            "Polling batch completed.",
+                            result.NextOffset,
+                            result.ProcessedUpdates),
+                        cancellationToken);
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

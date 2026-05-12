@@ -286,6 +286,26 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_does_not_log_empty_polling_batches()
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var logs = new List<TelegramLongPollingLogEntry>();
+        var gateway = new FakeTelegramBotGateway();
+        gateway.BeforeGetUpdates += (_, _) =>
+        {
+            if (gateway.GetUpdatesCallCount == 2)
+            {
+                cancellation.Cancel();
+            }
+        };
+        var service = CreateService(gateway, transientErrorDelay: TimeSpan.Zero, logs: logs);
+
+        await service.RunAsync(new TelegramLongPollingOptions(), cancellation.Token);
+
+        Assert.Empty(logs);
+    }
+
+    [Fact]
     public async Task RunAsync_stops_cleanly_when_cancelled()
     {
         using var cancellation = new CancellationTokenSource();

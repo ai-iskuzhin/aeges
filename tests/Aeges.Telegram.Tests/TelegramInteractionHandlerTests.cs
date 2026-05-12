@@ -131,6 +131,27 @@ public sealed class TelegramInteractionHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_does_not_allow_admin_to_deny_self()
+    {
+        var admin = RuntimeTelegramUser.CreateFirstAdmin(1001, Now);
+        var facade = new FakeTelegramApplicationFacade { TelegramUsers = [admin] };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var details = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ViewTelegramUser(admin.Id)),
+            CancellationToken.None);
+        var denied = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.DenyTelegramUser(admin.Id)),
+            CancellationToken.None);
+
+        Assert.DoesNotContain(
+            details.Buttons.Rows.SelectMany(row => row),
+            button => button.Text == "Deny");
+        Assert.Contains("You cannot deny your own Telegram user.", denied.Text, StringComparison.Ordinal);
+        Assert.Equal(TelegramUserStatus.Approved, admin.Status);
+    }
+
+    [Fact]
     public async Task HandleAsync_renders_project_access_as_red_until_granted()
     {
         var user = RuntimeTelegramUser.CreatePending(2002, Now);

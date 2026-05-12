@@ -125,11 +125,11 @@ public sealed class TelegramInteractionHandler
             _ when TelegramCallbackData.TryParseViewApproval(callbackData, out var approvalId) =>
                 await RequireAdmin(authorization, () => ViewApprovalAsync(approvalId, cancellationToken)),
             _ when TelegramCallbackData.TryParseViewTelegramUser(callbackData, out var userId) =>
-                await RequireAdmin(authorization, () => ViewTelegramUserAsync(userId, cancellationToken)),
+                await RequireAdmin(authorization, () => ViewTelegramUserAsync(userId, authorization.User.Id, cancellationToken)),
             _ when TelegramCallbackData.TryParseApproveTelegramUser(callbackData, out var userId) =>
                 await RequireAdmin(authorization, () => ApproveTelegramUserAsync(userId, cancellationToken)),
             _ when TelegramCallbackData.TryParseDenyTelegramUser(callbackData, out var userId) =>
-                await RequireAdmin(authorization, () => DenyTelegramUserAsync(userId, cancellationToken)),
+                await RequireAdmin(authorization, () => DenyTelegramUserAsync(userId, authorization.User.Id, cancellationToken)),
             _ when TelegramCallbackData.TryParseSetTelegramProjectAccess(callbackData, out var userId, out var projectId, out var allowed) =>
                 await RequireAdmin(authorization, () => SetTelegramProjectAccessAsync(userId, projectId, allowed, cancellationToken)),
             _ when TelegramCallbackData.TryParseSetTelegramProjectGroupAccess(callbackData, out var userId, out var groupId, out var allowed) =>
@@ -805,6 +805,7 @@ public sealed class TelegramInteractionHandler
 
     private async Task<TelegramResponse> ViewTelegramUserAsync(
         TelegramUserId userId,
+        TelegramUserId actingUserId,
         CancellationToken cancellationToken)
     {
         var access = await application.GetTelegramUserAccessAsync(userId, cancellationToken);
@@ -814,7 +815,7 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse($"{access.Error!.Code}: {access.Error.Message}", BackButtons());
         }
 
-        return await RenderTelegramUserAccessAsync(access.Value!, null, cancellationToken);
+        return await RenderTelegramUserAccessAsync(access.Value!, null, actingUserId, cancellationToken);
     }
 
     private async Task<TelegramResponse> ApproveTelegramUserAsync(
@@ -830,14 +831,23 @@ public sealed class TelegramInteractionHandler
 
         var access = await application.GetTelegramUserAccessAsync(userId, cancellationToken);
         return access.IsSuccess
-            ? await RenderTelegramUserAccessAsync(access.Value!, "User approved.", cancellationToken)
+            ? await RenderTelegramUserAccessAsync(access.Value!, "User approved.", actingUserId: null, cancellationToken)
             : new TelegramResponse($"{access.Error!.Code}: {access.Error.Message}", BackButtons());
     }
 
     private async Task<TelegramResponse> DenyTelegramUserAsync(
         TelegramUserId userId,
+        TelegramUserId actingUserId,
         CancellationToken cancellationToken)
     {
+        if (userId == actingUserId)
+        {
+            var selfAccess = await application.GetTelegramUserAccessAsync(userId, cancellationToken);
+            return selfAccess.IsSuccess
+                ? await RenderTelegramUserAccessAsync(selfAccess.Value!, "You cannot deny your own Telegram user.", actingUserId, cancellationToken)
+                : new TelegramResponse("You cannot deny your own Telegram user.", BackButtons());
+        }
+
         var result = await application.DenyTelegramUserAsync(userId, cancellationToken);
 
         if (!result.IsSuccess)
@@ -847,7 +857,7 @@ public sealed class TelegramInteractionHandler
 
         var access = await application.GetTelegramUserAccessAsync(userId, cancellationToken);
         return access.IsSuccess
-            ? await RenderTelegramUserAccessAsync(access.Value!, "User denied.", cancellationToken)
+            ? await RenderTelegramUserAccessAsync(access.Value!, "User denied.", actingUserId: null, cancellationToken)
             : new TelegramResponse($"{access.Error!.Code}: {access.Error.Message}", BackButtons());
     }
 
@@ -860,7 +870,7 @@ public sealed class TelegramInteractionHandler
         var result = await application.SetTelegramProjectAccessAsync(userId, projectId, allowed, cancellationToken);
 
         return result.IsSuccess
-            ? await RenderTelegramUserAccessAsync(result.Value!, allowed ? "Project access granted." : "Project access revoked.", cancellationToken)
+            ? await RenderTelegramUserAccessAsync(result.Value!, allowed ? "Project access granted." : "Project access revoked.", actingUserId: null, cancellationToken)
             : new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
     }
 
@@ -873,13 +883,14 @@ public sealed class TelegramInteractionHandler
         var result = await application.SetTelegramProjectGroupAccessAsync(userId, groupId, allowed, cancellationToken);
 
         return result.IsSuccess
-            ? await RenderTelegramUserAccessAsync(result.Value!, allowed ? "Group access granted." : "Group access revoked.", cancellationToken)
+            ? await RenderTelegramUserAccessAsync(result.Value!, allowed ? "Group access granted." : "Group access revoked.", actingUserId: null, cancellationToken)
             : new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
     }
 
     private async Task<TelegramResponse> RenderTelegramUserAccessAsync(
         TelegramUserAccessSnapshot access,
         string? notice,
+        TelegramUserId? actingUserId,
         CancellationToken cancellationToken)
     {
         var user = access.User;
@@ -894,7 +905,7 @@ public sealed class TelegramInteractionHandler
             buttons.Add(Button("Approve", TelegramCallbackData.ApproveTelegramUser(user.Id), TelegramButtonStyle.Success));
         }
 
-        if (user.Status != TelegramUserStatus.Denied)
+        if (user.Status != TelegramUserStatus.Denied && user.Id != actingUserId)
         {
             buttons.Add(Button("Deny", TelegramCallbackData.DenyTelegramUser(user.Id), TelegramButtonStyle.Danger));
         }
