@@ -9,6 +9,9 @@
     "botTokenFilePath": null,
     "allowedChatIds": []
   },
+  "agent": {
+    "maxParallelTasks": 1
+  },
   "runners": {
     "default": "mock",
     "codex": {

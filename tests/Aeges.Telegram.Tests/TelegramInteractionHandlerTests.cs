@@ -808,7 +808,10 @@ public sealed class TelegramInteractionHandlerTests
     {
         var facade = new FakeTelegramApplicationFacade
         {
-            RunnerSettings = new TelegramRunnerSettings("workspace-write", CodexBypassApprovalsAndSandbox: false),
+            RunnerSettings = new TelegramRunnerSettings(
+                "workspace-write",
+                CodexBypassApprovalsAndSandbox: false,
+                AgentMaxParallelTasks: 4),
         };
         var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
 
@@ -816,14 +819,21 @@ public sealed class TelegramInteractionHandlerTests
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.SettingsMenu),
             CancellationToken.None);
 
+        Assert.Contains("Agent parallel tasks: 4", response.Text, StringComparison.Ordinal);
         Assert.Contains("Codex sandbox: workspace-write", response.Text, StringComparison.Ordinal);
         Assert.Contains("Codex bypass approvals and sandbox: disallowed", response.Text, StringComparison.Ordinal);
-        Assert.Equal("Sandbox enabled", response.Buttons.Rows[0][0].Text);
-        Assert.Equal("ae:s:sb:danger-full-access", response.Buttons.Rows[0][0].CallbackData);
-        Assert.Equal(TelegramButtonStyle.Success, response.Buttons.Rows[0][0].Style);
-        Assert.Equal("Bypass disabled", response.Buttons.Rows[0][1].Text);
-        Assert.Equal("ae:s:bp:1", response.Buttons.Rows[0][1].CallbackData);
-        Assert.Equal(TelegramButtonStyle.Danger, response.Buttons.Rows[0][1].Style);
+        Assert.Equal("1", response.Buttons.Rows[0][0].Text);
+        Assert.Equal("ae:s:p:1", response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal(TelegramButtonStyle.Primary, response.Buttons.Rows[0][0].Style);
+        Assert.Equal("4", response.Buttons.Rows[1][0].Text);
+        Assert.Equal("ae:s:p:4", response.Buttons.Rows[1][0].CallbackData);
+        Assert.Equal(TelegramButtonStyle.Success, response.Buttons.Rows[1][0].Style);
+        Assert.Equal("Sandbox enabled", response.Buttons.Rows[3][0].Text);
+        Assert.Equal("ae:s:sb:danger-full-access", response.Buttons.Rows[3][0].CallbackData);
+        Assert.Equal(TelegramButtonStyle.Success, response.Buttons.Rows[3][0].Style);
+        Assert.Equal("Bypass disabled", response.Buttons.Rows[3][1].Text);
+        Assert.Equal("ae:s:bp:1", response.Buttons.Rows[3][1].CallbackData);
+        Assert.Equal(TelegramButtonStyle.Danger, response.Buttons.Rows[3][1].Style);
     }
 
     [Fact]
@@ -838,14 +848,20 @@ public sealed class TelegramInteractionHandlerTests
         var bypassResponse = await handler.HandleAsync(
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.SetCodexBypassApprovalsAndSandbox(true)),
             CancellationToken.None);
+        var parallelResponse = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.SetAgentMaxParallelTasks(8)),
+            CancellationToken.None);
 
         Assert.Equal("danger-full-access", facade.RunnerSettings.CodexSandboxMode);
         Assert.True(facade.RunnerSettings.CodexBypassApprovalsAndSandbox);
-        Assert.Equal(2, facade.RestartAgentCallCount);
+        Assert.Equal(8, facade.RunnerSettings.AgentMaxParallelTasks);
+        Assert.Equal(3, facade.RestartAgentCallCount);
         Assert.Contains("Codex sandbox: danger-full-access", sandboxResponse.Text, StringComparison.Ordinal);
         Assert.Contains("Codex bypass approvals and sandbox: allowed", bypassResponse.Text, StringComparison.Ordinal);
+        Assert.Contains("Agent parallel tasks: 8", parallelResponse.Text, StringComparison.Ordinal);
         Assert.Contains("Agent restart: Agent restarted.", sandboxResponse.Text, StringComparison.Ordinal);
         Assert.Contains("Agent restart: Agent restarted.", bypassResponse.Text, StringComparison.Ordinal);
+        Assert.Contains("Agent restart: Agent restarted.", parallelResponse.Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -948,7 +964,7 @@ public sealed class TelegramInteractionHandlerTests
         public IReadOnlyList<RuntimeTelegramProjectGroupAccess> TelegramProjectGroupAccess { get; set; } = [];
 
         public TelegramRunnerSettings RunnerSettings { get; set; } =
-            new("workspace-write", CodexBypassApprovalsAndSandbox: false);
+            new("workspace-write", CodexBypassApprovalsAndSandbox: false, AgentMaxParallelTasks: 1);
 
         public int ListProjectsCallCount { get; private set; }
 
@@ -1229,6 +1245,18 @@ public sealed class TelegramInteractionHandlerTests
             RunnerSettings = RunnerSettings with
             {
                 CodexBypassApprovalsAndSandbox = enabled,
+            };
+
+            return System.Threading.Tasks.Task.FromResult(ApplicationResult<TelegramRunnerSettings>.Success(RunnerSettings));
+        }
+
+        public Task<ApplicationResult<TelegramRunnerSettings>> SetAgentMaxParallelTasksAsync(
+            int maxParallelTasks,
+            CancellationToken cancellationToken)
+        {
+            RunnerSettings = RunnerSettings with
+            {
+                AgentMaxParallelTasks = maxParallelTasks,
             };
 
             return System.Threading.Tasks.Task.FromResult(ApplicationResult<TelegramRunnerSettings>.Success(RunnerSettings));

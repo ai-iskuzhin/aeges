@@ -260,6 +260,9 @@ Codex model and reasoning effort can be configured in `~/.aeges/config.json`:
 
 ```json
 {
+  "agent": {
+    "maxParallelTasks": 1
+  },
   "runners": {
     "default": "codex",
     "codex": {
@@ -273,6 +276,11 @@ Codex model and reasoning effort can be configured in `~/.aeges/config.json`:
   }
 }
 ```
+
+`agent.maxParallelTasks` can also be changed from the Telegram settings menu.
+The preset values are `1`, `2`, `4`, `8`, `16`, and `32`; Aeges still keeps
+same-project work serialized while allowing different projects to run in
+parallel.
 
 ## Telegram
 
@@ -374,7 +382,7 @@ The MVP Telegram UI includes buttons for:
 - task cancellation
 - pending approvals
 - approve/reject approval decisions
-- runner settings for Codex sandbox and bypass mode
+- runner settings for agent parallelism, Codex sandbox, and bypass mode
 
 Telegram keeps button menus compact by using up to two columns.
 

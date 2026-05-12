@@ -76,6 +76,16 @@ public sealed class AegesConfigurationLoader
             configuration.Telegram.BotTokenFilePath,
             nameof(configuration.Telegram.BotTokenFilePath));
         configuration.Telegram.AllowedChatIds ??= [];
+        configuration.Agent ??= new AegesAgentConfiguration();
+
+        if (configuration.Agent.MaxParallelTasks <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(configuration.Agent.MaxParallelTasks),
+                configuration.Agent.MaxParallelTasks,
+                "Agent maximum parallel tasks must be greater than zero.");
+        }
+
         configuration.Runners ??= new AegesRunnersConfiguration();
         configuration.Runners.Default = RequireText(configuration.Runners.Default, nameof(configuration.Runners.Default));
         configuration.Runners.Codex ??= new AegesCodexRunnerConfiguration();

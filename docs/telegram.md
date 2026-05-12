@@ -185,11 +185,13 @@ goals, approval reasons, failure reasons, and runner response previews is shown
 as block quotes so operator-provided text is visually distinct from runtime
 metadata.
 
-The main menu includes `Settings`. The settings view exposes Codex runner
-sandbox controls:
+The main menu includes `Settings`. The settings view exposes agent parallelism
+and Codex runner sandbox controls:
 
 - green buttons show currently allowed/enabled behavior
 - red buttons show currently disallowed/disabled behavior
+- parallel task buttons select `1`, `2`, `4`, `8`, `16`, or `32` project-isolated
+  agent tasks
 - `Sandbox enabled` toggles between `workspace-write` and
   `danger-full-access`
 - `Bypass disabled` toggles Codex's explicit approvals/sandbox bypass flag

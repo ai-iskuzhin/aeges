@@ -217,6 +217,16 @@ public interface ITelegramApplicationFacade
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Updates the local agent parallel task limit.
+    /// </summary>
+    /// <param name="maxParallelTasks">The maximum number of project-isolated tasks the agent may run in parallel.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The updated runner settings, or an expected failure.</returns>
+    Task<ApplicationResult<TelegramRunnerSettings>> SetAgentMaxParallelTasksAsync(
+        int maxParallelTasks,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Restarts the local agent so updated runtime settings are applied.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the operation.</param>

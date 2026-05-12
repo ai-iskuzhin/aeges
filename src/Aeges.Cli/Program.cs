@@ -516,7 +516,7 @@ internal static class AegesCli
                         configuration.Runners.Default,
                         PollIntervalSeconds: 5,
                         QueuePreviewLimit: 100,
-                        MaxParallelTasks: 1,
+                        MaxParallelTasks: configuration.Agent.MaxParallelTasks,
                         ClaimQueuedTask: true,
                         ExecuteRunner: true,
                         CreateWorktree: true),
@@ -1022,6 +1022,7 @@ internal static class AegesCli
             return 2;
         }
 
+        var configuration = LoadConfiguration(options);
         await TraceAsync("agent start: starting background process");
         var manager = new AgentProcessManager();
         var result = await manager.StartAsync(
@@ -1034,7 +1035,7 @@ internal static class AegesCli
                 options.RunnerId,
                 options.PollIntervalSeconds,
                 options.QueuePreviewLimit,
-                options.MaxParallelTasks,
+                options.MaxParallelTasks ?? configuration.Agent.MaxParallelTasks,
                 options.ClaimQueuedTask,
                 options.ExecuteRunner,
                 options.CreateWorktree),
@@ -1060,6 +1061,7 @@ internal static class AegesCli
             return 2;
         }
 
+        var configuration = LoadConfiguration(options);
         await TraceAsync("agent restart: stopping background process");
         var manager = new AgentProcessManager();
         await manager.StopAsync(cancellationToken);
@@ -1074,7 +1076,7 @@ internal static class AegesCli
                 options.RunnerId,
                 options.PollIntervalSeconds,
                 options.QueuePreviewLimit,
-                options.MaxParallelTasks,
+                options.MaxParallelTasks ?? configuration.Agent.MaxParallelTasks,
                 options.ClaimQueuedTask,
                 options.ExecuteRunner,
                 options.CreateWorktree),
@@ -2730,7 +2732,7 @@ internal static class AegesCli
             options.MachineName ?? Environment.MachineName,
             options.Platform ?? RuntimeInformation.OSDescription,
             options.QueuePreviewLimit,
-            options.MaxParallelTasks,
+            options.MaxParallelTasks ?? configuration.Agent.MaxParallelTasks,
             options.RunnerId ?? configuration.Runners.Default,
             layout.RootPath,
             TimeSpan.FromSeconds(configuration.Runners.Codex.TimeoutSeconds),
@@ -4998,7 +5000,7 @@ internal static class AegesCli
 
         public int QueuePreviewLimit { get; private init; } = 100;
 
-        public int MaxParallelTasks { get; private init; } = 1;
+        public int? MaxParallelTasks { get; private init; }
 
         public string? RunnerId { get; private init; }
 
@@ -5020,7 +5022,7 @@ internal static class AegesCli
             var json = false;
             var pollInterval = TimeSpan.FromSeconds(5);
             var queuePreviewLimit = 100;
-            var maxParallelTasks = 1;
+            int? maxParallelTasks = null;
             var claimQueuedTask = true;
             var executeRunner = false;
             var createWorktree = false;
@@ -5102,11 +5104,12 @@ internal static class AegesCli
 
                         break;
                     case "--max-parallel-tasks":
-                        if (!TryReadPositiveInt(args, ref index, out maxParallelTasks))
+                        if (!TryReadPositiveInt(args, ref index, out var parsedMaxParallelTasks))
                         {
                             return ErrorResult("--max-parallel-tasks requires an integer value greater than zero.");
                         }
 
+                        maxParallelTasks = parsedMaxParallelTasks;
                         break;
                     default:
                         return ErrorResult($"Unknown option '{args[index]}'.");
@@ -5158,7 +5161,7 @@ internal static class AegesCli
 
         public int QueuePreviewLimit { get; private init; } = 100;
 
-        public int MaxParallelTasks { get; private init; } = 1;
+        public int? MaxParallelTasks { get; private init; }
 
         public string? RunnerId { get; private init; }
 
@@ -5179,7 +5182,7 @@ internal static class AegesCli
             var json = false;
             var pollIntervalSeconds = 5;
             var queuePreviewLimit = 100;
-            var maxParallelTasks = 1;
+            int? maxParallelTasks = null;
             var claimQueuedTask = true;
             var executeRunner = true;
             var createWorktree = true;
@@ -5257,11 +5260,12 @@ internal static class AegesCli
 
                         break;
                     case "--max-parallel-tasks":
-                        if (!TryReadPositiveInt(args, ref index, out maxParallelTasks))
+                        if (!TryReadPositiveInt(args, ref index, out var parsedMaxParallelTasks))
                         {
                             return ErrorResult("--max-parallel-tasks requires an integer value greater than zero.");
                         }
 
+                        maxParallelTasks = parsedMaxParallelTasks;
                         break;
                     default:
                         return ErrorResult($"Unknown option '{args[index]}'.");

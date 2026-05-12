@@ -138,6 +138,9 @@ Local configuration can set:
 
 ```json
 {
+  "agent": {
+    "maxParallelTasks": 1
+  },
   "runners": {
     "codex": {
       "model": "gpt-5.5",
@@ -146,6 +149,10 @@ Local configuration can set:
   }
 }
 ```
+
+`agent.maxParallelTasks` controls project-isolated agent parallelism. Telegram
+settings expose the same value as buttons for `1`, `2`, `4`, `8`, `16`, and
+`32`.
 
 Codex JSON mode emits a thread identifier when a new session starts:
 

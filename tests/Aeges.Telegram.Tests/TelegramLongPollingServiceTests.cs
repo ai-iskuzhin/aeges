@@ -875,19 +875,37 @@ public sealed class TelegramLongPollingServiceTests
             Task.FromResult<IReadOnlyList<ApprovalRequest>>([]);
 
         public Task<TelegramRunnerSettings> GetRunnerSettingsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new TelegramRunnerSettings("workspace-write", CodexBypassApprovalsAndSandbox: false));
+            Task.FromResult(new TelegramRunnerSettings(
+                "workspace-write",
+                CodexBypassApprovalsAndSandbox: false,
+                AgentMaxParallelTasks: 1));
 
         public Task<Aeges.Application.ApplicationResult<TelegramRunnerSettings>> SetCodexSandboxModeAsync(
             string sandboxMode,
             CancellationToken cancellationToken) =>
             Task.FromResult(Aeges.Application.ApplicationResult<TelegramRunnerSettings>.Success(
-                new TelegramRunnerSettings(sandboxMode, CodexBypassApprovalsAndSandbox: false)));
+                new TelegramRunnerSettings(
+                    sandboxMode,
+                    CodexBypassApprovalsAndSandbox: false,
+                    AgentMaxParallelTasks: 1)));
 
         public Task<Aeges.Application.ApplicationResult<TelegramRunnerSettings>> SetCodexBypassApprovalsAndSandboxAsync(
             bool enabled,
             CancellationToken cancellationToken) =>
             Task.FromResult(Aeges.Application.ApplicationResult<TelegramRunnerSettings>.Success(
-                new TelegramRunnerSettings("workspace-write", enabled)));
+                new TelegramRunnerSettings(
+                    "workspace-write",
+                    enabled,
+                    AgentMaxParallelTasks: 1)));
+
+        public Task<Aeges.Application.ApplicationResult<TelegramRunnerSettings>> SetAgentMaxParallelTasksAsync(
+            int maxParallelTasks,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Aeges.Application.ApplicationResult<TelegramRunnerSettings>.Success(
+                new TelegramRunnerSettings(
+                    "workspace-write",
+                    CodexBypassApprovalsAndSandbox: false,
+                    maxParallelTasks)));
 
         public Task<Aeges.Application.ApplicationResult<TelegramAgentRestartResult>> RestartAgentAsync(
             CancellationToken cancellationToken) =>

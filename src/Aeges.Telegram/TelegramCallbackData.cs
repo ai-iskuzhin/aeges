@@ -205,6 +205,13 @@ public static class TelegramCallbackData
     public static string SetCodexBypassApprovalsAndSandbox(bool enabled) => $"ae:s:bp:{(enabled ? "1" : "0")}";
 
     /// <summary>
+    /// Creates an agent parallelism settings callback payload.
+    /// </summary>
+    /// <param name="maxParallelTasks">The target maximum parallel task count.</param>
+    /// <returns>The callback payload.</returns>
+    public static string SetAgentMaxParallelTasks(int maxParallelTasks) => $"ae:s:p:{maxParallelTasks}";
+
+    /// <summary>
     /// Creates a task completion callback payload.
     /// </summary>
     /// <param name="taskId">The task identifier.</param>
@@ -367,6 +374,27 @@ public static class TelegramCallbackData
         }
 
         enabled = false;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to parse an agent parallelism settings callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="maxParallelTasks">The parsed maximum parallel task count.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseSetAgentMaxParallelTasks(string payload, out int maxParallelTasks)
+    {
+        const string prefix = "ae:s:p:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal)
+            && int.TryParse(payload[prefix.Length..], out maxParallelTasks)
+            && maxParallelTasks is 1 or 2 or 4 or 8 or 16 or 32)
+        {
+            return true;
+        }
+
+        maxParallelTasks = 0;
         return false;
     }
 

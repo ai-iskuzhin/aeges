@@ -236,6 +236,24 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     }
 
     /// <inheritdoc />
+    public async Task<ApplicationResult<TelegramRunnerSettings>> SetAgentMaxParallelTasksAsync(
+        int maxParallelTasks,
+        CancellationToken cancellationToken)
+    {
+        if (maxParallelTasks is not (1 or 2 or 4 or 8 or 16 or 32))
+        {
+            return ApplicationResult<TelegramRunnerSettings>.Failure(
+                "invalid_parallel_task_limit",
+                "Telegram settings can set parallel tasks to 1, 2, 4, 8, 16, or 32.");
+        }
+
+        configuration.Agent.MaxParallelTasks = maxParallelTasks;
+        await SaveConfigurationAsync(cancellationToken);
+
+        return ApplicationResult<TelegramRunnerSettings>.Success(CreateRunnerSettings());
+    }
+
+    /// <inheritdoc />
     public async Task<ApplicationResult<TelegramAgentRestartResult>> RestartAgentAsync(CancellationToken cancellationToken)
     {
         return await RunAgentProcessCommandAsync("restart", "agent_restart", "Agent restarted.", cancellationToken);
@@ -489,7 +507,8 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     private TelegramRunnerSettings CreateRunnerSettings() =>
         new(
             configuration.Runners.Codex.SandboxMode,
-            configuration.Runners.Codex.BypassApprovalsAndSandbox);
+            configuration.Runners.Codex.BypassApprovalsAndSandbox,
+            configuration.Agent.MaxParallelTasks);
 
     private async Task SaveConfigurationAsync(CancellationToken cancellationToken)
     {

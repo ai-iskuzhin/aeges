@@ -54,6 +54,9 @@ reviewing, or approval-waiting work remain queued until that project is clear:
 aeges agent restart --max-parallel-tasks 2
 ```
 
+The persistent config equivalent is `agent.maxParallelTasks`; Telegram settings
+can update this value and restart the local agent.
+
 Runner execution is explicit. Use `--execute-runner` to execute the prepared
 runner request. The deterministic mock runner is useful for local dry runs and
 tests because it does not require real AI credentials:

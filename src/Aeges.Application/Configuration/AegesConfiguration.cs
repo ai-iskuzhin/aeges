@@ -21,6 +21,11 @@ public sealed class AegesConfiguration
     public AegesTelegramConfiguration Telegram { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets local agent runtime configuration.
+    /// </summary>
+    public AegesAgentConfiguration Agent { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets runner configuration.
     /// </summary>
     public AegesRunnersConfiguration Runners { get; set; } = new();

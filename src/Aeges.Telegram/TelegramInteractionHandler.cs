@@ -96,6 +96,8 @@ public sealed class TelegramInteractionHandler
                 await RequireAdmin(authorization, () => SetCodexSandboxModeAsync(sandboxMode, cancellationToken)),
             _ when TelegramCallbackData.TryParseSetCodexBypassApprovalsAndSandbox(callbackData, out var bypassEnabled) =>
                 await RequireAdmin(authorization, () => SetCodexBypassApprovalsAndSandboxAsync(bypassEnabled, cancellationToken)),
+            _ when TelegramCallbackData.TryParseSetAgentMaxParallelTasks(callbackData, out var maxParallelTasks) =>
+                await RequireAdmin(authorization, () => SetAgentMaxParallelTasksAsync(maxParallelTasks, cancellationToken)),
             _ when TelegramCallbackData.TryParseListTasksByStatus(callbackData, out var status) =>
                 await ListTasksByStatusAsync(authorization, status, cancellationToken),
             _ when TelegramCallbackData.TryParseListProjectTasksByStatus(callbackData, out var projectId, out var status) =>
@@ -1164,6 +1166,20 @@ public sealed class TelegramInteractionHandler
         return RenderSettings(result.Value!, await RestartAgentNoticeAsync(cancellationToken));
     }
 
+    private async Task<TelegramResponse> SetAgentMaxParallelTasksAsync(
+        int maxParallelTasks,
+        CancellationToken cancellationToken)
+    {
+        var result = await application.SetAgentMaxParallelTasksAsync(maxParallelTasks, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+        }
+
+        return RenderSettings(result.Value!, await RestartAgentNoticeAsync(cancellationToken));
+    }
+
     private async Task<string> RestartAgentNoticeAsync(CancellationToken cancellationToken)
     {
         var restart = await application.RestartAgentAsync(cancellationToken);
@@ -1421,11 +1437,21 @@ public sealed class TelegramInteractionHandler
             $"""
             Settings
 
+            Agent parallel tasks: {settings.AgentMaxParallelTasks}
             Codex sandbox: {settings.CodexSandboxMode}
             Codex bypass approvals and sandbox: {(settings.CodexBypassApprovalsAndSandbox ? "allowed" : "disallowed")}
             {noticeText}
             """,
             Buttons(
+                Row(
+                    ParallelTaskButton(settings, 1),
+                    ParallelTaskButton(settings, 2)),
+                Row(
+                    ParallelTaskButton(settings, 4),
+                    ParallelTaskButton(settings, 8)),
+                Row(
+                    ParallelTaskButton(settings, 16),
+                    ParallelTaskButton(settings, 32)),
                 Row(Button(
                     sandboxEnabled ? "Sandbox enabled" : "Sandbox disabled",
                     TelegramCallbackData.SetCodexSandboxMode(sandboxTarget),
@@ -1436,6 +1462,12 @@ public sealed class TelegramInteractionHandler
                     settings.CodexBypassApprovalsAndSandbox ? TelegramButtonStyle.Success : TelegramButtonStyle.Danger)),
                 Row(Button("Back", TelegramCallbackData.MainMenu))));
     }
+
+    private static TelegramButton ParallelTaskButton(TelegramRunnerSettings settings, int value) =>
+        Button(
+            value.ToString(CultureInfo.InvariantCulture),
+            TelegramCallbackData.SetAgentMaxParallelTasks(value),
+            settings.AgentMaxParallelTasks == value ? TelegramButtonStyle.Success : TelegramButtonStyle.Primary);
 
     private static TelegramButtonMarkup TaskDetailButtons(RuntimeTask task)
     {

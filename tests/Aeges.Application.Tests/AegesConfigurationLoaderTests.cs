@@ -15,6 +15,7 @@ public sealed class AegesConfigurationLoaderTests
         Assert.Equal("local", configuration.MachineId);
         Assert.Equal("sqlite", configuration.Storage.Provider);
         Assert.Equal("codex", configuration.Runners.Default);
+        Assert.Equal(1, configuration.Agent.MaxParallelTasks);
         Assert.Equal("codex", configuration.Runners.Codex.Executable);
         Assert.Null(configuration.Runners.Codex.Model);
         Assert.Null(configuration.Runners.Codex.ReasoningEffort);
@@ -39,6 +40,9 @@ public sealed class AegesConfigurationLoaderTests
                 "botTokenEnvironmentVariable": "AEGES_TEST_TELEGRAM_TOKEN",
                 "botTokenFilePath": "/tmp/aeges-telegram-token",
                 "allowedChatIds": [1001, 1002]
+              },
+              "agent": {
+                "maxParallelTasks": 8
               },
               "runners": {
                 "default": "codex",
@@ -70,6 +74,7 @@ public sealed class AegesConfigurationLoaderTests
         Assert.Equal("AEGES_TEST_TELEGRAM_TOKEN", configuration.Telegram.BotTokenEnvironmentVariable);
         Assert.Equal("/tmp/aeges-telegram-token", configuration.Telegram.BotTokenFilePath);
         Assert.Equal([1001, 1002], configuration.Telegram.AllowedChatIds);
+        Assert.Equal(8, configuration.Agent.MaxParallelTasks);
         Assert.Equal("codex-test", configuration.Runners.Codex.Executable);
         Assert.Equal("gpt-5.5", configuration.Runners.Codex.Model);
         Assert.Equal("high", configuration.Runners.Codex.ReasoningEffort);
@@ -160,6 +165,22 @@ public sealed class AegesConfigurationLoaderTests
                 "codex": {
                   "timeoutSeconds": 0
                 }
+              }
+            }
+            """);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new AegesConfigurationLoader().Load(new AegesConfigurationLoaderOptions(path)));
+    }
+
+    [Fact]
+    public void Load_rejects_invalid_agent_parallelism()
+    {
+        var path = CreateConfigFile(
+            """
+            {
+              "agent": {
+                "maxParallelTasks": 0
               }
             }
             """);
