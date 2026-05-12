@@ -88,6 +88,8 @@ review, test, and document independently.
 - [x] Add `aeges init` first-run setup command.
 - [x] Add `aeges setup` first-use wizard over init, migrations, Telegram setup,
       and optional background process start.
+- [x] Add `aeges update` runtime update command over release artifacts and
+      local package sources.
 - [x] Add `aeges task create`.
 - [x] Add `aeges task status`.
 - [x] Add `aeges agent run` host shell.

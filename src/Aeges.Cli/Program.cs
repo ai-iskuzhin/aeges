@@ -1,9 +1,11 @@
+using System.Diagnostics;
+using System.Net.Http;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Reflection;
 using Aeges.Agent;
 using Aeges.Application;
 using Aeges.Application.Approvals;
@@ -75,6 +77,11 @@ internal static class AegesCli
         if (args is ["-v", .. var versionArgsShort])
         {
             return await RunVersionAsync(versionArgsShort, output, error);
+        }
+
+        if (args is ["update", .. var updateArgs])
+        {
+            return await RunUpdateAsync(updateArgs, output, error, cancellationToken);
         }
 
         if (args is ["status", .. var localStatusArgs])
@@ -243,6 +250,67 @@ internal static class AegesCli
         return 0;
     }
 
+    private static async Task<int> RunUpdateAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = UpdateOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        try
+        {
+            var plan = await CreateUpdatePlanAsync(options, cancellationToken);
+
+            if (options.DryRun)
+            {
+                await WriteUpdateResultAsync(
+                    AegesUpdateResult.FromDryRun(GetVersion(), plan.TargetVersion, plan.PackageSource, plan.ToolPackage),
+                    options.Json,
+                    output);
+                return 0;
+            }
+
+            await WriteUpdateProgressAsync(plan, output);
+
+            var update = await RunDotnetToolAsync("update", plan, cancellationToken);
+            var install = update.ExitCode == 0
+                ? null
+                : await RunDotnetToolAsync("install", plan, cancellationToken);
+            var effective = update.ExitCode == 0 ? update : install!;
+            var result = new AegesUpdateResult(
+                update.ExitCode == 0 || install?.ExitCode == 0,
+                options.DryRun,
+                GetVersion(),
+                plan.TargetVersion,
+                plan.PackageSource,
+                plan.ToolPackage,
+                update.Command,
+                update.ExitCode,
+                install?.Command,
+                install?.ExitCode,
+                update.StandardOutput,
+                update.StandardError,
+                install?.StandardOutput,
+                install?.StandardError);
+
+            await WriteUpdateResultAsync(result, options.Json, result.Updated ? output : error);
+
+            return effective.ExitCode == 0 ? 0 : effective.ExitCode;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            await error.WriteLineAsync($"Aeges update failed: {exception.Message}");
+            return 1;
+        }
+    }
+
     private static async Task<int> RunSetupAsync(
         string[] args,
         TextReader input,
@@ -347,6 +415,155 @@ internal static class AegesCli
 
         return 0;
     }
+
+    private static async Task<AegesUpdatePlan> CreateUpdatePlanAsync(
+        UpdateOptions options,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(options.PackageSource))
+        {
+            return new AegesUpdatePlan(
+                options.ToolPackage,
+                options.Version,
+                Path.GetFullPath(options.PackageSource),
+                DownloadedPackagePath: null);
+        }
+
+        if (options.DryRun)
+        {
+            return new AegesUpdatePlan(
+                options.ToolPackage,
+                options.Version ?? "latest",
+                PackageSource: "(resolved from GitHub Releases)",
+                DownloadedPackagePath: null);
+        }
+
+        return await DownloadUpdatePackageAsync(options, cancellationToken);
+    }
+
+    private static async Task<AegesUpdatePlan> DownloadUpdatePackageAsync(
+        UpdateOptions options,
+        CancellationToken cancellationToken)
+    {
+        var layout = RuntimeDirectoryLayout.CreateDefault();
+        var downloadDirectory = Path.Combine(layout.RootPath, "tmp", "update");
+        Directory.CreateDirectory(downloadDirectory);
+
+        var downloadBaseUrl = options.DownloadBaseUrl;
+        if (string.IsNullOrWhiteSpace(downloadBaseUrl))
+        {
+            downloadBaseUrl = string.IsNullOrWhiteSpace(options.Version)
+                ? $"https://github.com/{options.GithubRepository}/releases/latest/download"
+                : $"https://github.com/{options.GithubRepository}/releases/download/v{options.Version}";
+        }
+
+        using var client = new HttpClient();
+        var checksums = await client.GetStringAsync(
+            new Uri($"{downloadBaseUrl.TrimEnd('/')}/SHA256SUMS"),
+            cancellationToken);
+        var packageFile = string.IsNullOrWhiteSpace(options.Version)
+            ? ResolvePackageFileFromChecksums(checksums, options.ToolPackage)
+            : $"{options.ToolPackage}.{options.Version}.nupkg";
+        var version = packageFile[options.ToolPackage.Length..^".nupkg".Length].TrimStart('.');
+        var packagePath = Path.Combine(downloadDirectory, packageFile);
+        var expectedHash = ResolvePackageHash(checksums, packageFile);
+        var packageBytes = await client.GetByteArrayAsync(
+            new Uri($"{downloadBaseUrl.TrimEnd('/')}/{packageFile}"),
+            cancellationToken);
+        var actualHash = Convert.ToHexString(SHA256.HashData(packageBytes)).ToLowerInvariant();
+
+        if (!string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Checksum verification failed for {packageFile}. Expected {expectedHash} but got {actualHash}.");
+        }
+
+        await File.WriteAllBytesAsync(packagePath, packageBytes, cancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(downloadDirectory, "SHA256SUMS"), checksums, cancellationToken);
+
+        return new AegesUpdatePlan(options.ToolPackage, version, downloadDirectory, packagePath);
+    }
+
+    private static string ResolvePackageFileFromChecksums(string checksums, string toolPackage)
+    {
+        foreach (var line in checksums.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            if (parts.Length >= 2
+                && parts[1].StartsWith($"{toolPackage}.", StringComparison.Ordinal)
+                && parts[1].EndsWith(".nupkg", StringComparison.Ordinal))
+            {
+                return parts[1];
+            }
+        }
+
+        throw new InvalidOperationException($"SHA256SUMS does not contain a {toolPackage} package.");
+    }
+
+    private static string ResolvePackageHash(string checksums, string packageFile)
+    {
+        foreach (var line in checksums.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            if (parts.Length >= 2 && parts[1].Equals(packageFile, StringComparison.Ordinal))
+            {
+                return parts[0].ToLowerInvariant();
+            }
+        }
+
+        throw new InvalidOperationException($"SHA256SUMS does not contain an entry for {packageFile}.");
+    }
+
+    private static async Task<DotnetToolResult> RunDotnetToolAsync(
+        string verb,
+        AegesUpdatePlan plan,
+        CancellationToken cancellationToken)
+    {
+        var arguments = new List<string>
+        {
+            "tool",
+            verb,
+            "--global",
+            plan.ToolPackage,
+        };
+
+        if (!string.IsNullOrWhiteSpace(plan.TargetVersion) && plan.TargetVersion != "latest")
+        {
+            arguments.Add("--version");
+            arguments.Add(plan.TargetVersion);
+        }
+
+        arguments.Add("--add-source");
+        arguments.Add(plan.PackageSource);
+
+        var startInfo = new ProcessStartInfo("dotnet")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start dotnet.");
+        var stdout = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stderr = await process.StandardError.ReadToEndAsync(cancellationToken);
+        await process.WaitForExitAsync(cancellationToken);
+
+        return new DotnetToolResult(
+            $"dotnet {string.Join(' ', arguments.Select(QuoteCommandArgument))}",
+            process.ExitCode,
+            stdout.Trim(),
+            stderr.Trim());
+    }
+
+    private static string QuoteCommandArgument(string value) =>
+        value.Contains(' ', StringComparison.Ordinal) ? $"\"{value}\"" : value;
 
     private static async Task<int> RunLocalStatusAsync(
         string[] args,
@@ -2221,6 +2438,80 @@ internal static class AegesCli
         await output.WriteLineAsync($"{version.Name} {version.Version}");
     }
 
+    private static async Task WriteUpdateProgressAsync(
+        AegesUpdatePlan plan,
+        TextWriter output)
+    {
+        await output.WriteLineAsync("Updating Aeges runtime...");
+        await output.WriteLineAsync($"Package: {plan.ToolPackage}");
+        await output.WriteLineAsync($"Version: {plan.TargetVersion ?? "latest"}");
+        await output.WriteLineAsync($"Source: {plan.PackageSource}");
+
+        if (!string.IsNullOrWhiteSpace(plan.DownloadedPackagePath))
+        {
+            await output.WriteLineAsync($"Downloaded: {plan.DownloadedPackagePath}");
+        }
+    }
+
+    private static async Task WriteUpdateResultAsync(
+        AegesUpdateResult result,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                result,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        if (result.DryRun)
+        {
+            await output.WriteLineAsync("Aeges update dry run.");
+            await output.WriteLineAsync($"Current version: {result.CurrentVersion}");
+            await output.WriteLineAsync($"Target version: {result.TargetVersion}");
+            await output.WriteLineAsync($"Package: {result.ToolPackage}");
+            await output.WriteLineAsync($"Source: {result.PackageSource}");
+            return;
+        }
+
+        await output.WriteLineAsync(result.Updated ? "Aeges updated." : "Aeges update failed.");
+        await output.WriteLineAsync($"Current process version: {result.CurrentVersion}");
+        await output.WriteLineAsync($"Target version: {result.TargetVersion}");
+
+        if (!string.IsNullOrWhiteSpace(result.UpdateStandardOutput))
+        {
+            await output.WriteLineAsync(result.UpdateStandardOutput);
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.UpdateStandardError))
+        {
+            await output.WriteLineAsync(result.UpdateStandardError);
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.InstallStandardOutput))
+        {
+            await output.WriteLineAsync(result.InstallStandardOutput);
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.InstallStandardError))
+        {
+            await output.WriteLineAsync(result.InstallStandardError);
+        }
+
+        if (result.Updated)
+        {
+            await output.WriteLineAsync("Restart background processes to load the updated runtime:");
+            await output.WriteLineAsync("  aeges agent restart");
+            await output.WriteLineAsync("  aeges telegram restart");
+        }
+    }
+
     private static async Task WriteSetupProcessResultAsync(
         string name,
         bool started,
@@ -2240,6 +2531,7 @@ internal static class AegesCli
     {
         await error.WriteLineAsync("Usage:");
         await error.WriteLineAsync("  aeges version [--json]");
+        await error.WriteLineAsync("  aeges update [--version <version>] [--package-source <path>] [--download-base-url <url>] [--github-repository <owner/repo>] [--dry-run] [--json]");
         await error.WriteLineAsync("  aeges setup [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--skip-telegram] [--no-start] [--config <path>] [--connection-string <value>]");
         await error.WriteLineAsync("  aeges init [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges status [--config <path>] [--connection-string <value>] [--json]");
@@ -2638,6 +2930,97 @@ internal static class AegesCli
         }
 
         private static SetupOptions ErrorResult(string error) => new() { Error = error };
+    }
+
+    private sealed class UpdateOptions : CliOptions
+    {
+        public string? Version { get; private init; }
+
+        public string? PackageSource { get; private init; }
+
+        public string? DownloadBaseUrl { get; private init; }
+
+        public string GithubRepository { get; private init; } = "ai-iskuzhin/aeges";
+
+        public string ToolPackage { get; private init; } = "Aeges.Cli";
+
+        public bool DryRun { get; private init; }
+
+        public new static UpdateOptions Parse(string[] args)
+        {
+            string? version = null;
+            string? packageSource = null;
+            string? downloadBaseUrl = null;
+            var githubRepository = "ai-iskuzhin/aeges";
+            var toolPackage = "Aeges.Cli";
+            var dryRun = false;
+            var json = false;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--dry-run":
+                        dryRun = true;
+                        break;
+                    case "--version":
+                        if (!TryReadValue(args, ref index, out version))
+                        {
+                            return ErrorResult("--version requires a value.");
+                        }
+
+                        break;
+                    case "--package-source":
+                    case "--source":
+                        var sourceOption = args[index];
+                        if (!TryReadValue(args, ref index, out packageSource))
+                        {
+                            return ErrorResult($"{sourceOption} requires a value.");
+                        }
+
+                        break;
+                    case "--download-base-url":
+                        if (!TryReadValue(args, ref index, out downloadBaseUrl))
+                        {
+                            return ErrorResult("--download-base-url requires a value.");
+                        }
+
+                        break;
+                    case "--github-repository":
+                        if (!TryReadValue(args, ref index, out githubRepository))
+                        {
+                            return ErrorResult("--github-repository requires a value.");
+                        }
+
+                        break;
+                    case "--tool-package":
+                        if (!TryReadValue(args, ref index, out toolPackage))
+                        {
+                            return ErrorResult("--tool-package requires a value.");
+                        }
+
+                        break;
+                    default:
+                        return ErrorResult($"Unknown option '{args[index]}'.");
+                }
+            }
+
+            return new UpdateOptions
+            {
+                Json = json,
+                Version = version,
+                PackageSource = packageSource,
+                DownloadBaseUrl = downloadBaseUrl,
+                GithubRepository = githubRepository!,
+                ToolPackage = toolPackage!,
+                DryRun = dryRun,
+            };
+        }
+
+        private static UpdateOptions ErrorResult(string error) => new() { Error = error };
     }
 
     private sealed class TaskCreateOptions : CliOptions
@@ -3763,6 +4146,56 @@ internal static class AegesCli
     private sealed record TaskStatusCountOutput(string Status, int Count);
 
     private sealed record VersionOutput(string Name, string Version);
+
+    private sealed record AegesUpdatePlan(
+        string ToolPackage,
+        string? TargetVersion,
+        string PackageSource,
+        string? DownloadedPackagePath);
+
+    private sealed record DotnetToolResult(
+        string Command,
+        int ExitCode,
+        string StandardOutput,
+        string StandardError);
+
+    private sealed record AegesUpdateResult(
+        bool Updated,
+        bool DryRun,
+        string CurrentVersion,
+        string? TargetVersion,
+        string PackageSource,
+        string ToolPackage,
+        string? UpdateCommand,
+        int? UpdateExitCode,
+        string? InstallCommand,
+        int? InstallExitCode,
+        string? UpdateStandardOutput,
+        string? UpdateStandardError,
+        string? InstallStandardOutput,
+        string? InstallStandardError)
+    {
+        public static AegesUpdateResult FromDryRun(
+            string currentVersion,
+            string? targetVersion,
+            string packageSource,
+            string toolPackage) =>
+            new(
+                Updated: false,
+                DryRun: true,
+                currentVersion,
+                targetVersion,
+                packageSource,
+                toolPackage,
+                UpdateCommand: null,
+                UpdateExitCode: null,
+                InstallCommand: null,
+                InstallExitCode: null,
+                UpdateStandardOutput: null,
+                UpdateStandardError: null,
+                InstallStandardOutput: null,
+                InstallStandardError: null);
+    }
 
     private sealed record LocalRuntimeStatusOutput(
         string Version,

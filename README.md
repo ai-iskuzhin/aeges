@@ -90,6 +90,29 @@ $env:AEGES_VERSION = "0.1.0-alpha.3"
 irm https://get.aeges.top/install.ps1 | iex
 ```
 
+After Aeges is installed, update the local runtime with:
+
+```bash
+aeges update
+```
+
+For a specific version or a local development package source:
+
+```bash
+aeges update --version 0.1.0-alpha.3
+aeges update --version 0.1.0-alpha.3 --package-source "$PWD/.artifacts/packages"
+```
+
+`aeges update` downloads release packages through the same GitHub release
+artifact contract as the installer, verifies `SHA256SUMS`, and updates the
+global .NET tool. Restart background processes after updating so they load the
+new runtime:
+
+```bash
+aeges agent restart
+aeges telegram restart
+```
+
 Prepare the local runtime from the project you want Aeges to manage:
 
 ```bash
@@ -393,6 +416,7 @@ Useful options:
 
 ```text
 aeges version [--json]
+aeges update [--version <version>] [--package-source <path>] [--dry-run] [--json]
 aeges setup [--project-id <id>] [--project-name <name>] [--path <path>] [--skip-telegram] [--no-start] [...]
 aeges init [--project-id <id>] [--project-name <name>] [--path <path>] [--machine-id <id>] [...]
 aeges status [--config <path>] [--connection-string <value>] [--json]
@@ -423,6 +447,9 @@ aeges telegram stop [--json]
 
 `aeges version` prints the installed CLI version. The Telegram main menu shows
 the same runtime version when the transport is launched through the CLI.
+
+`aeges update` updates the installed global .NET tool from GitHub release
+artifacts by default. Use `--dry-run` to inspect the update plan.
 
 `aeges setup` is the recommended first command for local use. `aeges init` and
 `aeges db migrate` remain available as lower-level scriptable commands.

@@ -94,6 +94,22 @@ The script installs or updates the CLI as a global .NET tool. It is intentionall
 thin: it does not install Codex, Telegram, background services, or machine-local
 configuration. Those remain explicit runtime setup steps.
 
+After the first install, users can update through the CLI itself:
+
+```bash
+aeges update
+aeges update --version 0.1.0-alpha.3
+```
+
+`aeges update` uses the same release artifact contract as the shell installers:
+it downloads `SHA256SUMS`, resolves the matching `Aeges.Cli` package, verifies
+the package checksum, and runs `dotnet tool update --global` with the downloaded
+package directory as a source. Local development builds can be installed with:
+
+```bash
+aeges update --version 0.1.0-alpha.3 --package-source "$PWD/.artifacts/packages"
+```
+
 For a GitHub release download, specify a version:
 
 ```bash
