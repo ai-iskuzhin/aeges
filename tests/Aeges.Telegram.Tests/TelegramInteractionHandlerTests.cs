@@ -183,14 +183,16 @@ public sealed class TelegramInteractionHandlerTests
             TelegramCallbackData.ListProjectTasksByStatus(new ProjectId("project-aeges"), RuntimeTaskStatus.Queued),
             response.Buttons.Rows[0][0].CallbackData);
         Assert.Equal("planning (0)", response.Buttons.Rows[0][1].Text);
-        Assert.Equal("Archive", response.Buttons.Rows[^2][0].Text);
-        Assert.Equal(TelegramCallbackData.ArchiveProject(new ProjectId("project-aeges")), response.Buttons.Rows[^2][0].CallbackData);
+        Assert.Equal("New task", response.Buttons.Rows[^2][0].Text);
+        Assert.Equal(TelegramCallbackData.SelectTaskProject(new ProjectId("project-aeges")), response.Buttons.Rows[^2][0].CallbackData);
+        Assert.Equal("Archive", response.Buttons.Rows[^2][1].Text);
+        Assert.Equal(TelegramCallbackData.ArchiveProject(new ProjectId("project-aeges")), response.Buttons.Rows[^2][1].CallbackData);
         Assert.Equal("Back", response.Buttons.Rows[^1][0].Text);
         Assert.Equal(TelegramCallbackData.ListProjects, response.Buttons.Rows[^1][0].CallbackData);
     }
 
     [Fact]
-    public async Task HandleAsync_archives_project_from_detail_menu()
+    public async Task HandleAsync_asks_for_confirmation_before_archiving_project()
     {
         var project = RuntimeProject.Create(new ProjectId("project-aeges"), "Aeges", "/workspace/aeges", Now);
         var facade = new FakeTelegramApplicationFacade
@@ -201,6 +203,29 @@ public sealed class TelegramInteractionHandlerTests
 
         var response = await handler.HandleAsync(
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ArchiveProject(project.Id)),
+            CancellationToken.None);
+
+        Assert.Null(facade.ArchivedProjectId);
+        Assert.False(project.IsArchived);
+        Assert.Contains("Archive this project?", response.Text, StringComparison.Ordinal);
+        Assert.Equal("Confirm archive", response.Buttons.Rows[0][0].Text);
+        Assert.Equal(TelegramCallbackData.ConfirmArchiveProject(project.Id), response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal("Back", response.Buttons.Rows[0][1].Text);
+        Assert.Equal(TelegramCallbackData.ViewProject(project.Id), response.Buttons.Rows[0][1].CallbackData);
+    }
+
+    [Fact]
+    public async Task HandleAsync_archives_project_after_confirmation()
+    {
+        var project = RuntimeProject.Create(new ProjectId("project-aeges"), "Aeges", "/workspace/aeges", Now);
+        var facade = new FakeTelegramApplicationFacade
+        {
+            Projects = [project],
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ConfirmArchiveProject(project.Id)),
             CancellationToken.None);
 
         Assert.Equal(project.Id, facade.ArchivedProjectId);

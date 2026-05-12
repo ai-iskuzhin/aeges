@@ -87,6 +87,8 @@ public sealed class TelegramInteractionHandler
             TelegramCallbackData.ViewUngroupedProjects => await ListProjectGroupProjectsAsync(null, cancellationToken),
             _ when TelegramCallbackData.TryParseViewProjectGroup(callbackData, out var groupId) =>
                 await ListProjectGroupProjectsAsync(groupId, cancellationToken),
+            _ when TelegramCallbackData.TryParseConfirmArchiveProject(callbackData, out var projectId) =>
+                await ConfirmArchiveProjectAsync(projectId, cancellationToken),
             _ when TelegramCallbackData.TryParseArchiveProject(callbackData, out var projectId) =>
                 await ArchiveProjectAsync(projectId, cancellationToken),
             _ when TelegramCallbackData.TryParseViewProject(callbackData, out var projectId) =>
@@ -552,6 +554,39 @@ public sealed class TelegramInteractionHandler
         ProjectId projectId,
         CancellationToken cancellationToken)
     {
+        var project = await application.GetProjectAsync(projectId, cancellationToken);
+
+        if (!project.IsSuccess)
+        {
+            return new TelegramResponse($"{project.Error!.Code}: {project.Error.Message}", BackToProjectsButtons());
+        }
+
+        if (project.Value!.IsArchived)
+        {
+            return await RenderProjectDetailsAsync(project.Value, "Project is already archived.", cancellationToken);
+        }
+
+        var metadata = string.Join(
+            '\n',
+            [
+                $"Project: {project.Value.Id}",
+                $"Name: {project.Value.Name}",
+                $"Group: {project.Value.GroupId?.Value ?? "ungrouped"}",
+                $"Path: {project.Value.Path}",
+            ]);
+
+        return new TelegramResponse(
+            $"Archive this project?\n{TelegramMarkdown.Quote(metadata)}",
+            Buttons(
+                Row(
+                    Button("Confirm archive", TelegramCallbackData.ConfirmArchiveProject(projectId), TelegramButtonStyle.Danger),
+                    Button("Back", TelegramCallbackData.ViewProject(projectId)))));
+    }
+
+    private async Task<TelegramResponse> ConfirmArchiveProjectAsync(
+        ProjectId projectId,
+        CancellationToken cancellationToken)
+    {
         var archived = await application.ArchiveProjectAsync(projectId, cancellationToken);
 
         if (!archived.IsSuccess)
@@ -584,7 +619,11 @@ public sealed class TelegramInteractionHandler
 
         IReadOnlyList<TelegramButton> actionButtons = project.IsArchived
             ? []
-            : [Button("Archive", TelegramCallbackData.ArchiveProject(project.Id))];
+            :
+            [
+                Button("New task", TelegramCallbackData.SelectTaskProject(project.Id)),
+                Button("Archive", TelegramCallbackData.ArchiveProject(project.Id), TelegramButtonStyle.Danger),
+            ];
         var rows = Grid(buttons.Concat(actionButtons))
             .Append(Row(Button("Back", TelegramCallbackData.ListProjects)))
             .ToArray();

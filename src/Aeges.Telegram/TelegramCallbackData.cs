@@ -105,6 +105,13 @@ public static class TelegramCallbackData
     public static string ArchiveProject(ProjectId projectId) => $"ae:p:x:{projectId.Value}";
 
     /// <summary>
+    /// Creates a project archive confirmation callback payload.
+    /// </summary>
+    /// <param name="projectId">The project identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string ConfirmArchiveProject(ProjectId projectId) => $"ae:p:x:y:{projectId.Value}";
+
+    /// <summary>
     /// Creates a project-scoped task status list callback payload.
     /// </summary>
     /// <param name="projectId">The project identifier.</param>
@@ -496,6 +503,36 @@ public static class TelegramCallbackData
     public static bool TryParseArchiveProject(string payload, out ProjectId projectId)
     {
         const string prefix = "ae:p:x:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal)
+            && payload.Length > prefix.Length
+            && !payload.StartsWith("ae:p:x:y:", StringComparison.Ordinal))
+        {
+            try
+            {
+                projectId = new ProjectId(payload[prefix.Length..]);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                projectId = default;
+                return false;
+            }
+        }
+
+        projectId = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to parse a project archive confirmation callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="projectId">The parsed project identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseConfirmArchiveProject(string payload, out ProjectId projectId)
+    {
+        const string prefix = "ae:p:x:y:";
 
         if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length > prefix.Length)
         {
