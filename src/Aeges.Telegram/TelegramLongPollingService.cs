@@ -114,6 +114,9 @@ public sealed class TelegramLongPollingService
                 var callbackQueryId = update.CallbackQueryId;
                 var isCallback = !string.IsNullOrWhiteSpace(callbackQueryId);
                 var routingThreadId = GetRoutingThreadId(update);
+                var logicalCallbackData = isCallback
+                    ? await handler.ResolveCallbackDataForTransportAsync(update.ChatId, update.CallbackData, cancellationToken)
+                    : null;
 
                 await LogAsync(
                     new TelegramLongPollingLogEntry(
@@ -124,6 +127,13 @@ public sealed class TelegramLongPollingService
                 if (isCallback)
                 {
                     await TryAnswerCallbackQueryAsync(callbackQueryId!, update, processed, cancellationToken);
+                }
+
+                if (await TryStartPrivateTaskThreadFromCallbackAsync(update, logicalCallbackData, cancellationToken))
+                {
+                    nextOffset = Math.Max(nextOffset ?? 0, update.UpdateId + 1);
+                    processed++;
+                    continue;
                 }
 
                 if (await TryStartTaskTopicAsync(update, cancellationToken))
@@ -264,40 +274,28 @@ public sealed class TelegramLongPollingService
 
         var routingThreadId = GetRoutingThreadId(update);
 
-        if (update.IsPrivateChat && routingThreadId is null)
-        {
-            return false;
-        }
-
         var identity = botIdentity ??= await gateway.GetIdentityAsync(cancellationToken);
         if (!TryParseNewTaskCommand(update.Text, identity.Username, out var topicTitle))
         {
             return false;
         }
 
+        if (update.IsPrivateChat && routingThreadId is null && !handler.IsPrivateChatThreadRoutingEnabled)
+        {
+            return false;
+        }
+
         var messageThreadId = routingThreadId;
 
-        if (!update.IsPrivateChat && messageThreadId is null)
+        if (messageThreadId is null)
         {
-            try
+            messageThreadId = await TryCreateTaskThreadAsync(
+                update,
+                topicTitle,
+                cancellationToken);
+
+            if (messageThreadId is null)
             {
-                var topic = await gateway.CreateForumTopicAsync(update.ChatId, topicTitle, cancellationToken);
-                messageThreadId = topic.MessageThreadId;
-            }
-            catch (Exception exception) when (exception is RequestException or ApiRequestException)
-            {
-                var response = new TelegramResponse(
-                    $"""
-                    I could not create a task topic in this supergroup.
-
-                    The bot probably needs administrator access with topic management enabled.
-
-                    Error:
-                    {TelegramMarkdown.Quote(exception.Message)}
-                    """,
-                    TelegramButtonMarkup.Empty);
-                await gateway.SendResponseAsync(update.ChatId, update.MessageThreadId, response, cancellationToken);
-
                 return true;
             }
         }
@@ -318,6 +316,91 @@ public sealed class TelegramLongPollingService
         await gateway.SendResponseAsync(update.ChatId, messageThreadId, taskCreationResponse, cancellationToken);
 
         return true;
+    }
+
+    private async Task<bool> TryStartPrivateTaskThreadFromCallbackAsync(
+        TelegramBotUpdate update,
+        string? callbackData,
+        CancellationToken cancellationToken)
+    {
+        if (!update.IsPrivateChat
+            || !handler.IsPrivateChatThreadRoutingEnabled
+            || GetRoutingThreadId(update) is not null
+            || callbackData != TelegramCallbackData.CreateTask)
+        {
+            return false;
+        }
+
+        var topicName = "New Aeges task";
+        var messageThreadId = await TryCreateTaskThreadAsync(update, topicName, cancellationToken);
+        if (messageThreadId is null)
+        {
+            return true;
+        }
+
+        var rootResponse = await handler.TokenizeResponseAsync(
+            update.ChatId,
+            new TelegramResponse(
+                $"Task thread created: {topicName}",
+                new TelegramButtonMarkup(
+                [
+                    [
+                        new TelegramButton("Menu", TelegramCallbackData.MainMenu),
+                    ],
+                ])),
+            cancellationToken);
+
+        if (update.MessageId is not null)
+        {
+            await gateway.EditResponseAsync(update.ChatId, update.MessageId.Value, rootResponse, cancellationToken);
+        }
+
+        var taskCreationResponse = await handler.HandleAsync(
+            new TelegramUpdate(
+                update.ChatId,
+                CallbackData: TelegramCallbackData.CreateTask,
+                Username: update.Username,
+                FirstName: update.FirstName,
+                LastName: update.LastName,
+                SenderUserId: update.SenderUserId,
+                MessageId: update.MessageId,
+                MessageThreadId: messageThreadId,
+                ReplyToMessageId: update.ReplyToMessageId,
+                IsPrivateChat: update.IsPrivateChat),
+            cancellationToken);
+        var sentMessageId = await gateway.SendResponseAsync(update.ChatId, messageThreadId, taskCreationResponse, cancellationToken);
+        await TrackResponseAsync(update.ChatId, messageThreadId, sentMessageId, taskCreationResponse, cancellationToken);
+
+        return true;
+    }
+
+    private async Task<int?> TryCreateTaskThreadAsync(
+        TelegramBotUpdate update,
+        string topicTitle,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var topic = await gateway.CreateForumTopicAsync(update.ChatId, topicTitle, cancellationToken);
+            return topic.MessageThreadId;
+        }
+        catch (Exception exception) when (exception is RequestException or ApiRequestException)
+        {
+            var response = new TelegramResponse(
+                $"""
+                I could not create a task thread/topic.
+
+                In supergroups, the bot needs administrator access with topic management enabled.
+                In private chats, the bot must support Telegram private threaded AI-chatbot mode.
+
+                Error:
+                {TelegramMarkdown.Quote(exception.Message)}
+                """,
+                TelegramButtonMarkup.Empty);
+            await gateway.SendResponseAsync(update.ChatId, update.MessageThreadId, response, cancellationToken);
+
+            return null;
+        }
     }
 
     private async Task TrackResponseAsync(

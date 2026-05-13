@@ -419,11 +419,11 @@ you can opt Aeges into direct-message thread routing from the Telegram
 ```
 
 With that enabled, private `message_thread_id` values scope task drafts, task
-bindings, watched task details, and talk sessions. Mention the bot inside a
-private thread with `@your_bot new task ...` or `@your_bot task: ...` to start
-the task wizard in that thread. Aeges still enforces its own user and
-project/group access rules; BotFather permissions are only the outer Telegram
-gate.
+bindings, watched task details, and talk sessions. Tap `New task` from the
+private chat root to let Aeges create a task thread, or mention the bot with
+`@your_bot new task ...` / `@your_bot task: ...` from the root chat or an
+existing private thread. Aeges still enforces its own user and project/group
+access rules; BotFather permissions are only the outer Telegram gate.
 
 The `Tasks` button opens status buckets for queued, planning, running,
 reviewing, waiting approval, completed, failed, and cancelled tasks. When a

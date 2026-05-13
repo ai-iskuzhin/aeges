@@ -44,6 +44,11 @@ public sealed class TelegramInteractionHandler
     }
 
     /// <summary>
+    /// Gets a value indicating whether private Telegram message thread identifiers are part of routing.
+    /// </summary>
+    public bool IsPrivateChatThreadRoutingEnabled => configuration.EnablePrivateChatThreads;
+
+    /// <summary>
     /// Handles an inbound Telegram update.
     /// </summary>
     /// <param name="update">The inbound update.</param>
@@ -164,6 +169,19 @@ public sealed class TelegramInteractionHandler
         callbackRegistry is null
             ? response
             : await callbackRegistry.TokenizeAsync(chatId, response, cancellationToken);
+
+    /// <summary>
+    /// Resolves a transport callback payload into its logical callback data.
+    /// </summary>
+    /// <param name="chatId">The Telegram chat identifier.</param>
+    /// <param name="callbackData">The raw callback payload from Telegram.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The logical callback data, or the original value when no registry is configured.</returns>
+    public async Task<string?> ResolveCallbackDataForTransportAsync(
+        long chatId,
+        string? callbackData,
+        CancellationToken cancellationToken) =>
+        await ResolveCallbackDataAsync(chatId, callbackData?.Trim(), cancellationToken);
 
     /// <summary>
     /// Records where Telegram should route updates for a task.

@@ -145,7 +145,8 @@ Stages:
    - Opt in with `telegram.enablePrivateChatThreads`.
    - Scope task drafts, task bindings, watched task details, and talk sessions
      by private `message_thread_id`.
-   - Start task creation from private threads with `@bot new task ...`.
+   - Create private task threads from the root `New task` button or
+     `@bot new task ...`.
 
 2. Forum-topic task collaboration.
    - Keep supergroup topic support for team tasks.

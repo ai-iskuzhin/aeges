@@ -208,6 +208,79 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
+    public async Task PollOnceAsync_creates_private_thread_for_new_task_command_when_enabled()
+    {
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    1001,
+                    Text: "@aeges_test_bot new task Fix private thread flow",
+                    CallbackData: null,
+                    CallbackQueryId: null,
+                    IsPrivateChat: true),
+            ],
+        };
+        var service = CreateService(
+            gateway,
+            configuration: new AegesTelegramConfiguration { EnablePrivateChatThreads = true });
+
+        var result = await service.PollOnceAsync(
+            nextOffset: null,
+            new TelegramLongPollingOptions(),
+            CancellationToken.None);
+
+        Assert.Equal(42, result.NextOffset);
+        Assert.Equal(1, result.ProcessedUpdates);
+        Assert.Single(gateway.CreatedTopics);
+        Assert.Equal((1001, "Fix private thread flow"), gateway.CreatedTopics[0]);
+        var response = Assert.Single(gateway.SentResponses);
+        Assert.Equal(777, response.MessageThreadId);
+        Assert.Contains("No active projects", response.Response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PollOnceAsync_creates_private_thread_for_new_task_button_when_enabled()
+    {
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    1001,
+                    Text: null,
+                    CallbackData: TelegramCallbackData.CreateTask,
+                    CallbackQueryId: "callback-001",
+                    MessageId: 9001,
+                    IsPrivateChat: true),
+            ],
+        };
+        var service = CreateService(
+            gateway,
+            configuration: new AegesTelegramConfiguration { EnablePrivateChatThreads = true });
+
+        var result = await service.PollOnceAsync(
+            nextOffset: null,
+            new TelegramLongPollingOptions(),
+            CancellationToken.None);
+
+        Assert.Equal(42, result.NextOffset);
+        Assert.Equal(1, result.ProcessedUpdates);
+        Assert.Equal(["callback-001"], gateway.AnsweredCallbackQueryIds);
+        Assert.Single(gateway.CreatedTopics);
+        Assert.Equal((1001, "New Aeges task"), gateway.CreatedTopics[0]);
+        var rootResponse = Assert.Single(gateway.EditedResponses);
+        Assert.Equal(9001, rootResponse.MessageId);
+        Assert.Contains("Task thread created", rootResponse.Response.Text, StringComparison.Ordinal);
+        var threadResponse = Assert.Single(gateway.SentResponses);
+        Assert.Equal(777, threadResponse.MessageThreadId);
+        Assert.Contains("No active projects", threadResponse.Response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PollOnceAsync_ignores_private_thread_task_intake_when_disabled()
     {
         var gateway = new FakeTelegramBotGateway

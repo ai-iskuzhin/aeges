@@ -136,18 +136,21 @@ threads change routing semantics:
 
 When private chat threads are enabled, Aeges treats
 `chat_id + message_thread_id` as the transport surface. This lets one private
-conversation with the bot contain multiple task threads. Mention the bot inside
-a private thread to start the task wizard in that thread:
+conversation with the bot contain multiple task threads. Tap `New task` from
+the private chat root and Aeges creates a task thread, then sends the task
+wizard inside that thread. You can also mention the bot from the private chat
+root or inside an existing private thread:
 
 ```text
 @aeges_bot new task Fix install docs
 @aeges_bot task: Fix install docs
 ```
 
-Aeges does not create private Telegram threads itself; the operator creates or
-opens the thread in Telegram. The bot only binds work to the `message_thread_id`
-Telegram sends. If `enablePrivateChatThreads` is false, private-thread ids are
-ignored and private messages continue to route as one normal direct chat.
+If the command is sent from the private chat root, Aeges creates the private
+task thread first. If the command is sent inside an existing thread, Aeges binds
+the task wizard to that thread. If `enablePrivateChatThreads` is false,
+private-thread ids are ignored and private messages continue to route as one
+normal direct chat.
 
 Task-to-chat/topic bindings are persisted in SQLite. After the Telegram
 transport restarts, it reloads those bindings and continues routing task status
