@@ -6,7 +6,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="WTelegramBot" />
+    <PackageReference Include="Telegram.Bot" />
   </ItemGroup>
 
   <PropertyGroup>
