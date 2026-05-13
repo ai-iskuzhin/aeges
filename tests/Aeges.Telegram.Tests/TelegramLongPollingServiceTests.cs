@@ -256,6 +256,57 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
+    public async Task PollOnceAsync_edits_task_details_when_runner_progress_changes()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Wire progress",
+            "Notify the chat when runner progress changes.",
+            DateTimeOffset.UtcNow);
+        var runtimeEvents = new List<RuntimeEvent>();
+        var facade = new FakeTelegramApplicationFacade
+        {
+            WatchedTask = task,
+            RuntimeEvents = runtimeEvents,
+        };
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    1001,
+                    Text: null,
+                    CallbackData: TelegramCallbackData.ViewTask(task.Id),
+                    CallbackQueryId: "callback-001",
+                    MessageId: 9001),
+            ],
+        };
+        var service = CreateService(gateway, facade);
+
+        await service.PollOnceAsync(null, new TelegramLongPollingOptions(), CancellationToken.None);
+        runtimeEvents.Add(RuntimeEvent.Create(
+            new RuntimeEventId("runtime-event-001"),
+            task.Id,
+            new IterationId("iteration-001"),
+            new MachineId("machine-local"),
+            "runner.message",
+            "Codex finished the first file.",
+            null,
+            DateTimeOffset.UtcNow));
+        gateway.Updates = [];
+
+        await service.PollOnceAsync(42, new TelegramLongPollingOptions(), CancellationToken.None);
+
+        Assert.Equal(2, gateway.EditedResponses.Count);
+        Assert.Equal(9001, gateway.EditedResponses[1].MessageId);
+        Assert.Contains("Runner progress:", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
+        Assert.Contains("Codex finished the first file.", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PollOnceAsync_sends_notification_when_changed_task_is_not_last_details_message()
     {
         var task = RuntimeTask.Create(
@@ -816,6 +867,8 @@ public sealed class TelegramLongPollingServiceTests
     {
         public RuntimeTask? WatchedTask { get; init; }
 
+        public IReadOnlyList<RuntimeEvent> RuntimeEvents { get; init; } = [];
+
         public List<RuntimeTelegramTaskBinding> TaskBindings { get; } = [];
 
         public Task<TelegramUserAuthorization> EnsureTelegramUserAsync(
@@ -1037,13 +1090,19 @@ public sealed class TelegramLongPollingServiceTests
         {
             var result = WatchedTask is not null && WatchedTask.Id == taskId
                 ? Aeges.Application.ApplicationResult<TelegramTaskReviewSnapshot>.Success(
-                    new TelegramTaskReviewSnapshot(WatchedTask, [], [], "/runtime/artifacts", [], LatestRunnerResponse: null))
+                    new TelegramTaskReviewSnapshot(WatchedTask, [], [], "/runtime/artifacts", [], RuntimeEvents, LatestRunnerResponse: null))
                 : Aeges.Application.ApplicationResult<TelegramTaskReviewSnapshot>.Failure(
                     "task_not_found",
                     $"Task '{taskId}' was not found.");
 
             return Task.FromResult(result);
         }
+
+        public Task<IReadOnlyList<RuntimeEvent>> ListTaskRuntimeEventsAsync(
+            TaskId taskId,
+            int limit,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeEvent>>(RuntimeEvents.Take(limit).ToArray());
 
         public Task<Aeges.Application.ApplicationResult<RuntimeTask>> CancelTaskAsync(
             TaskId taskId,

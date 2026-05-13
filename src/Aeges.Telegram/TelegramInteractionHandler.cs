@@ -1234,6 +1234,14 @@ public sealed class TelegramInteractionHandler
         var runnerResponse = snapshot.LatestRunnerResponse is null
             ? "(none yet)"
             : snapshot.LatestRunnerResponse;
+        var progressLines = snapshot.RuntimeEvents.Count == 0
+            ? "(none yet)"
+            : string.Join(
+                '\n',
+                snapshot.RuntimeEvents
+                    .OrderBy(runtimeEvent => runtimeEvent.CreatedAt)
+                    .Select(runtimeEvent =>
+                        $"- {runtimeEvent.CreatedAt:HH:mm:ss} {runtimeEvent.EventType}: {runtimeEvent.Message}"));
         var taskMetadata = string.Join(
             '\n',
             [
@@ -1255,6 +1263,9 @@ public sealed class TelegramInteractionHandler
 
             Runner response:
             {TelegramMarkdown.Quote(runnerResponse)}
+
+            Runner progress:
+            {TelegramMarkdown.Quote(progressLines)}
 
             Artifacts:
             {TelegramMarkdown.Quote(artifactLines)}
@@ -1291,6 +1302,19 @@ public sealed class TelegramInteractionHandler
 
         return task.IsSuccess ? task.Value : null;
     }
+
+    /// <summary>
+    /// Lists recent runtime events for a task.
+    /// </summary>
+    /// <param name="taskId">The task identifier.</param>
+    /// <param name="limit">The maximum number of most recent events to return.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The task runtime events in chronological order.</returns>
+    public async Task<IReadOnlyList<RuntimeEvent>> ListTaskRuntimeEventsAsync(
+        TaskId taskId,
+        int limit,
+        CancellationToken cancellationToken) =>
+        await application.ListTaskRuntimeEventsAsync(taskId, limit, cancellationToken);
 
     private async Task<TelegramResponse> CancelTaskAsync(
         TelegramUserAuthorization authorization,

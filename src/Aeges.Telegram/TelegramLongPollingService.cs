@@ -337,11 +337,14 @@ public sealed class TelegramLongPollingService
 
         var isDetails = metadata.Kind == TelegramResponseKind.TaskDetails;
         var key = new TaskWatchKey(chatId, messageThreadId, taskId);
+        var runtimeEvents = await handler.ListTaskRuntimeEventsAsync(taskId, 5, cancellationToken);
+        var stateFingerprint = CreateTaskStateFingerprint(task);
         taskWatches[key] = new TaskWatch(
             chatId,
             messageThreadId,
             taskId,
-            CreateTaskFingerprint(task),
+            stateFingerprint,
+            CreateTaskWatchFingerprint(task, runtimeEvents),
             isDetails ? messageId : null,
             isDetails && messageId is not null);
         await TryUpdateTaskTopicTitleAsync(chatId, messageThreadId, task, cancellationToken);
@@ -372,7 +375,9 @@ public sealed class TelegramLongPollingService
                 continue;
             }
 
-            var fingerprint = CreateTaskFingerprint(task);
+            var runtimeEvents = await handler.ListTaskRuntimeEventsAsync(task.Id, 5, cancellationToken);
+            var stateFingerprint = CreateTaskStateFingerprint(task);
+            var fingerprint = CreateTaskWatchFingerprint(task, runtimeEvents);
 
             if (fingerprint == pair.Value.LastFingerprint)
             {
@@ -392,6 +397,7 @@ public sealed class TelegramLongPollingService
                     await gateway.EditResponseAsync(pair.Key.ChatId, pair.Value.DetailMessageId.Value, response, cancellationToken);
                     taskWatches[pair.Key] = pair.Value with
                     {
+                        LastStateFingerprint = stateFingerprint,
                         LastFingerprint = fingerprint,
                         LastBotMessageIsTaskDetails = true,
                     };
@@ -400,6 +406,16 @@ public sealed class TelegramLongPollingService
                 {
                     await ForgetMigratedTaskWatchAsync(pair.Key, exception, cancellationToken);
                 }
+
+                continue;
+            }
+
+            if (stateFingerprint == pair.Value.LastStateFingerprint)
+            {
+                taskWatches[pair.Key] = pair.Value with
+                {
+                    LastFingerprint = fingerprint,
+                };
 
                 continue;
             }
@@ -430,6 +446,7 @@ public sealed class TelegramLongPollingService
 
                 taskWatches[pair.Key] = pair.Value with
                 {
+                    LastStateFingerprint = stateFingerprint,
                     LastFingerprint = fingerprint,
                     DetailMessageId = null,
                     LastBotMessageIsTaskDetails = false,
@@ -501,7 +518,10 @@ public sealed class TelegramLongPollingService
                 binding.ChatId,
                 binding.MessageThreadId,
                 binding.TaskId,
-                CreateTaskFingerprint(task),
+                CreateTaskStateFingerprint(task),
+                CreateTaskWatchFingerprint(
+                    task,
+                    await handler.ListTaskRuntimeEventsAsync(task.Id, 5, cancellationToken)),
                 binding.DetailMessageId,
                 binding.DetailMessageId is not null);
         }
@@ -565,8 +585,20 @@ public sealed class TelegramLongPollingService
             update.ReplyToMessageId,
             update.IsPrivateChat);
 
-    private static string CreateTaskFingerprint(RuntimeTask task) =>
+    private static string CreateTaskStateFingerprint(RuntimeTask task) =>
         $"{task.Status.ToStorageValue()}:{task.CurrentIteration}:{task.FailureReason}";
+
+    private static string CreateTaskWatchFingerprint(
+        RuntimeTask task,
+        IReadOnlyList<RuntimeEvent> runtimeEvents)
+    {
+        var latestEvent = runtimeEvents
+            .OrderByDescending(runtimeEvent => runtimeEvent.CreatedAt)
+            .ThenByDescending(runtimeEvent => runtimeEvent.Id.Value)
+            .FirstOrDefault();
+
+        return $"{CreateTaskStateFingerprint(task)}:{latestEvent?.Id.Value ?? "none"}";
+    }
 
     private static string CreateTaskTopicTitle(RuntimeTask task)
     {
@@ -665,6 +697,7 @@ public sealed class TelegramLongPollingService
         long ChatId,
         int? MessageThreadId,
         TaskId TaskId,
+        string LastStateFingerprint,
         string LastFingerprint,
         int? DetailMessageId,
         bool LastBotMessageIsTaskDetails);

@@ -7,6 +7,7 @@ using Aeges.Application.Machines;
 using Aeges.Application.Projects;
 using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
+using Aeges.Application.RuntimeEvents;
 using Aeges.Application.Talk;
 using Aeges.Application.TelegramTaskBindings;
 using Aeges.Application.TelegramUsers;
@@ -32,6 +33,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     private readonly TaskIterationService iterationService;
     private readonly ArtifactService artifactService;
     private readonly RunnerExecutionService runnerExecutionService;
+    private readonly RuntimeEventService runtimeEventService;
     private readonly ApprovalService approvalService;
     private readonly TalkService talkService;
     private readonly TelegramUserService telegramUserService;
@@ -50,6 +52,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     /// <param name="iterationService">The task iteration application service.</param>
     /// <param name="artifactService">The artifact application service.</param>
     /// <param name="runnerExecutionService">The runner execution application service.</param>
+    /// <param name="runtimeEventService">The runtime event application service.</param>
     /// <param name="approvalService">The approval application service.</param>
     /// <param name="talkService">The governed talk application service.</param>
     /// <param name="telegramUserService">The Telegram user application service.</param>
@@ -65,6 +68,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         TaskIterationService iterationService,
         ArtifactService artifactService,
         RunnerExecutionService runnerExecutionService,
+        RuntimeEventService runtimeEventService,
         ApprovalService approvalService,
         TalkService talkService,
         TelegramUserService telegramUserService,
@@ -80,6 +84,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         this.iterationService = iterationService;
         this.artifactService = artifactService;
         this.runnerExecutionService = runnerExecutionService;
+        this.runtimeEventService = runtimeEventService;
         this.approvalService = approvalService;
         this.talkService = talkService;
         this.telegramUserService = telegramUserService;
@@ -388,6 +393,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         var iterations = await iterationService.ListByTaskAsync(taskId, cancellationToken);
         var artifacts = await artifactService.ListByTaskAsync(taskId, cancellationToken);
         var executions = await runnerExecutionService.ListByTaskAsync(taskId, cancellationToken);
+        var runtimeEvents = await runtimeEventService.ListByTaskAsync(taskId, 10, cancellationToken);
         var latestResponse = TryReadLatestRunnerResponse(artifacts, iterations);
 
         return ApplicationResult<TelegramTaskReviewSnapshot>.Success(
@@ -397,8 +403,16 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
                 artifacts,
                 runtimeLayout.ArtifactsPath,
                 executions,
+                runtimeEvents,
                 latestResponse));
     }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<RuntimeEvent>> ListTaskRuntimeEventsAsync(
+        TaskId taskId,
+        int limit,
+        CancellationToken cancellationToken) =>
+        await runtimeEventService.ListByTaskAsync(taskId, limit, cancellationToken);
 
     /// <inheritdoc />
     public async Task<ApplicationResult<RuntimeTask>> CancelTaskAsync(

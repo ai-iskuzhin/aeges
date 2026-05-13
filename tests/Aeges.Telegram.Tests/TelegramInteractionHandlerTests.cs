@@ -545,6 +545,7 @@ public sealed class TelegramInteractionHandlerTests
                 [artifact],
                 "/runtime/artifacts",
                 [execution],
+                [],
                 "Mock runner result: success."),
         };
         var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
@@ -983,6 +984,8 @@ public sealed class TelegramInteractionHandlerTests
 
         public TelegramTaskReviewSnapshot? ReviewSnapshot { get; init; }
 
+        public IReadOnlyList<RuntimeEvent> RuntimeEvents { get; init; } = [];
+
         public IReadOnlyList<ApprovalRequest> PendingApprovals { get; init; } = [];
 
         public ApprovalRequest? Approval { get; init; }
@@ -1395,11 +1398,17 @@ public sealed class TelegramInteractionHandlerTests
 
             var result = Task is not null && Task.Id == taskId
                 ? ApplicationResult<TelegramTaskReviewSnapshot>.Success(
-                    new TelegramTaskReviewSnapshot(Task, [], [], "/runtime/artifacts", [], LatestRunnerResponse: null))
+                    new TelegramTaskReviewSnapshot(Task, [], [], "/runtime/artifacts", [], RuntimeEvents, LatestRunnerResponse: null))
                 : ApplicationResult<TelegramTaskReviewSnapshot>.Failure("task_not_found", $"Task '{taskId}' was not found.");
 
             return System.Threading.Tasks.Task.FromResult(result);
         }
+
+        public Task<IReadOnlyList<RuntimeEvent>> ListTaskRuntimeEventsAsync(
+            TaskId taskId,
+            int limit,
+            CancellationToken cancellationToken) =>
+            System.Threading.Tasks.Task.FromResult<IReadOnlyList<RuntimeEvent>>(RuntimeEvents.Take(limit).ToArray());
 
         public Task<ApplicationResult<RuntimeTask>> CancelTaskAsync(
             TaskId taskId,

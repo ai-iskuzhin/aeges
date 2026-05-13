@@ -312,6 +312,18 @@ public interface ITelegramApplicationFacade
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Lists recent runtime events for a task.
+    /// </summary>
+    /// <param name="taskId">The task identifier.</param>
+    /// <param name="limit">The maximum number of most recent events to return.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The task runtime events in chronological order.</returns>
+    Task<IReadOnlyList<RuntimeEvent>> ListTaskRuntimeEventsAsync(
+        TaskId taskId,
+        int limit,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Cancels a task.
     /// </summary>
     /// <param name="taskId">The task identifier.</param>

@@ -1208,6 +1208,7 @@ internal static class AegesCli
             new TaskIterationService(unitOfWork, clock),
             new ArtifactService(unitOfWork, clock),
             new RunnerExecutionService(unitOfWork, clock),
+            new RuntimeEventService(unitOfWork, clock),
             new ApprovalService(unitOfWork, clock),
             CreateTalkService(unitOfWork, clock, configuration),
             new TelegramUserService(unitOfWork, clock),
