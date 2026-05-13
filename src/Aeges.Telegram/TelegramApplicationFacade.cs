@@ -428,8 +428,39 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     /// <inheritdoc />
     public async Task<ApplicationResult<RuntimeTask>> CancelTaskAsync(
         TaskId taskId,
-        CancellationToken cancellationToken) =>
-        await taskService.CancelAsync(taskId, cancellationToken);
+        string cancelledBy,
+        CancellationToken cancellationToken)
+    {
+        var task = await taskService.CancelAsync(taskId, cancellationToken);
+
+        if (!task.IsSuccess)
+        {
+            return task;
+        }
+
+        var iterations = await iterationService.ListByTaskAsync(taskId, cancellationToken);
+        foreach (var iteration in iterations.Where(iteration => !iteration.Status.IsTerminal()))
+        {
+            await iterationService.CancelAsync(iteration.Id, cancellationToken);
+        }
+
+        var executions = await runnerExecutionService.ListByTaskAsync(taskId, cancellationToken);
+        foreach (var execution in executions.Where(execution => !execution.IsCompleted))
+        {
+            await runnerExecutionService.RecordCancellationAsync(execution.Id, cancellationToken);
+        }
+
+        await runtimeEventService.RecordAsync(
+            new RecordRuntimeEventRequest(
+                taskId,
+                IterationId: null,
+                MachineId: task.Value!.MachineId,
+                "task.cancelled",
+                $"Task was cancelled by {cancelledBy}."),
+            cancellationToken);
+
+        return task;
+    }
 
     /// <inheritdoc />
     public async Task<ApplicationResult<RuntimeTask>> CompleteTaskAsync(

@@ -740,6 +740,30 @@ public sealed class TelegramInteractionHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_shows_menu_button_for_terminal_task_details_in_direct_message()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Wire Telegram buttons",
+            "Expose Telegram actions through inline buttons.",
+            Now);
+        task.Cancel(Now.AddMinutes(1));
+        var facade = new FakeTelegramApplicationFacade { Task = task };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ViewTask(task.Id)),
+            CancellationToken.None);
+
+        Assert.Contains("> Status: cancelled", response.Text, StringComparison.Ordinal);
+        Assert.Single(response.Buttons.Rows);
+        Assert.Equal("Menu", response.Buttons.Rows[0][0].Text);
+        Assert.Equal(TelegramCallbackData.MainMenu, response.Buttons.Rows[0][0].CallbackData);
+    }
+
+    [Fact]
     public async Task HandleAsync_cancels_task_from_button_callback()
     {
         var task = RuntimeTask.Create(
@@ -757,10 +781,10 @@ public sealed class TelegramInteractionHandlerTests
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.CancelTask(task.Id)),
             CancellationToken.None);
 
-        Assert.Equal("Task cancelled: task-001", response.Text);
+        Assert.Contains("Task cancelled: task-001", response.Text, StringComparison.Ordinal);
         Assert.Equal(RuntimeTaskStatus.Cancelled, task.Status);
         Assert.True(facade.CancelTaskCalled);
-        AssertBackButton(response);
+        Assert.Equal("New task", response.Buttons.Rows[0][0].Text);
     }
 
     [Fact]
@@ -1485,6 +1509,7 @@ public sealed class TelegramInteractionHandlerTests
 
         public Task<ApplicationResult<RuntimeTask>> CancelTaskAsync(
             TaskId taskId,
+            string cancelledBy,
             CancellationToken cancellationToken)
         {
             CancelTaskCalled = true;

@@ -115,6 +115,12 @@ public sealed class TelegramLongPollingService
                 var isCallback = !string.IsNullOrWhiteSpace(callbackQueryId);
                 var routingThreadId = GetRoutingThreadId(update);
 
+                await LogAsync(
+                    new TelegramLongPollingLogEntry(
+                        TelegramLongPollingLogLevel.Information,
+                        FormatUpdateForLog(update, routingThreadId)),
+                    cancellationToken);
+
                 if (isCallback)
                 {
                     await TryAnswerCallbackQueryAsync(callbackQueryId!, update, processed, cancellationToken);
@@ -400,7 +406,10 @@ public sealed class TelegramLongPollingService
                 {
                     var response = await handler.TokenizeResponseAsync(
                         pair.Key.ChatId,
-                        await handler.RenderTaskDetailsAsync(task.Id, cancellationToken),
+                        await handler.RenderTaskDetailsAsync(
+                            task.Id,
+                            cancellationToken,
+                            includeTerminalNavigation: pair.Key.MessageThreadId is null),
                         cancellationToken);
                     await gateway.EditResponseAsync(pair.Key.ChatId, pair.Value.DetailMessageId.Value, response, cancellationToken);
                     taskWatches[pair.Key] = pair.Value with
@@ -616,6 +625,42 @@ public sealed class TelegramLongPollingService
             update.MessageThreadId,
             update.ReplyToMessageId,
             update.IsPrivateChat);
+
+    private static string FormatUpdateForLog(TelegramBotUpdate update, int? routingThreadId)
+    {
+        var kind = update.CallbackData is not null
+            ? "callback"
+            : update.Text is not null ? "text" : "other";
+        var callback = update.CallbackData is null
+            ? "(none)"
+            : SanitizeCallbackForLog(update.CallbackData);
+        var hasText = update.Text is null ? "false" : "true";
+
+        return
+            $"Processing Telegram update. updateId={update.UpdateId} chatId={update.ChatId} " +
+            $"messageThreadId={FormatOptionalInt(update.MessageThreadId)} routingThreadId={FormatOptionalInt(routingThreadId)} " +
+            $"senderUserId={FormatOptionalLong(update.SenderUserId)} kind={kind} callback={callback} hasText={hasText}";
+    }
+
+    private static string SanitizeCallbackForLog(string callbackData)
+    {
+        if (callbackData.StartsWith("a:", StringComparison.Ordinal))
+        {
+            return "token";
+        }
+
+        var parts = callbackData.Split(':', StringSplitOptions.RemoveEmptyEntries);
+
+        return parts.Length <= 3
+            ? callbackData
+            : string.Join(':', parts.Take(3)) + ":...";
+    }
+
+    private static string FormatOptionalInt(int? value) =>
+        value?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(none)";
+
+    private static string FormatOptionalLong(long? value) =>
+        value?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(none)";
 
     private static string CreateTaskStateFingerprint(RuntimeTask task) =>
         $"{task.Status.ToStorageValue()}:{task.CurrentIteration}:{task.FailureReason}";

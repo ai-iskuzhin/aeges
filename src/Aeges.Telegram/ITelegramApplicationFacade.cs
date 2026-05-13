@@ -337,9 +337,13 @@ public interface ITelegramApplicationFacade
     /// Cancels a task.
     /// </summary>
     /// <param name="taskId">The task identifier.</param>
+    /// <param name="cancelledBy">The operator or transport identity that requested cancellation.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The task cancellation result.</returns>
-    Task<ApplicationResult<RuntimeTask>> CancelTaskAsync(TaskId taskId, CancellationToken cancellationToken);
+    Task<ApplicationResult<RuntimeTask>> CancelTaskAsync(
+        TaskId taskId,
+        string cancelledBy,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Completes a task after review.

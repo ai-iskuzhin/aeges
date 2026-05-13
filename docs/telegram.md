@@ -191,6 +191,16 @@ details message in place without action buttons. Press `Continue` and send
 follow-up feedback to store a `review` artifact and requeue the task for another
 bounded iteration.
 
+In direct messages, terminal task detail updates keep a `Menu` button so the
+operator can return to navigation after a watched task completes, fails, or is
+cancelled. In forum topics and private message threads, terminal task detail
+messages stay without buttons so the thread can settle as a clean final record.
+
+When Telegram cancels a task, Aeges records a task-scoped runtime event and
+closes open iteration or runner execution metadata as cancelled. The task row
+remains the source of lifecycle truth, while runtime events explain the
+operator action that caused the transition.
+
 For forum-topic tasks, the Telegram transport updates the topic title with the
 latest task status, for example `[running] Fix install docs` or `[completed]
 Fix install docs`. If Telegram rejects the title update because the bot lacks

@@ -322,6 +322,44 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
+    public async Task PollOnceAsync_keeps_menu_button_when_direct_message_task_details_become_terminal()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Wire terminal buttons",
+            "Keep direct-message navigation after terminal updates.",
+            DateTimeOffset.UtcNow);
+        var facade = new FakeTelegramApplicationFacade { WatchedTask = task };
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    1001,
+                    Text: null,
+                    CallbackData: TelegramCallbackData.ViewTask(task.Id),
+                    CallbackQueryId: "callback-001",
+                    MessageId: 9001),
+            ],
+        };
+        var service = CreateService(gateway, facade);
+
+        await service.PollOnceAsync(null, new TelegramLongPollingOptions(), CancellationToken.None);
+        task.Cancel(DateTimeOffset.UtcNow);
+        gateway.Updates = [];
+
+        await service.PollOnceAsync(42, new TelegramLongPollingOptions(), CancellationToken.None);
+
+        Assert.Equal(2, gateway.EditedResponses.Count);
+        Assert.Contains("Status: cancelled", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
+        Assert.Single(gateway.EditedResponses[1].Response.Buttons.Rows);
+        Assert.Equal("Menu", gateway.EditedResponses[1].Response.Buttons.Rows[0][0].Text);
+    }
+
+    [Fact]
     public async Task PollOnceAsync_edits_task_details_when_runner_progress_changes()
     {
         var task = RuntimeTask.Create(
@@ -1189,6 +1227,7 @@ public sealed class TelegramLongPollingServiceTests
 
         public Task<Aeges.Application.ApplicationResult<RuntimeTask>> CancelTaskAsync(
             TaskId taskId,
+            string cancelledBy,
             CancellationToken cancellationToken) =>
             Task.FromResult(Aeges.Application.ApplicationResult<RuntimeTask>.Failure(
                 "task_not_found",
