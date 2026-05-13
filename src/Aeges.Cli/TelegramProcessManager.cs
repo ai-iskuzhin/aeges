@@ -321,10 +321,35 @@ internal sealed class TelegramProcessManager
 
         startInfo.FileName = "/bin/sh";
         startInfo.ArgumentList.Add("-c");
-        startInfo.ArgumentList.Add(
-            $"nohup {QuoteShell(executablePath)} {string.Join(' ', arguments.Select(QuoteShell))} </dev/null >> {QuoteShell(stdoutPath)} 2>> {QuoteShell(stderrPath)} & echo $! > {QuoteShell(childPidPath)}");
+        startInfo.ArgumentList.Add(BuildUnixDetachedCommand(
+            executablePath,
+            arguments,
+            stdoutPath,
+            stderrPath,
+            childPidPath));
 
         return startInfo;
+    }
+
+    private static string BuildUnixDetachedCommand(
+        string executablePath,
+        IReadOnlyList<string> arguments,
+        string stdoutPath,
+        string stderrPath,
+        string childPidPath)
+    {
+        var executableAndArguments = $"{QuoteShell(executablePath)} {string.Join(' ', arguments.Select(QuoteShell))}";
+        var perlSessionScript = "setsid() or die \"setsid: $!\"; exec @ARGV or die \"exec: $!\"";
+
+        return
+            "(if command -v setsid >/dev/null 2>&1; then " +
+            $"exec setsid {executableAndArguments}; " +
+            "elif command -v perl >/dev/null 2>&1; then " +
+            $"exec perl -MPOSIX=setsid -e {QuoteShell(perlSessionScript)} {executableAndArguments}; " +
+            "else " +
+            $"exec nohup {executableAndArguments}; " +
+            "fi) " +
+            $"</dev/null >> {QuoteShell(stdoutPath)} 2>> {QuoteShell(stderrPath)} & echo $! > {QuoteShell(childPidPath)}";
     }
 
     private static ProcessStartInfo CreateWindowsStartInfo(
