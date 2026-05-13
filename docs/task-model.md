@@ -53,6 +53,19 @@ waiting_approval -> running | failed | cancelled
 
 Terminal states do not allow further transitions.
 
+## Recovery
+
+The local agent treats `planning` and `running` tasks assigned to its machine as
+owned by the currently running agent process. When the background agent starts,
+it performs one recovery pass before claiming new queued work. Any tasks left in
+those active states by an earlier agent process are marked `failed`, their open
+iterations or runner execution records are closed, and a runtime event records
+the recovery reason.
+
+This keeps durable task state honest after crashes, tool updates, machine
+sleep, or forced restarts. Review and waiting-approval tasks are not recovered
+as orphaned because they are intentionally waiting for human input.
+
 ## Iterations
 
 A task may have multiple bounded iterations. Each iteration should record the

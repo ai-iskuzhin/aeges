@@ -134,6 +134,81 @@ public sealed class LocalAgentRuntime
             taskSnapshots);
     }
 
+    /// <summary>
+    /// Marks tasks left in active runner states by a previous agent process as failed.
+    /// </summary>
+    /// <param name="options">The local agent run options.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The number of recovered orphaned tasks.</returns>
+    public async Task<int> RecoverOrphanedRunningTasksAsync(
+        AgentRunOptions options,
+        CancellationToken cancellationToken)
+    {
+        Validate(options);
+
+        await using var context = new AegesDbContext(AegesDbContextOptions.Create(options.ConnectionString));
+        await SqlitePragmas.ApplyAsync(context, cancellationToken);
+        await context.Database.MigrateAsync(cancellationToken);
+
+        var unitOfWork = new SqliteUnitOfWork(context);
+        var machineId = new MachineId(options.MachineId);
+        var orphanedTasks = new List<RuntimeTask>();
+
+        foreach (var status in new[] { RuntimeTaskStatus.Planning, RuntimeTaskStatus.Running })
+        {
+            var tasks = await unitOfWork.Tasks.ListByStatusAsync(status, int.MaxValue, cancellationToken);
+            orphanedTasks.AddRange(tasks.Where(task => task.MachineId == machineId));
+        }
+
+        if (orphanedTasks.Count == 0)
+        {
+            return 0;
+        }
+
+        var taskService = new TaskService(unitOfWork, clock);
+        var iterationService = new TaskIterationService(unitOfWork, clock);
+        var executionService = new RunnerExecutionService(unitOfWork, clock);
+        var runtimeEventService = new RuntimeEventService(unitOfWork, clock);
+        var recovered = 0;
+
+        foreach (var task in orphanedTasks)
+        {
+            var reason = "Agent process restarted before the task completed; previous runner execution was orphaned.";
+            var iterations = await iterationService.ListByTaskAsync(task.Id, cancellationToken);
+            var executions = await executionService.ListByTaskAsync(task.Id, cancellationToken);
+
+            foreach (var execution in executions.Where(execution => !execution.IsCompleted))
+            {
+                await RequireSuccessAsync(executionService.RecordCancellationAsync(execution.Id, cancellationToken));
+            }
+
+            foreach (var iteration in iterations.Where(iteration => !iteration.Status.IsTerminal()))
+            {
+                if (iteration.Status == TaskIterationStatus.Created)
+                {
+                    await RequireSuccessAsync(iterationService.CancelAsync(iteration.Id, cancellationToken));
+                }
+                else
+                {
+                    await RequireSuccessAsync(iterationService.FailAsync(iteration.Id, reason, cancellationToken));
+                }
+            }
+
+            await RequireSuccessAsync(taskService.FailAsync(task.Id, reason, cancellationToken));
+            await RequireSuccessAsync(runtimeEventService.RecordAsync(
+                new RecordRuntimeEventRequest(
+                    task.Id,
+                    IterationId: null,
+                    MachineId: machineId,
+                    "agent.orphaned_task_recovered",
+                    reason),
+                cancellationToken));
+            recovered++;
+        }
+
+        return recovered;
+    }
+
     private async Task<PreparedClaim?> ClaimNextQueuedTaskAsync(
         SqliteUnitOfWork unitOfWork,
         MachineId machineId,

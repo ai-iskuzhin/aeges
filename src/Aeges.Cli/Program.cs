@@ -984,6 +984,16 @@ internal static class AegesCli
                 return 0;
             }
 
+            var recoveredTasks = await runtime.RecoverOrphanedRunningTasksAsync(agentOptions, cancellationToken);
+            if (recoveredTasks > 0)
+            {
+                await WriteRuntimeLogAsync(
+                    output,
+                    "agent",
+                    "warn",
+                    $"Recovered orphaned active tasks count={recoveredTasks}");
+            }
+
             await output.WriteLineAsync($"Agent running for machine '{agentOptions.MachineId}'. Press Ctrl+C to stop.");
             await WriteRuntimeLogAsync(
                 output,

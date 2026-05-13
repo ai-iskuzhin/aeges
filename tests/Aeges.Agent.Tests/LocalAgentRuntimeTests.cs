@@ -1,4 +1,8 @@
+using Aeges.Application;
 using Aeges.Core;
+using Aeges.Application.Iterations;
+using Aeges.Application.RunnerExecutions;
+using Aeges.Application.Tasks;
 using Aeges.Storage.Sqlite;
 using Aeges.Storage.Sqlite.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -399,6 +403,74 @@ public sealed class LocalAgentRuntimeTests
     }
 
     [Fact]
+    public async Task RecoverOrphanedRunningTasks_marks_open_task_failed()
+    {
+        var clock = new FixedClock(new DateTimeOffset(2026, 05, 08, 08, 00, 00, TimeSpan.Zero));
+        var runtime = new LocalAgentRuntime(clock);
+        var databasePath = Path.Combine(Path.GetTempPath(), $"aeges-agent-{Guid.NewGuid():N}.db");
+        var connectionString = $"Data Source={databasePath}";
+        var options = new AgentRunOptions(
+            connectionString,
+            "machine-001",
+            "local-test",
+            "test-platform",
+            RunnerId: "mock");
+
+        try
+        {
+            await SeedProjectMachineAndTaskAsync(connectionString, clock.Now, new MachineId("machine-001"));
+            await using (var context = new AegesDbContext(AegesDbContextOptions.Create(connectionString)))
+            {
+                var unitOfWork = new SqliteUnitOfWork(context);
+                var taskService = new TaskService(unitOfWork, clock);
+                var iterationService = new TaskIterationService(unitOfWork, clock);
+                var executionService = new RunnerExecutionService(unitOfWork, clock);
+                await RequireSuccessAsync(taskService.StartPlanningAsync(new TaskId("task-001"), CancellationToken.None));
+                var iteration = await iterationService.CreateNextAsync(
+                    new CreateTaskIterationRequest(new TaskId("task-001"), new RunnerId("mock")),
+                    CancellationToken.None);
+                await RequireSuccessAsync(iteration);
+                await RequireSuccessAsync(taskService.StartRunningAsync(new TaskId("task-001"), CancellationToken.None));
+                await RequireSuccessAsync(iterationService.StartRunningAsync(iteration.Value!.Id, CancellationToken.None));
+                await RequireSuccessAsync(executionService.StartAsync(
+                    new StartRunnerExecutionRequest(
+                        new TaskId("task-001"),
+                        iteration.Value.Id,
+                        new RunnerId("mock"),
+                        "runner:mock",
+                        "/tmp/aeges-worktree"),
+                    CancellationToken.None));
+            }
+
+            var recovered = await runtime.RecoverOrphanedRunningTasksAsync(options, CancellationToken.None);
+
+            await using var assertionContext = new AegesDbContext(AegesDbContextOptions.Create(connectionString));
+            var assertionUnitOfWork = new SqliteUnitOfWork(assertionContext);
+            var task = await assertionUnitOfWork.Tasks.GetByIdAsync(new TaskId("task-001"), CancellationToken.None);
+            var iterations = await assertionUnitOfWork.Iterations.ListByTaskAsync(new TaskId("task-001"), CancellationToken.None);
+            var executions = await assertionUnitOfWork.RunnerExecutions.ListByTaskAsync(new TaskId("task-001"), CancellationToken.None);
+            var events = await assertionUnitOfWork.RuntimeEvents.ListByTaskAsync(new TaskId("task-001"), 10, CancellationToken.None);
+
+            Assert.Equal(1, recovered);
+            Assert.NotNull(task);
+            Assert.Equal(RuntimeTaskStatus.Failed, task.Status);
+            Assert.Contains("orphaned", task.FailureReason, StringComparison.OrdinalIgnoreCase);
+            var storedIteration = Assert.Single(iterations);
+            Assert.Equal(TaskIterationStatus.Failed, storedIteration.Status);
+            var execution = Assert.Single(executions);
+            Assert.True(execution.IsCompleted);
+            Assert.True(execution.Cancelled);
+            Assert.Contains(events, runtimeEvent => runtimeEvent.EventType == "agent.orphaned_task_recovered");
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+            DeleteIfExists($"{databasePath}-shm");
+            DeleteIfExists($"{databasePath}-wal");
+        }
+    }
+
+    [Fact]
     public async Task RunOnce_can_create_git_worktree_for_claimed_iteration()
     {
         using var repository = await TemporaryGitRepository.CreateAsync();
@@ -473,6 +545,19 @@ public sealed class LocalAgentRuntimeTests
             Directory.Delete(path, recursive: true);
         }
     }
+
+    private static Task RequireSuccessAsync<TValue>(ApplicationResult<TValue> result)
+    {
+        if (!result.IsSuccess)
+        {
+            throw new InvalidOperationException(result.Error!.Message);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static async Task RequireSuccessAsync<TValue>(Task<ApplicationResult<TValue>> resultTask) =>
+        await RequireSuccessAsync(await resultTask);
 
     private static async Task SeedProjectMachineAndTaskAsync(
         string connectionString,
