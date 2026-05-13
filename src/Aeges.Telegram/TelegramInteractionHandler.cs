@@ -118,7 +118,7 @@ public sealed class TelegramInteractionHandler
             _ when TelegramCallbackData.TryParseViewTask(callbackData, out var taskId) =>
                 await ViewTaskAsync(authorization, taskId, cancellationToken),
             _ when TelegramCallbackData.TryParseCompleteTask(callbackData, out var taskId) =>
-                await CompleteTaskAsync(authorization, taskId, cancellationToken),
+                await CompleteTaskAsync(authorization, taskId, update.MessageThreadId, cancellationToken),
             _ when TelegramCallbackData.TryParseContinueTask(callbackData, out var taskId) =>
                 await StartTaskContinuationAsync(update, authorization, taskId, cancellationToken),
             _ when TelegramCallbackData.TryParseCancelTask(callbackData, out var taskId) =>
@@ -268,7 +268,8 @@ public sealed class TelegramInteractionHandler
 
     private async Task<TelegramResponse> MainMenuAsync(
         TelegramUserAuthorization authorization,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? notice = null)
     {
         var projects = await ListAccessibleProjectsAsync(authorization, cancellationToken);
         var machines = await application.ListMachinesAsync(cancellationToken);
@@ -303,8 +304,10 @@ public sealed class TelegramInteractionHandler
                 Button($"Users ({CountBadge(users.Count, MenuCountLimit)})", TelegramCallbackData.UserMenu)));
         }
 
+        var menuText = runtimeVersion is null ? "Aeges control" : $"Aeges control\nVersion: {runtimeVersion}";
+
         return new TelegramResponse(
-            runtimeVersion is null ? "Aeges control" : $"Aeges control\nVersion: {runtimeVersion}",
+            string.IsNullOrWhiteSpace(notice) ? menuText : $"{notice}\n\n{menuText}",
             Buttons([.. menuRows]));
     }
 
@@ -1321,6 +1324,7 @@ public sealed class TelegramInteractionHandler
     private async Task<TelegramResponse> CompleteTaskAsync(
         TelegramUserAuthorization authorization,
         TaskId taskId,
+        int? messageThreadId,
         CancellationToken cancellationToken)
     {
         var existing = await application.GetTaskAsync(taskId, cancellationToken);
@@ -1340,6 +1344,19 @@ public sealed class TelegramInteractionHandler
         if (!task.IsSuccess)
         {
             return new TelegramResponse($"{task.Error!.Code}: {task.Error.Message}", BackButtons());
+        }
+
+        if (messageThreadId is null)
+        {
+            var menu = await MainMenuAsync(
+                authorization,
+                cancellationToken,
+                $"Task completed: {task.Value!.Id}");
+
+            return menu with
+            {
+                Metadata = new TelegramResponseMetadata(TelegramResponseKind.TaskWatch, task.Value.Id),
+            };
         }
 
         return await RenderTaskDetailsAsync(task.Value!.Id, cancellationToken);

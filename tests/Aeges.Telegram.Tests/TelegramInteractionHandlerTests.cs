@@ -661,7 +661,7 @@ public sealed class TelegramInteractionHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_completes_reviewing_task_from_button_callback()
+    public async Task HandleAsync_completes_reviewing_task_from_direct_message_and_returns_menu()
     {
         var task = RuntimeTask.Create(
             new TaskId("task-001"),
@@ -678,6 +678,39 @@ public sealed class TelegramInteractionHandlerTests
 
         var response = await handler.HandleAsync(
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.CompleteTask(task.Id)),
+            CancellationToken.None);
+
+        Assert.Contains("Task completed: task-001", response.Text, StringComparison.Ordinal);
+        Assert.Contains("Aeges control", response.Text, StringComparison.Ordinal);
+        Assert.Equal(RuntimeTaskStatus.Completed, task.Status);
+        Assert.True(facade.CompleteTaskCalled);
+        Assert.Contains(response.Buttons.Rows.SelectMany(row => row), button => button.Text == "New task");
+        Assert.Equal(TelegramResponseKind.TaskWatch, response.Metadata?.Kind);
+        Assert.Equal(task.Id, response.Metadata?.TaskId);
+    }
+
+    [Fact]
+    public async Task HandleAsync_completes_reviewing_task_from_topic_and_keeps_final_task_message()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Wire Telegram buttons",
+            "Expose Telegram actions through inline buttons.",
+            Now);
+        task.StartPlanning(Now);
+        task.StartRunning(Now);
+        task.StartReview(Now);
+        var facade = new FakeTelegramApplicationFacade { Task = task, QueuedTasks = [task] };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(
+                -1001,
+                CallbackData: TelegramCallbackData.CompleteTask(task.Id),
+                MessageThreadId: 77,
+                IsPrivateChat: false),
             CancellationToken.None);
 
         Assert.Contains("> Status: completed", response.Text, StringComparison.Ordinal);

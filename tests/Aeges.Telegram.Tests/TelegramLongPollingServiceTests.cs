@@ -344,6 +344,59 @@ public sealed class TelegramLongPollingServiceTests
         Assert.Equal(RuntimeTaskStatus.Completed, task.Status);
         Assert.Empty(gateway.SentResponses);
         Assert.Equal(2, gateway.EditedResponses.Count);
+        Assert.Contains("Task completed: task-001", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
+        Assert.Contains("Aeges control", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
+        Assert.Contains(gateway.EditedResponses[1].Response.Buttons.Rows.SelectMany(row => row), button => button.Text == "New task");
+    }
+
+    [Fact]
+    public async Task PollOnceAsync_keeps_topic_task_message_without_buttons_after_completion_callback()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Complete from Telegram",
+            "Complete without a duplicate notification.",
+            DateTimeOffset.UtcNow);
+        task.StartPlanning(DateTimeOffset.UtcNow);
+        task.StartRunning(DateTimeOffset.UtcNow);
+        task.StartReview(DateTimeOffset.UtcNow);
+        var facade = new FakeTelegramApplicationFacade { WatchedTask = task };
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    -1001,
+                    Text: null,
+                    CallbackData: TelegramCallbackData.ViewTask(task.Id),
+                    CallbackQueryId: "callback-001",
+                    MessageId: 9001,
+                    MessageThreadId: 77),
+            ],
+        };
+        var service = CreateService(gateway, facade);
+
+        await service.PollOnceAsync(null, new TelegramLongPollingOptions(), CancellationToken.None);
+        gateway.Updates =
+        [
+            new TelegramBotUpdate(
+                42,
+                -1001,
+                Text: null,
+                CallbackData: TelegramCallbackData.CompleteTask(task.Id),
+                CallbackQueryId: "callback-002",
+                MessageId: 9001,
+                MessageThreadId: 77),
+        ];
+
+        await service.PollOnceAsync(42, new TelegramLongPollingOptions(), CancellationToken.None);
+
+        Assert.Equal(RuntimeTaskStatus.Completed, task.Status);
+        Assert.Empty(gateway.SentResponses);
+        Assert.Equal(2, gateway.EditedResponses.Count);
         Assert.Contains("> Status: completed", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
         Assert.Empty(gateway.EditedResponses[1].Response.Buttons.Rows);
     }
