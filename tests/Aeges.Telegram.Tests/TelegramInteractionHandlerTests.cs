@@ -862,7 +862,8 @@ public sealed class TelegramInteractionHandlerTests
             RunnerSettings = new TelegramRunnerSettings(
                 "workspace-write",
                 CodexBypassApprovalsAndSandbox: false,
-                AgentMaxParallelTasks: 4),
+                AgentMaxParallelTasks: 4,
+                PrivateChatThreadsEnabled: true),
         };
         var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
 
@@ -873,6 +874,7 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Contains("Agent parallel tasks: 4", response.Text, StringComparison.Ordinal);
         Assert.Contains("Codex sandbox: workspace-write", response.Text, StringComparison.Ordinal);
         Assert.Contains("Codex bypass approvals and sandbox: disallowed", response.Text, StringComparison.Ordinal);
+        Assert.Contains("Telegram private threads: enabled", response.Text, StringComparison.Ordinal);
         Assert.Equal("1", response.Buttons.Rows[0][0].Text);
         Assert.Equal("ae:s:p:1", response.Buttons.Rows[0][0].CallbackData);
         Assert.Equal(TelegramButtonStyle.Primary, response.Buttons.Rows[0][0].Style);
@@ -885,6 +887,9 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Equal("Bypass disabled", response.Buttons.Rows[3][1].Text);
         Assert.Equal("ae:s:bp:1", response.Buttons.Rows[3][1].CallbackData);
         Assert.Equal(TelegramButtonStyle.Danger, response.Buttons.Rows[3][1].Style);
+        Assert.Equal("Private threads enabled", response.Buttons.Rows[4][0].Text);
+        Assert.Equal("ae:s:th:0", response.Buttons.Rows[4][0].CallbackData);
+        Assert.Equal(TelegramButtonStyle.Success, response.Buttons.Rows[4][0].Style);
     }
 
     [Fact]
@@ -902,14 +907,20 @@ public sealed class TelegramInteractionHandlerTests
         var parallelResponse = await handler.HandleAsync(
             new TelegramUpdate(1001, CallbackData: TelegramCallbackData.SetAgentMaxParallelTasks(8)),
             CancellationToken.None);
+        var privateThreadsResponse = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.SetPrivateChatThreads(true)),
+            CancellationToken.None);
 
         Assert.Equal("danger-full-access", facade.RunnerSettings.CodexSandboxMode);
         Assert.True(facade.RunnerSettings.CodexBypassApprovalsAndSandbox);
         Assert.Equal(8, facade.RunnerSettings.AgentMaxParallelTasks);
+        Assert.True(facade.RunnerSettings.PrivateChatThreadsEnabled);
         Assert.Equal(3, facade.RestartAgentCallCount);
         Assert.Contains("Codex sandbox: danger-full-access", sandboxResponse.Text, StringComparison.Ordinal);
         Assert.Contains("Codex bypass approvals and sandbox: allowed", bypassResponse.Text, StringComparison.Ordinal);
         Assert.Contains("Agent parallel tasks: 8", parallelResponse.Text, StringComparison.Ordinal);
+        Assert.Contains("Telegram private threads: enabled", privateThreadsResponse.Text, StringComparison.Ordinal);
+        Assert.Contains("Telegram private thread routing updated.", privateThreadsResponse.Text, StringComparison.Ordinal);
         Assert.Contains("Agent restart: Agent restarted.", sandboxResponse.Text, StringComparison.Ordinal);
         Assert.Contains("Agent restart: Agent restarted.", bypassResponse.Text, StringComparison.Ordinal);
         Assert.Contains("Agent restart: Agent restarted.", parallelResponse.Text, StringComparison.Ordinal);
@@ -1017,7 +1028,11 @@ public sealed class TelegramInteractionHandlerTests
         public IReadOnlyList<RuntimeTelegramProjectGroupAccess> TelegramProjectGroupAccess { get; set; } = [];
 
         public TelegramRunnerSettings RunnerSettings { get; set; } =
-            new("workspace-write", CodexBypassApprovalsAndSandbox: false, AgentMaxParallelTasks: 1);
+            new(
+                "workspace-write",
+                CodexBypassApprovalsAndSandbox: false,
+                AgentMaxParallelTasks: 1,
+                PrivateChatThreadsEnabled: false);
 
         public int ListProjectsCallCount { get; private set; }
 
@@ -1313,6 +1328,18 @@ public sealed class TelegramInteractionHandlerTests
             RunnerSettings = RunnerSettings with
             {
                 AgentMaxParallelTasks = maxParallelTasks,
+            };
+
+            return System.Threading.Tasks.Task.FromResult(ApplicationResult<TelegramRunnerSettings>.Success(RunnerSettings));
+        }
+
+        public Task<ApplicationResult<TelegramRunnerSettings>> SetPrivateChatThreadsAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            RunnerSettings = RunnerSettings with
+            {
+                PrivateChatThreadsEnabled = enabled,
             };
 
             return System.Threading.Tasks.Task.FromResult(ApplicationResult<TelegramRunnerSettings>.Success(RunnerSettings));

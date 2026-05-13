@@ -227,6 +227,16 @@ public interface ITelegramApplicationFacade
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Updates whether private Telegram message threads are routed as independent conversations.
+    /// </summary>
+    /// <param name="enabled">A value indicating whether private chat thread routing is enabled.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The updated runner settings, or an expected failure.</returns>
+    Task<ApplicationResult<TelegramRunnerSettings>> SetPrivateChatThreadsAsync(
+        bool enabled,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Restarts the local agent so updated runtime settings are applied.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the operation.</param>

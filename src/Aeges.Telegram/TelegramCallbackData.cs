@@ -212,6 +212,13 @@ public static class TelegramCallbackData
     public static string SetAgentMaxParallelTasks(int maxParallelTasks) => $"ae:s:p:{maxParallelTasks}";
 
     /// <summary>
+    /// Creates a private Telegram thread routing settings callback payload.
+    /// </summary>
+    /// <param name="enabled">A value indicating whether private thread routing should be enabled.</param>
+    /// <returns>The callback payload.</returns>
+    public static string SetPrivateChatThreads(bool enabled) => $"ae:s:th:{(enabled ? "1" : "0")}";
+
+    /// <summary>
     /// Creates a task completion callback payload.
     /// </summary>
     /// <param name="taskId">The task identifier.</param>
@@ -395,6 +402,35 @@ public static class TelegramCallbackData
         }
 
         maxParallelTasks = 0;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to parse a private Telegram thread routing settings callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="enabled">A value indicating whether private thread routing should be enabled.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseSetPrivateChatThreads(string payload, out bool enabled)
+    {
+        const string prefix = "ae:s:th:";
+
+        if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length == prefix.Length + 1)
+        {
+            if (payload[^1] == '1')
+            {
+                enabled = true;
+                return true;
+            }
+
+            if (payload[^1] == '0')
+            {
+                enabled = false;
+                return true;
+            }
+        }
+
+        enabled = false;
         return false;
     }
 

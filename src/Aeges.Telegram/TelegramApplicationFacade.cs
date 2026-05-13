@@ -259,6 +259,17 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
     }
 
     /// <inheritdoc />
+    public async Task<ApplicationResult<TelegramRunnerSettings>> SetPrivateChatThreadsAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        configuration.Telegram.EnablePrivateChatThreads = enabled;
+        await SaveConfigurationAsync(cancellationToken);
+
+        return ApplicationResult<TelegramRunnerSettings>.Success(CreateRunnerSettings());
+    }
+
+    /// <inheritdoc />
     public async Task<ApplicationResult<TelegramAgentRestartResult>> RestartAgentAsync(CancellationToken cancellationToken)
     {
         return await RunAgentProcessCommandAsync("restart", "agent_restart", "Agent restarted.", cancellationToken);
@@ -522,7 +533,8 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         new(
             configuration.Runners.Codex.SandboxMode,
             configuration.Runners.Codex.BypassApprovalsAndSandbox,
-            configuration.Agent.MaxParallelTasks);
+            configuration.Agent.MaxParallelTasks,
+            configuration.Telegram.EnablePrivateChatThreads);
 
     private async Task SaveConfigurationAsync(CancellationToken cancellationToken)
     {

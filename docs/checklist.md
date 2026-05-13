@@ -262,7 +262,7 @@ review, test, and document independently.
       Telegram task details.
 - [x] Add opt-in private Telegram thread routing for direct-message tasks and
       talk sessions.
-- [ ] Add Telegram settings UI for enabling or disabling private chat thread
+- [x] Add Telegram settings UI for enabling or disabling private chat thread
       routing.
 - [ ] Add Telegram inline-mode read-only search for projects and tasks.
 - [ ] Add guarded inline-mode action cards for task creation and task opening.

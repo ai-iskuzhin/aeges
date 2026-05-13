@@ -18,7 +18,7 @@ public sealed class TelegramInteractionHandler
     private readonly ITelegramApplicationFacade application;
     private readonly ITelegramCallbackRegistry? callbackRegistry;
     private readonly string? runtimeVersion;
-    private readonly bool enablePrivateChatThreads;
+    private readonly AegesTelegramConfiguration configuration;
     private readonly HashSet<long> allowedChatIds;
     private readonly ConcurrentDictionary<TelegramConversationKey, TaskDraft> drafts = new();
     private readonly ConcurrentDictionary<TelegramConversationKey, TaskContinuationDraft> continuationDrafts = new();
@@ -39,7 +39,7 @@ public sealed class TelegramInteractionHandler
         this.application = application;
         this.callbackRegistry = callbackRegistry;
         this.runtimeVersion = string.IsNullOrWhiteSpace(runtimeVersion) ? null : runtimeVersion.Trim();
-        enablePrivateChatThreads = configuration.EnablePrivateChatThreads;
+        this.configuration = configuration;
         allowedChatIds = [.. configuration.AllowedChatIds];
     }
 
@@ -100,6 +100,8 @@ public sealed class TelegramInteractionHandler
                 await RequireAdmin(authorization, () => SetCodexBypassApprovalsAndSandboxAsync(bypassEnabled, cancellationToken)),
             _ when TelegramCallbackData.TryParseSetAgentMaxParallelTasks(callbackData, out var maxParallelTasks) =>
                 await RequireAdmin(authorization, () => SetAgentMaxParallelTasksAsync(maxParallelTasks, cancellationToken)),
+            _ when TelegramCallbackData.TryParseSetPrivateChatThreads(callbackData, out var privateChatThreadsEnabled) =>
+                await RequireAdmin(authorization, () => SetPrivateChatThreadsAsync(privateChatThreadsEnabled, cancellationToken)),
             _ when TelegramCallbackData.TryParseListTasksByStatus(callbackData, out var status) =>
                 await ListTasksByStatusAsync(authorization, status, cancellationToken),
             _ when TelegramCallbackData.TryParseListProjectTasksByStatus(callbackData, out var projectId, out var status) =>
@@ -1185,6 +1187,20 @@ public sealed class TelegramInteractionHandler
         return RenderSettings(result.Value!, await RestartAgentNoticeAsync(cancellationToken));
     }
 
+    private async Task<TelegramResponse> SetPrivateChatThreadsAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        var result = await application.SetPrivateChatThreadsAsync(enabled, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
+        }
+
+        return RenderSettings(result.Value!, "Telegram private thread routing updated.");
+    }
+
     private async Task<string> RestartAgentNoticeAsync(CancellationToken cancellationToken)
     {
         var restart = await application.RestartAgentAsync(cancellationToken);
@@ -1474,6 +1490,7 @@ public sealed class TelegramInteractionHandler
         var sandboxEnabled = settings.CodexSandboxMode != "danger-full-access";
         var sandboxTarget = sandboxEnabled ? "danger-full-access" : "workspace-write";
         var bypassTarget = !settings.CodexBypassApprovalsAndSandbox;
+        var privateThreadsTarget = !settings.PrivateChatThreadsEnabled;
         var noticeText = string.IsNullOrWhiteSpace(notice) ? "" : $"\n\n{notice}";
 
         return new TelegramResponse(
@@ -1483,6 +1500,7 @@ public sealed class TelegramInteractionHandler
             Agent parallel tasks: {settings.AgentMaxParallelTasks}
             Codex sandbox: {settings.CodexSandboxMode}
             Codex bypass approvals and sandbox: {(settings.CodexBypassApprovalsAndSandbox ? "allowed" : "disallowed")}
+            Telegram private threads: {(settings.PrivateChatThreadsEnabled ? "enabled" : "disabled")}
             {noticeText}
             """,
             Buttons(
@@ -1503,6 +1521,10 @@ public sealed class TelegramInteractionHandler
                     settings.CodexBypassApprovalsAndSandbox ? "Bypass enabled" : "Bypass disabled",
                     TelegramCallbackData.SetCodexBypassApprovalsAndSandbox(bypassTarget),
                     settings.CodexBypassApprovalsAndSandbox ? TelegramButtonStyle.Success : TelegramButtonStyle.Danger)),
+                Row(Button(
+                    settings.PrivateChatThreadsEnabled ? "Private threads enabled" : "Private threads disabled",
+                    TelegramCallbackData.SetPrivateChatThreads(privateThreadsTarget),
+                    settings.PrivateChatThreadsEnabled ? TelegramButtonStyle.Success : TelegramButtonStyle.Danger)),
                 Row(Button("Back", TelegramCallbackData.MainMenu))));
     }
 
@@ -1733,7 +1755,7 @@ public sealed class TelegramInteractionHandler
     /// <param name="update">The Telegram update.</param>
     /// <returns>The routed message thread id, or <see langword="null"/> when the update belongs to the chat root.</returns>
     public int? GetRoutingThreadId(TelegramUpdate update) =>
-        update.IsPrivateChat && !enablePrivateChatThreads
+        update.IsPrivateChat && !configuration.EnablePrivateChatThreads
             ? null
             : update.MessageThreadId;
 

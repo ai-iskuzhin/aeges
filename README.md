@@ -407,7 +407,8 @@ state, but it does not create a task, choose a project, or create a worktree.
 Talk replies do not include navigation buttons; send `/start` to show the menu.
 
 If you enable Telegram's threaded private-chat mode for the bot in BotFather,
-you can opt Aeges into direct-message thread routing:
+you can opt Aeges into direct-message thread routing from the Telegram
+`Settings` menu. The same setting can also be written in config:
 
 ```json
 {

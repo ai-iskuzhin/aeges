@@ -216,8 +216,8 @@ goals, approval reasons, failure reasons, and runner response previews is shown
 as block quotes so operator-provided text is visually distinct from runtime
 metadata.
 
-The main menu includes `Settings`. The settings view exposes agent parallelism
-and Codex runner sandbox controls:
+The main menu includes `Settings`. The settings view exposes agent parallelism,
+Codex runner sandbox controls, and private chat thread routing:
 
 - green buttons show currently allowed/enabled behavior
 - red buttons show currently disallowed/disabled behavior
@@ -226,11 +226,16 @@ and Codex runner sandbox controls:
 - `Sandbox enabled` toggles between `workspace-write` and
   `danger-full-access`
 - `Bypass disabled` toggles Codex's explicit approvals/sandbox bypass flag
+- `Private threads enabled` toggles Telegram private `message_thread_id`
+  routing for task drafts, task bindings, watched task details, and talk
+  sessions
 
-Settings are written to the local config file. When a setting changes, the
-Telegram transport runs `aeges agent restart --config <path>` so the worker
-process reloads the updated runner policy. If the restart command fails, the
-setting remains saved and the Telegram settings screen reports the failure.
+Settings are written to the local config file. Agent and Codex runner settings
+also run `aeges agent restart --config <path>` so the worker process reloads
+the updated runner policy. Telegram private thread routing applies immediately
+inside the current Telegram transport process because the handler reads the
+shared configuration object. If the agent restart command fails, the setting
+remains saved and the Telegram settings screen reports the failure.
 
 When a task watched by a chat changes status, the Telegram transport notifies
 that chat. If the chat's last bot message is the task details message, the
