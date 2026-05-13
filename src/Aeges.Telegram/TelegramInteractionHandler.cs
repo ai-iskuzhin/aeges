@@ -89,6 +89,7 @@ public sealed class TelegramInteractionHandler
             TelegramCallbackData.TaskMenu => await TaskMenuAsync(authorization, cancellationToken),
             TelegramCallbackData.ListPendingApprovals => await RequireAdmin(authorization, () => ListPendingApprovalsAsync(cancellationToken)),
             TelegramCallbackData.SettingsMenu => await RequireAdmin(authorization, () => SettingsMenuAsync(cancellationToken)),
+            TelegramCallbackData.ParallelTasksSettingsMenu => await RequireAdmin(authorization, () => ParallelTasksSettingsMenuAsync(cancellationToken)),
             TelegramCallbackData.UserMenu => await RequireAdmin(authorization, () => ListTelegramUsersAsync(cancellationToken)),
             TelegramCallbackData.CancelPendingTextResponse => PendingTextResponseAlreadyFinished(),
             TelegramCallbackData.CreateTask => await StartTaskCreationAsync(update, authorization, cancellationToken),
@@ -1145,6 +1146,13 @@ public sealed class TelegramInteractionHandler
         return RenderSettings(settings);
     }
 
+    private async Task<TelegramResponse> ParallelTasksSettingsMenuAsync(CancellationToken cancellationToken)
+    {
+        var settings = await application.GetRunnerSettingsAsync(cancellationToken);
+
+        return RenderParallelTasksSettings(settings);
+    }
+
     private async Task<TelegramResponse> SetCodexSandboxModeAsync(
         string sandboxMode,
         CancellationToken cancellationToken)
@@ -1184,7 +1192,7 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
         }
 
-        return RenderSettings(result.Value!, await RestartAgentNoticeAsync(cancellationToken));
+        return RenderParallelTasksSettings(result.Value!, await RestartAgentNoticeAsync(cancellationToken));
     }
 
     private async Task<TelegramResponse> SetPrivateChatThreadsAsync(
@@ -1504,15 +1512,10 @@ public sealed class TelegramInteractionHandler
             {noticeText}
             """,
             Buttons(
-                Row(
-                    ParallelTaskButton(settings, 1),
-                    ParallelTaskButton(settings, 2)),
-                Row(
-                    ParallelTaskButton(settings, 4),
-                    ParallelTaskButton(settings, 8)),
-                Row(
-                    ParallelTaskButton(settings, 16),
-                    ParallelTaskButton(settings, 32)),
+                Row(Button(
+                    $"Parallel tasks: {settings.AgentMaxParallelTasks}",
+                    TelegramCallbackData.ParallelTasksSettingsMenu,
+                    TelegramButtonStyle.Primary)),
                 Row(Button(
                     sandboxEnabled ? "Sandbox enabled" : "Sandbox disabled",
                     TelegramCallbackData.SetCodexSandboxMode(sandboxTarget),
@@ -1526,6 +1529,32 @@ public sealed class TelegramInteractionHandler
                     TelegramCallbackData.SetPrivateChatThreads(privateThreadsTarget),
                     settings.PrivateChatThreadsEnabled ? TelegramButtonStyle.Success : TelegramButtonStyle.Danger)),
                 Row(Button("Back", TelegramCallbackData.MainMenu))));
+    }
+
+    private static TelegramResponse RenderParallelTasksSettings(
+        TelegramRunnerSettings settings,
+        string? notice = null)
+    {
+        var noticeText = string.IsNullOrWhiteSpace(notice) ? "" : $"\n\n{notice}";
+
+        return new TelegramResponse(
+            $"""
+            Parallel tasks
+
+            Current: {settings.AgentMaxParallelTasks}
+            {noticeText}
+            """,
+            Buttons(
+                Row(
+                    ParallelTaskButton(settings, 1),
+                    ParallelTaskButton(settings, 2)),
+                Row(
+                    ParallelTaskButton(settings, 4),
+                    ParallelTaskButton(settings, 8)),
+                Row(
+                    ParallelTaskButton(settings, 16),
+                    ParallelTaskButton(settings, 32)),
+                Row(Button("Back", TelegramCallbackData.SettingsMenu))));
     }
 
     private static TelegramButton ParallelTaskButton(TelegramRunnerSettings settings, int value) =>

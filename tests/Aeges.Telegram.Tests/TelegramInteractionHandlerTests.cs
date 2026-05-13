@@ -875,21 +875,47 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Contains("Codex sandbox: workspace-write", response.Text, StringComparison.Ordinal);
         Assert.Contains("Codex bypass approvals and sandbox: disallowed", response.Text, StringComparison.Ordinal);
         Assert.Contains("Telegram private threads: enabled", response.Text, StringComparison.Ordinal);
+        Assert.Equal("Parallel tasks: 4", response.Buttons.Rows[0][0].Text);
+        Assert.Equal("ae:s:p", response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal(TelegramButtonStyle.Primary, response.Buttons.Rows[0][0].Style);
+        Assert.Equal("Sandbox enabled", response.Buttons.Rows[1][0].Text);
+        Assert.Equal("ae:s:sb:danger-full-access", response.Buttons.Rows[1][0].CallbackData);
+        Assert.Equal(TelegramButtonStyle.Success, response.Buttons.Rows[1][0].Style);
+        Assert.Equal("Bypass disabled", response.Buttons.Rows[1][1].Text);
+        Assert.Equal("ae:s:bp:1", response.Buttons.Rows[1][1].CallbackData);
+        Assert.Equal(TelegramButtonStyle.Danger, response.Buttons.Rows[1][1].Style);
+        Assert.Equal("Private threads enabled", response.Buttons.Rows[2][0].Text);
+        Assert.Equal("ae:s:th:0", response.Buttons.Rows[2][0].CallbackData);
+        Assert.Equal(TelegramButtonStyle.Success, response.Buttons.Rows[2][0].Style);
+    }
+
+    [Fact]
+    public async Task HandleAsync_shows_parallel_task_settings_menu()
+    {
+        var facade = new FakeTelegramApplicationFacade
+        {
+            RunnerSettings = new TelegramRunnerSettings(
+                "workspace-write",
+                CodexBypassApprovalsAndSandbox: false,
+                AgentMaxParallelTasks: 4,
+                PrivateChatThreadsEnabled: false),
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ParallelTasksSettingsMenu),
+            CancellationToken.None);
+
+        Assert.Contains("Parallel tasks", response.Text, StringComparison.Ordinal);
+        Assert.Contains("Current: 4", response.Text, StringComparison.Ordinal);
         Assert.Equal("1", response.Buttons.Rows[0][0].Text);
         Assert.Equal("ae:s:p:1", response.Buttons.Rows[0][0].CallbackData);
         Assert.Equal(TelegramButtonStyle.Primary, response.Buttons.Rows[0][0].Style);
         Assert.Equal("4", response.Buttons.Rows[1][0].Text);
         Assert.Equal("ae:s:p:4", response.Buttons.Rows[1][0].CallbackData);
         Assert.Equal(TelegramButtonStyle.Success, response.Buttons.Rows[1][0].Style);
-        Assert.Equal("Sandbox enabled", response.Buttons.Rows[3][0].Text);
-        Assert.Equal("ae:s:sb:danger-full-access", response.Buttons.Rows[3][0].CallbackData);
-        Assert.Equal(TelegramButtonStyle.Success, response.Buttons.Rows[3][0].Style);
-        Assert.Equal("Bypass disabled", response.Buttons.Rows[3][1].Text);
-        Assert.Equal("ae:s:bp:1", response.Buttons.Rows[3][1].CallbackData);
-        Assert.Equal(TelegramButtonStyle.Danger, response.Buttons.Rows[3][1].Style);
-        Assert.Equal("Private threads enabled", response.Buttons.Rows[4][0].Text);
-        Assert.Equal("ae:s:th:0", response.Buttons.Rows[4][0].CallbackData);
-        Assert.Equal(TelegramButtonStyle.Success, response.Buttons.Rows[4][0].Style);
+        Assert.Equal("Back", response.Buttons.Rows[3][0].Text);
+        Assert.Equal(TelegramCallbackData.SettingsMenu, response.Buttons.Rows[3][0].CallbackData);
     }
 
     [Fact]
@@ -918,7 +944,7 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Equal(3, facade.RestartAgentCallCount);
         Assert.Contains("Codex sandbox: danger-full-access", sandboxResponse.Text, StringComparison.Ordinal);
         Assert.Contains("Codex bypass approvals and sandbox: allowed", bypassResponse.Text, StringComparison.Ordinal);
-        Assert.Contains("Agent parallel tasks: 8", parallelResponse.Text, StringComparison.Ordinal);
+        Assert.Contains("Current: 8", parallelResponse.Text, StringComparison.Ordinal);
         Assert.Contains("Telegram private threads: enabled", privateThreadsResponse.Text, StringComparison.Ordinal);
         Assert.Contains("Telegram private thread routing updated.", privateThreadsResponse.Text, StringComparison.Ordinal);
         Assert.Contains("Agent restart: Agent restarted.", sandboxResponse.Text, StringComparison.Ordinal);

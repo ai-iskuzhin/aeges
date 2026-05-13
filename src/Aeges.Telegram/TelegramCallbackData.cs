@@ -43,6 +43,11 @@ public static class TelegramCallbackData
     public const string SettingsMenu = "ae:s";
 
     /// <summary>
+    /// Gets the agent parallelism settings callback payload.
+    /// </summary>
+    public const string ParallelTasksSettingsMenu = "ae:s:p";
+
+    /// <summary>
     /// Gets the Telegram user management callback payload.
     /// </summary>
     public const string UserMenu = "ae:u";

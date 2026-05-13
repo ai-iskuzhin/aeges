@@ -221,8 +221,8 @@ Codex runner sandbox controls, and private chat thread routing:
 
 - green buttons show currently allowed/enabled behavior
 - red buttons show currently disallowed/disabled behavior
-- parallel task buttons select `1`, `2`, `4`, `8`, `16`, or `32` project-isolated
-  agent tasks
+- `Parallel tasks: <count>` opens a compact picker for `1`, `2`, `4`, `8`,
+  `16`, or `32` project-isolated agent tasks
 - `Sandbox enabled` toggles between `workspace-write` and
   `danger-full-access`
 - `Bypass disabled` toggles Codex's explicit approvals/sandbox bypass flag
