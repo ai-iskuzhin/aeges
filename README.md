@@ -367,7 +367,8 @@ using a real bot, restrict access in `~/.aeges/config.json`:
   "telegram": {
     "botTokenEnvironmentVariable": "AEGES_TELEGRAM_BOT_TOKEN",
     "botTokenFilePath": "/home/user/.aeges/secrets/telegram-bot-token",
-    "allowedChatIds": [123456789]
+    "allowedChatIds": [123456789],
+    "enablePrivateChatThreads": false
   }
 }
 ```
@@ -403,8 +404,25 @@ durably and the local agent worker will pick it up on its next poll.
 When no task draft is active, ordinary Telegram text goes to talk mode. Talk is
 direct discussion with the configured runner, stored as durable Aeges discussion
 state, but it does not create a task, choose a project, or create a worktree.
-Talk replies include `Menu` and `New task` buttons so you can move from
-conversation into governed work.
+Talk replies do not include navigation buttons; send `/start` to show the menu.
+
+If you enable Telegram's threaded private-chat mode for the bot in BotFather,
+you can opt Aeges into direct-message thread routing:
+
+```json
+{
+  "telegram": {
+    "enablePrivateChatThreads": true
+  }
+}
+```
+
+With that enabled, private `message_thread_id` values scope task drafts, task
+bindings, watched task details, and talk sessions. Mention the bot inside a
+private thread with `@your_bot new task ...` or `@your_bot task: ...` to start
+the task wizard in that thread. Aeges still enforces its own user and
+project/group access rules; BotFather permissions are only the outer Telegram
+gate.
 
 The `Tasks` button opens status buckets for queued, planning, running,
 reviewing, waiting approval, completed, failed, and cancelled tasks. When a

@@ -122,6 +122,33 @@ task notifications stay scoped to the topic where the task interaction runs.
 If topic creation fails, the bot replies in the original chat with the Telegram
 permission/API error.
 
+Telegram private chats may also be configured for threaded AI-chatbot mode in
+BotFather. Aeges keeps this as an explicit runtime setting because private
+threads change routing semantics:
+
+```json
+{
+  "telegram": {
+    "enablePrivateChatThreads": true
+  }
+}
+```
+
+When private chat threads are enabled, Aeges treats
+`chat_id + message_thread_id` as the transport surface. This lets one private
+conversation with the bot contain multiple task threads. Mention the bot inside
+a private thread to start the task wizard in that thread:
+
+```text
+@aeges_bot new task Fix install docs
+@aeges_bot task: Fix install docs
+```
+
+Aeges does not create private Telegram threads itself; the operator creates or
+opens the thread in Telegram. The bot only binds work to the `message_thread_id`
+Telegram sends. If `enablePrivateChatThreads` is false, private-thread ids are
+ignored and private messages continue to route as one normal direct chat.
+
 Task-to-chat/topic bindings are persisted in SQLite. After the Telegram
 transport restarts, it reloads those bindings and continues routing task status
 updates to the same chat or forum topic.
@@ -132,6 +159,10 @@ session for the chat source, asks the configured runner for a response, and
 stores both the operator message and assistant response outside the task
 lifecycle. Direct talk responses do not include navigation buttons; use
 `/start` when you want to return to the menu.
+
+When private chat threads are enabled, talk sessions are also scoped by private
+thread id. The source becomes `telegram:<chat-id>:thread:<message-thread-id>` so
+parallel direct-message discussions do not collapse into one talk session.
 
 For inbound text messages, the transport first sends a temporary working
 message with a `Cancel` button, then edits that same message with the final
@@ -205,6 +236,11 @@ When a task watched by a chat changes status, the Telegram transport notifies
 that chat. If the chat's last bot message is the task details message, the
 transport edits that message in place. Otherwise it sends a compact
 notification with a `View task` button.
+
+Runner progress events are shown in task details as short telemetry. If a task
+details message is currently being watched, new progress events edit that
+message in place. Progress-only changes do not send a separate notification
+message when the latest bot message is not task details.
 
 The bot token is read from the environment variable named by
 `telegram.botTokenEnvironmentVariable`, or from the local file configured by

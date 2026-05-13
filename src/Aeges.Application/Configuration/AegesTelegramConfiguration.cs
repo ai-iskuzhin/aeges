@@ -19,4 +19,9 @@ public sealed class AegesTelegramConfiguration
     /// Gets or sets the allowed Telegram chat identifiers.
     /// </summary>
     public List<long> AllowedChatIds { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets a value indicating whether private Telegram chat threads should be treated as separate work surfaces.
+    /// </summary>
+    public bool EnablePrivateChatThreads { get; set; }
 }

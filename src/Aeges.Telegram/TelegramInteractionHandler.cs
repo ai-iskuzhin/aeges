@@ -18,6 +18,7 @@ public sealed class TelegramInteractionHandler
     private readonly ITelegramApplicationFacade application;
     private readonly ITelegramCallbackRegistry? callbackRegistry;
     private readonly string? runtimeVersion;
+    private readonly bool enablePrivateChatThreads;
     private readonly HashSet<long> allowedChatIds;
     private readonly ConcurrentDictionary<TelegramConversationKey, TaskDraft> drafts = new();
     private readonly ConcurrentDictionary<TelegramConversationKey, TaskContinuationDraft> continuationDrafts = new();
@@ -38,6 +39,7 @@ public sealed class TelegramInteractionHandler
         this.application = application;
         this.callbackRegistry = callbackRegistry;
         this.runtimeVersion = string.IsNullOrWhiteSpace(runtimeVersion) ? null : runtimeVersion.Trim();
+        enablePrivateChatThreads = configuration.EnablePrivateChatThreads;
         allowedChatIds = [.. configuration.AllowedChatIds];
     }
 
@@ -342,7 +344,7 @@ public sealed class TelegramInteractionHandler
 
         if (!drafts.TryGetValue(conversation, out var draft))
         {
-            return await SendTalkMessageAsync(update.ChatId, authorization, text, cancellationToken);
+            return await SendTalkMessageAsync(update, authorization, text, cancellationToken);
         }
 
         if (string.IsNullOrWhiteSpace(text))
@@ -425,7 +427,7 @@ public sealed class TelegramInteractionHandler
     }
 
     private async Task<TelegramResponse> SendTalkMessageAsync(
-        long chatId,
+        TelegramUpdate update,
         TelegramUserAuthorization authorization,
         string? text,
         CancellationToken cancellationToken)
@@ -435,7 +437,7 @@ public sealed class TelegramInteractionHandler
             return await MainMenuAsync(authorization, cancellationToken);
         }
 
-        var result = await application.SendTalkMessageAsync(chatId, text, cancellationToken);
+        var result = await application.SendTalkMessageAsync(CreateTalkSource(update), text, cancellationToken);
 
         if (!result.IsSuccess)
         {
@@ -555,7 +557,7 @@ public sealed class TelegramInteractionHandler
         continuationDrafts[conversation] = new TaskContinuationDraft(
             taskId,
             GetSenderScope(update),
-            update.MessageThreadId,
+            GetRoutingThreadId(update),
             update.MessageId,
             RequiresReplyToPrompt: !update.IsPrivateChat && update.MessageId is not null);
 
@@ -566,7 +568,7 @@ public sealed class TelegramInteractionHandler
             ContinueDraftButtons());
     }
 
-    private static TelegramResponse? ValidateContinuationDraft(
+    private TelegramResponse? ValidateContinuationDraft(
         TelegramUpdate update,
         TaskContinuationDraft draft)
     {
@@ -577,7 +579,7 @@ public sealed class TelegramInteractionHandler
                 ContinueDraftButtons());
         }
 
-        if (draft.MessageThreadId != update.MessageThreadId)
+        if (draft.MessageThreadId != GetRoutingThreadId(update))
         {
             return new TelegramResponse(
                 "Task continuation is waiting in the original topic.",
@@ -1722,8 +1724,27 @@ public sealed class TelegramInteractionHandler
     private static long GetSenderScope(TelegramUpdate update) =>
         update.SenderUserId ?? update.ChatId;
 
-    private static TelegramConversationKey GetConversationKey(TelegramUpdate update) =>
-        new(update.ChatId, update.MessageThreadId);
+    private TelegramConversationKey GetConversationKey(TelegramUpdate update) =>
+        new(update.ChatId, GetRoutingThreadId(update));
+
+    /// <summary>
+    /// Gets the message thread id that should be used for Aeges routing.
+    /// </summary>
+    /// <param name="update">The Telegram update.</param>
+    /// <returns>The routed message thread id, or <see langword="null"/> when the update belongs to the chat root.</returns>
+    public int? GetRoutingThreadId(TelegramUpdate update) =>
+        update.IsPrivateChat && !enablePrivateChatThreads
+            ? null
+            : update.MessageThreadId;
+
+    private string CreateTalkSource(TelegramUpdate update)
+    {
+        var threadId = GetRoutingThreadId(update);
+
+        return threadId is null
+            ? $"telegram:{update.ChatId}"
+            : $"telegram:{update.ChatId}:thread:{threadId.Value}";
+    }
 
     private static TelegramButton Button(
         string text,

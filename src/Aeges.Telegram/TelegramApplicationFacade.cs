@@ -165,11 +165,11 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
 
     /// <inheritdoc />
     public async Task<ApplicationResult<TalkExchange>> SendTalkMessageAsync(
-        long chatId,
+        string source,
         string message,
         CancellationToken cancellationToken) =>
         await talkService.SendAsync(
-            new SendTalkMessageRequest($"telegram:{chatId}", message),
+            new SendTalkMessageRequest(source, message),
             cancellationToken);
 
     /// <inheritdoc />

@@ -26,7 +26,8 @@ talk_messages
 A talk session stores:
 
 - session ID
-- source such as `telegram:<chat-id>` or `cli`
+- source such as `telegram:<chat-id>`,
+  `telegram:<chat-id>:thread:<message-thread-id>`, or `cli`
 - title
 - runner ID
 - status
@@ -47,12 +48,12 @@ When no task draft or task-continuation draft is active, ordinary Telegram text
 is sent to talk mode. This lets an operator write naturally to the bot without
 using slash commands.
 
-Telegram replies include compact buttons for:
+Direct talk responses do not include navigation buttons. Use `/start` when you
+want to return to the button menu.
 
-- `Menu`
-- `New task`
-
-The menu remains button-driven. Free text belongs to discussion.
+When `telegram.enablePrivateChatThreads` is enabled, private Telegram
+`message_thread_id` values are part of the talk source. This allows separate
+private Telegram threads to hold separate talk sessions with the same bot.
 
 ## CLI
 

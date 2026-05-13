@@ -129,14 +129,14 @@ public interface ITelegramApplicationFacade
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Sends free-form text into the governed talk session for a Telegram chat.
+    /// Sends free-form text into the governed talk session for a Telegram source.
     /// </summary>
-    /// <param name="chatId">The Telegram chat identifier.</param>
+    /// <param name="source">The stable Telegram talk source.</param>
     /// <param name="message">The operator message.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The talk exchange result.</returns>
     Task<ApplicationResult<TalkExchange>> SendTalkMessageAsync(
-        long chatId,
+        string source,
         string message,
         CancellationToken cancellationToken);
 

@@ -174,6 +174,72 @@ public sealed class TelegramLongPollingServiceTests
     }
 
     [Fact]
+    public async Task PollOnceAsync_starts_task_wizard_in_private_thread_when_enabled()
+    {
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    1001,
+                    Text: "@aeges_test_bot new task Fix private thread flow",
+                    CallbackData: null,
+                    CallbackQueryId: null,
+                    MessageThreadId: 55,
+                    IsPrivateChat: true),
+            ],
+        };
+        var service = CreateService(
+            gateway,
+            configuration: new AegesTelegramConfiguration { EnablePrivateChatThreads = true });
+
+        var result = await service.PollOnceAsync(
+            nextOffset: null,
+            new TelegramLongPollingOptions(),
+            CancellationToken.None);
+
+        Assert.Equal(42, result.NextOffset);
+        Assert.Equal(1, result.ProcessedUpdates);
+        Assert.Empty(gateway.CreatedTopics);
+        var response = Assert.Single(gateway.SentResponses);
+        Assert.Equal(55, response.MessageThreadId);
+        Assert.Contains("No active projects", response.Response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PollOnceAsync_ignores_private_thread_task_intake_when_disabled()
+    {
+        var gateway = new FakeTelegramBotGateway
+        {
+            Updates =
+            [
+                new TelegramBotUpdate(
+                    41,
+                    1001,
+                    Text: "@aeges_test_bot new task Fix private thread flow",
+                    CallbackData: null,
+                    CallbackQueryId: null,
+                    MessageThreadId: 55,
+                    IsPrivateChat: true),
+            ],
+        };
+        var service = CreateService(gateway);
+
+        await service.PollOnceAsync(
+            nextOffset: null,
+            new TelegramLongPollingOptions(),
+            CancellationToken.None);
+
+        Assert.Empty(gateway.CreatedTopics);
+        var response = Assert.Single(gateway.SentResponses);
+        Assert.Null(response.MessageThreadId);
+        Assert.Equal("Working on your message...", response.Response.Text.Split('\n')[0]);
+        var edited = Assert.Single(gateway.EditedResponses);
+        Assert.Contains("talk_unavailable", edited.Response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PollOnceAsync_sends_menu_without_pending_message_for_start_command()
     {
         var gateway = new FakeTelegramBotGateway
@@ -425,7 +491,8 @@ public sealed class TelegramLongPollingServiceTests
                     CallbackData: TelegramCallbackData.ViewTask(task.Id),
                     CallbackQueryId: "callback-001",
                     MessageId: 9001,
-                    MessageThreadId: 77),
+                    MessageThreadId: 77,
+                    IsPrivateChat: false),
             ],
         };
         var service = CreateService(gateway, facade);
@@ -440,7 +507,8 @@ public sealed class TelegramLongPollingServiceTests
                 CallbackData: TelegramCallbackData.CompleteTask(task.Id),
                 CallbackQueryId: "callback-002",
                 MessageId: 9001,
-                MessageThreadId: 77),
+                MessageThreadId: 77,
+                IsPrivateChat: false),
         ];
 
         await service.PollOnceAsync(42, new TelegramLongPollingOptions(), CancellationToken.None);
@@ -712,11 +780,12 @@ public sealed class TelegramLongPollingServiceTests
         FakeTelegramBotGateway gateway,
         FakeTelegramApplicationFacade? facade = null,
         TimeSpan? transientErrorDelay = null,
-        List<TelegramLongPollingLogEntry>? logs = null)
+        List<TelegramLongPollingLogEntry>? logs = null,
+        AegesTelegramConfiguration? configuration = null)
     {
         var handler = new TelegramInteractionHandler(
             facade ?? new FakeTelegramApplicationFacade(),
-            new AegesTelegramConfiguration());
+            configuration ?? new AegesTelegramConfiguration());
 
         return new TelegramLongPollingService(
             gateway,
@@ -946,7 +1015,7 @@ public sealed class TelegramLongPollingServiceTests
                 $"Project '{projectId}' was not found."));
 
         public Task<Aeges.Application.ApplicationResult<Aeges.Application.Talk.TalkExchange>> SendTalkMessageAsync(
-            long chatId,
+            string source,
             string message,
             CancellationToken cancellationToken) =>
             Task.FromResult(Aeges.Application.ApplicationResult<Aeges.Application.Talk.TalkExchange>.Failure(

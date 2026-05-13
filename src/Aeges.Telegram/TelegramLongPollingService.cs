@@ -113,6 +113,7 @@ public sealed class TelegramLongPollingService
             {
                 var callbackQueryId = update.CallbackQueryId;
                 var isCallback = !string.IsNullOrWhiteSpace(callbackQueryId);
+                var routingThreadId = GetRoutingThreadId(update);
 
                 if (isCallback)
                 {
@@ -134,7 +135,7 @@ public sealed class TelegramLongPollingService
                         cancellationToken);
                     var pendingMessageId = await gateway.SendResponseAsync(
                         update.ChatId,
-                        update.MessageThreadId,
+                        routingThreadId,
                         pendingResponse,
                         cancellationToken);
                     var finalResponse = await handler.HandleAsync(
@@ -150,7 +151,7 @@ public sealed class TelegramLongPollingService
                             cancellationToken);
                         await TrackResponseAsync(
                             update.ChatId,
-                            update.MessageThreadId,
+                            routingThreadId,
                             pendingMessageId,
                             finalResponse,
                             cancellationToken);
@@ -159,12 +160,12 @@ public sealed class TelegramLongPollingService
                     {
                         var finalMessageId = await gateway.SendResponseAsync(
                             update.ChatId,
-                            update.MessageThreadId,
+                            routingThreadId,
                             finalResponse,
                             cancellationToken);
                         await TrackResponseAsync(
                             update.ChatId,
-                            update.MessageThreadId,
+                            routingThreadId,
                             finalMessageId,
                             finalResponse,
                             cancellationToken);
@@ -191,12 +192,12 @@ public sealed class TelegramLongPollingService
                 {
                     var sentMessageId = await gateway.SendResponseAsync(
                         update.ChatId,
-                        update.MessageThreadId,
+                        routingThreadId,
                         response,
                         cancellationToken);
                     await TrackResponseAsync(
                         update.ChatId,
-                        update.MessageThreadId,
+                        routingThreadId,
                         sentMessageId,
                         response,
                         cancellationToken);
@@ -206,7 +207,7 @@ public sealed class TelegramLongPollingService
                 {
                     await TrackResponseAsync(
                         update.ChatId,
-                        update.MessageThreadId,
+                        routingThreadId,
                         update.MessageId,
                         response,
                         cancellationToken);
@@ -250,7 +251,14 @@ public sealed class TelegramLongPollingService
         TelegramBotUpdate update,
         CancellationToken cancellationToken)
     {
-        if (update.CallbackData is not null || update.Text is null || update.IsPrivateChat)
+        if (update.CallbackData is not null || update.Text is null)
+        {
+            return false;
+        }
+
+        var routingThreadId = GetRoutingThreadId(update);
+
+        if (update.IsPrivateChat && routingThreadId is null)
         {
             return false;
         }
@@ -261,9 +269,9 @@ public sealed class TelegramLongPollingService
             return false;
         }
 
-        var messageThreadId = update.MessageThreadId;
+        var messageThreadId = routingThreadId;
 
-        if (messageThreadId is null)
+        if (!update.IsPrivateChat && messageThreadId is null)
         {
             try
             {
@@ -299,7 +307,7 @@ public sealed class TelegramLongPollingService
                 MessageId: update.MessageId,
                 MessageThreadId: messageThreadId,
                 ReplyToMessageId: update.ReplyToMessageId,
-                IsPrivateChat: false),
+                IsPrivateChat: update.IsPrivateChat),
             cancellationToken);
         await gateway.SendResponseAsync(update.ChatId, messageThreadId, taskCreationResponse, cancellationToken);
 
@@ -571,7 +579,31 @@ public sealed class TelegramLongPollingService
         }
     }
 
-    private static TelegramUpdate ToInteractionUpdate(TelegramBotUpdate update) =>
+    private TelegramUpdate ToInteractionUpdate(TelegramBotUpdate update) =>
+        new(
+            update.ChatId,
+            update.Text,
+            update.CallbackData,
+            update.Username,
+            update.FirstName,
+            update.LastName,
+            update.SenderUserId,
+            update.MessageId,
+            GetRoutingThreadId(update),
+            update.ReplyToMessageId,
+            update.IsPrivateChat);
+
+    private int? GetRoutingThreadId(TelegramBotUpdate update)
+    {
+        if (!update.IsPrivateChat)
+        {
+            return update.MessageThreadId;
+        }
+
+        return handler.GetRoutingThreadId(ToRawInteractionUpdate(update));
+    }
+
+    private static TelegramUpdate ToRawInteractionUpdate(TelegramBotUpdate update) =>
         new(
             update.ChatId,
             update.Text,

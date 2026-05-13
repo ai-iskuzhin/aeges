@@ -23,6 +23,23 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Contains("Talk response to: hello", response.Text, StringComparison.Ordinal);
         Assert.Empty(response.Buttons.Rows);
         Assert.Equal("hello", facade.TalkMessage);
+        Assert.Equal("telegram:1001", facade.TalkSource);
+    }
+
+    [Fact]
+    public async Task HandleAsync_scopes_talk_to_private_thread_when_enabled()
+    {
+        var facade = new FakeTelegramApplicationFacade();
+        var handler = new TelegramInteractionHandler(
+            facade,
+            new AegesTelegramConfiguration { EnablePrivateChatThreads = true });
+
+        await handler.HandleAsync(
+            new TelegramUpdate(1001, Text: "hello", MessageThreadId: 55, IsPrivateChat: true),
+            CancellationToken.None);
+
+        Assert.Equal("hello", facade.TalkMessage);
+        Assert.Equal("telegram:1001:thread:55", facade.TalkSource);
     }
 
     [Fact]
@@ -1016,6 +1033,8 @@ public sealed class TelegramInteractionHandlerTests
 
         public string? TalkMessage { get; private set; }
 
+        public string? TalkSource { get; private set; }
+
         public List<RuntimeTelegramTaskBinding> TaskBindings { get; } = [];
 
         public bool ApproveCalled { get; private set; }
@@ -1199,14 +1218,15 @@ public sealed class TelegramInteractionHandlerTests
         }
 
         public Task<ApplicationResult<Aeges.Application.Talk.TalkExchange>> SendTalkMessageAsync(
-            long chatId,
+            string source,
             string message,
             CancellationToken cancellationToken)
         {
+            TalkSource = source;
             TalkMessage = message;
             var session = RuntimeTalkSession.Create(
                 new TalkSessionId("talk-001"),
-                $"telegram:{chatId}",
+                source,
                 "Test talk",
                 new RunnerId("codex"),
                 Now);

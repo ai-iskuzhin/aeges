@@ -258,6 +258,16 @@ review, test, and document independently.
       payloads within Telegram limits.
 - [x] Show a pending Telegram text response with a cancel button, then edit it
       with the final response.
+- [x] Persist runner progress as runtime events and expose them through CLI and
+      Telegram task details.
+- [x] Add opt-in private Telegram thread routing for direct-message tasks and
+      talk sessions.
+- [ ] Add Telegram settings UI for enabling or disabling private chat thread
+      routing.
+- [ ] Add Telegram inline-mode read-only search for projects and tasks.
+- [ ] Add guarded inline-mode action cards for task creation and task opening.
+- [ ] Add Telegram draft/live-update support for runner progress where the Bot
+      API and account configuration allow it.
 - [x] Add a local Telegram runtime lock so foreground and background pollers do
       not process the same bot updates twice.
 - [ ] Add true mid-turn Telegram cancellation for long-running talk responses.

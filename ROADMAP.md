@@ -121,6 +121,51 @@ Build a reliable single-machine governed coding runtime.
 
 ---
 
+### Telegram Threaded Work
+
+Status: In progress
+
+Goal:
+Let Telegram act as a natural multi-surface operator UI without making Telegram
+the source of truth.
+
+Principles:
+
+- BotFather and Telegram permissions are an outer gate only.
+- Aeges user, project, group, task, and approval permissions remain the runtime
+  gate.
+- `chat_id + message_thread_id` is transport routing metadata, not task state.
+- Aeges persists all task and talk bindings in SQLite.
+- Task execution remains owned by the local agent and bounded by project
+  parallelism rules.
+
+Stages:
+
+1. Private thread routing for direct messages.
+   - Opt in with `telegram.enablePrivateChatThreads`.
+   - Scope task drafts, task bindings, watched task details, and talk sessions
+     by private `message_thread_id`.
+   - Start task creation from private threads with `@bot new task ...`.
+
+2. Forum-topic task collaboration.
+   - Keep supergroup topic support for team tasks.
+   - Update topic titles with task status.
+   - Require replies to bot prompts for group task continuation.
+
+3. Inline mode.
+   - Add read-only inline search for projects and tasks.
+   - Return guarded action cards instead of performing lifecycle changes from
+     inline query text alone.
+   - Reuse existing callback-token storage for inline actions.
+
+4. Live progress.
+   - Use persisted runtime events as the source of operator-visible progress.
+   - Edit watched task-detail messages when progress changes.
+   - Consider Telegram draft updates only as temporary UI, never as durable
+     task output.
+
+---
+
 ### Task System
 
 - durable SQLite-backed tasks
