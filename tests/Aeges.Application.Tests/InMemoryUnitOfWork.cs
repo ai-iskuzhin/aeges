@@ -17,6 +17,7 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
         Machines = new MachineRepository();
         Locks = new LockRepository();
         RunnerExecutions = new RunnerExecutionRepository();
+        RuntimeEvents = new RuntimeEventRepository();
         TalkSessions = new TalkSessionRepository();
         TalkMessages = new TalkMessageRepository();
         TransportCallbackActions = new TransportCallbackActionRepository();
@@ -43,6 +44,8 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
     public ILockRepository Locks { get; }
 
     public IRunnerExecutionRepository RunnerExecutions { get; }
+
+    public IRuntimeEventRepository RuntimeEvents { get; }
 
     public ITalkSessionRepository TalkSessions { get; }
 
@@ -609,5 +612,31 @@ internal sealed class InMemoryUnitOfWork : IUnitOfWork
 
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class RuntimeEventRepository : IRuntimeEventRepository
+    {
+        private readonly Dictionary<RuntimeEventId, RuntimeEvent> events = [];
+
+        public Task AddAsync(RuntimeEvent runtimeEvent, CancellationToken cancellationToken)
+        {
+            events.Add(runtimeEvent.Id, runtimeEvent);
+
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<RuntimeEvent>> ListByTaskAsync(
+            TaskId taskId,
+            int limit,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RuntimeEvent>>(
+                events.Values
+                    .Where(runtimeEvent => runtimeEvent.TaskId == taskId)
+                    .OrderByDescending(runtimeEvent => runtimeEvent.CreatedAt)
+                    .ThenByDescending(runtimeEvent => runtimeEvent.Id.Value)
+                    .Take(limit)
+                    .OrderBy(runtimeEvent => runtimeEvent.CreatedAt)
+                    .ThenBy(runtimeEvent => runtimeEvent.Id.Value)
+                    .ToArray());
     }
 }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Aeges.Runners;
 
 namespace Aeges.Runners.Codex;
 
@@ -12,6 +13,15 @@ public sealed class ProcessCodexCommandExecutor : ICodexCommandExecutor
         CodexRunnerCommand command,
         string stdoutPath,
         string stderrPath,
+        CancellationToken cancellationToken)
+        => await ExecuteAsync(command, stdoutPath, stderrPath, null, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<CodexCommandExecutionResult> ExecuteAsync(
+        CodexRunnerCommand command,
+        string stdoutPath,
+        string stderrPath,
+        IRunnerProgressSink? progressSink,
         CancellationToken cancellationToken)
     {
         EnsureParentDirectory(stdoutPath);
@@ -33,7 +43,7 @@ public sealed class ProcessCodexCommandExecutor : ICodexCommandExecutor
             timeout.Token);
         await using var stdout = new StreamWriter(File.Open(stdoutPath, FileMode.Create, FileAccess.Write, FileShare.Read));
         await using var stderr = new StreamWriter(File.Open(stderrPath, FileMode.Create, FileAccess.Write, FileShare.Read));
-        var stdoutTask = CopyOutputAsync(process.StandardOutput, stdout, CancellationToken.None);
+        var stdoutTask = CopyOutputAsync(process.StandardOutput, stdout, progressSink, CancellationToken.None);
         var stderrTask = CopyOutputAsync(process.StandardError, stderr, CancellationToken.None);
         await WriteStandardInputAsync(process, command.StandardInput, cancellationToken);
 
@@ -96,11 +106,32 @@ public sealed class ProcessCodexCommandExecutor : ICodexCommandExecutor
     private static async Task CopyOutputAsync(
         TextReader reader,
         TextWriter writer,
+        IRunnerProgressSink? progressSink,
         CancellationToken cancellationToken)
     {
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
             await writer.WriteLineAsync(line);
+            await writer.FlushAsync(cancellationToken);
+
+            if (progressSink is not null
+                && CodexRunnerJsonEvents.TryCreateProgressEvent(line, out var progressEvent)
+                && progressEvent is not null)
+            {
+                await progressSink.ReportAsync(progressEvent, cancellationToken);
+            }
+        }
+    }
+
+    private static async Task CopyOutputAsync(
+        TextReader reader,
+        TextWriter writer,
+        CancellationToken cancellationToken)
+    {
+        while (await reader.ReadLineAsync(cancellationToken) is { } line)
+        {
+            await writer.WriteLineAsync(line);
+            await writer.FlushAsync(cancellationToken);
         }
     }
 

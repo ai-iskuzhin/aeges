@@ -148,3 +148,20 @@ cancelled -> task is cancelled
 ```
 
 Conversation history is not the source of truth. Durable artifacts are.
+
+## Runtime Events
+
+Runtime events are short, durable telemetry records attached to a task,
+iteration, and machine when possible. They are used for things like runner
+start, runner completion, Codex session start, and visible runner messages while
+the worker is still running.
+
+Runtime events are useful for live CLI or Telegram feedback, but they do not
+replace artifacts. The final runner output, stdout/stderr logs, diffs, reviews,
+and approvals remain durable artifacts and lifecycle records.
+
+CLI operators can inspect recent task events with:
+
+```text
+aeges task events <task-id>
+```

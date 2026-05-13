@@ -321,6 +321,35 @@ public readonly record struct RunnerExecutionId
 }
 
 /// <summary>
+/// Identifies an auditable runtime event.
+/// </summary>
+public readonly record struct RuntimeEventId
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RuntimeEventId"/> struct.
+    /// </summary>
+    /// <param name="value">The stable runtime event identifier value.</param>
+    public RuntimeEventId(string value)
+    {
+        Value = IdValue.Require(value);
+    }
+
+    /// <summary>
+    /// Gets the stable identifier value.
+    /// </summary>
+    public string Value { get; }
+
+    /// <summary>
+    /// Creates a new runtime event identifier.
+    /// </summary>
+    /// <returns>A generated runtime event identifier.</returns>
+    public static RuntimeEventId New() => new(IdValue.New("runtime-event"));
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+}
+
+/// <summary>
 /// Identifies a durable discussion session with a coding agent.
 /// </summary>
 public readonly record struct TalkSessionId

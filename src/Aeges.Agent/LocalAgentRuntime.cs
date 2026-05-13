@@ -6,6 +6,7 @@ using Aeges.Application.Iterations;
 using Aeges.Application.RunnerDispatch;
 using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
+using Aeges.Application.RuntimeEvents;
 using Aeges.Application.Tasks;
 using Aeges.Core;
 using Aeges.Git;
@@ -360,7 +361,18 @@ public sealed class LocalAgentRuntime
             cancellationToken);
         await RequireSuccessAsync(execution);
 
-        var result = await resolvedRunner.RunAsync(runnerRequest, cancellationToken);
+        var progressSink = new RuntimeEventRunnerProgressSink(
+            unitOfWork,
+            clock,
+            taskId,
+            iterationId,
+            new MachineId(options.MachineId));
+        var result = await resolvedRunner.RunAsync(runnerRequest, progressSink, cancellationToken);
+        await progressSink.ReportAsync(
+            new RunnerProgressEvent(
+                "runner.completed",
+                $"Runner '{resolvedRunner.Id.Value}' completed with status '{result.Status.ToStorageValue()}'."),
+            cancellationToken);
         await CompleteRunnerExecutionAsync(executionService, execution.Value!.Id, result, cancellationToken);
         await RegisterRunnerArtifactsAsync(unitOfWork, taskId, iterationId, runnerRequest, options, result, cancellationToken);
         await ApplyRunnerResultAsync(taskService, iterationService, taskId, iterationId, result, cancellationToken);
@@ -759,6 +771,45 @@ public sealed class LocalAgentRuntime
         string Status,
         int? ExitCode,
         string? ErrorSummary);
+
+    private sealed class RuntimeEventRunnerProgressSink : IRunnerProgressSink
+    {
+        private readonly RuntimeEventService service;
+        private readonly TaskId taskId;
+        private readonly IterationId iterationId;
+        private readonly MachineId machineId;
+
+        public RuntimeEventRunnerProgressSink(
+            SqliteUnitOfWork unitOfWork,
+            IClock clock,
+            TaskId taskId,
+            IterationId iterationId,
+            MachineId machineId)
+        {
+            service = new RuntimeEventService(unitOfWork, clock);
+            this.taskId = taskId;
+            this.iterationId = iterationId;
+            this.machineId = machineId;
+        }
+
+        public async Task ReportAsync(RunnerProgressEvent progressEvent, CancellationToken cancellationToken)
+        {
+            var result = await service.RecordAsync(
+                new RecordRuntimeEventRequest(
+                    taskId,
+                    iterationId,
+                    machineId,
+                    progressEvent.EventType,
+                    progressEvent.Message,
+                    progressEvent.PayloadJson),
+                cancellationToken);
+
+            if (!result.IsSuccess)
+            {
+                throw new InvalidOperationException(result.Error!.Message);
+            }
+        }
+    }
 
     private sealed record PreparedClaim(
         TaskId TaskId,

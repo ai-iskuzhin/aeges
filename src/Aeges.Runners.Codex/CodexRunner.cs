@@ -33,6 +33,13 @@ public sealed class CodexRunner : IAegesRunner
     public async Task<RunnerResult> RunAsync(
         RunnerRequest request,
         CancellationToken cancellationToken)
+        => await RunAsync(request, null, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<RunnerResult> RunAsync(
+        RunnerRequest request,
+        IRunnerProgressSink? progressSink,
+        CancellationToken cancellationToken)
     {
         var stdoutPath = Path.Combine(request.ArtifactOutputDirectory, "codex.stdout.jsonl");
         var stderrPath = Path.Combine(request.ArtifactOutputDirectory, "codex.stderr.log");
@@ -50,7 +57,7 @@ public sealed class CodexRunner : IAegesRunner
 
         try
         {
-            var execution = await commandExecutor.ExecuteAsync(command, stdoutPath, stderrPath, cancellationToken);
+            var execution = await commandExecutor.ExecuteAsync(command, stdoutPath, stderrPath, progressSink, cancellationToken);
             var externalSessionId = ReadExternalSessionId(stdoutPath) ?? request.ExternalSessionId;
 
             if (execution.Cancelled)

@@ -30,6 +30,12 @@ Runner results include status, exit code, stdout/stderr paths, result artifact
 path, produced artifact paths, and an error summary when execution does not
 succeed.
 
+Runner implementations may also report short progress events while execution is
+still running. These events are not conversation history and they do not become
+the source of truth for task results. The local agent persists them as
+`runtime_events` so CLI, Telegram, and future transports can show live status
+without owning orchestration.
+
 After runner execution, Aeges registers existing stdout, stderr, result, and
 produced files as artifacts attached to the task iteration. These metadata
 records are what transports use to show review summaries; the files remain in
@@ -153,6 +159,12 @@ Local configuration can set:
 `agent.maxParallelTasks` controls project-isolated agent parallelism. Telegram
 settings expose the same value as buttons for `1`, `2`, `4`, `8`, `16`, and
 `32`.
+
+When Codex JSONL output contains a visible agent message, Aeges can persist that
+message as a `runner.message` runtime event. High-level events such as session
+start and item completion may also become runtime events. Aeges should not
+expose private reasoning or treat streamed output as approval decisions; it is
+operator-facing telemetry only.
 
 Codex JSON mode emits a thread identifier when a new session starts:
 

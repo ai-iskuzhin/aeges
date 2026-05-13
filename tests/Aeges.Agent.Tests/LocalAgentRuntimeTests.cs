@@ -365,6 +365,7 @@ public sealed class LocalAgentRuntimeTests
             var artifacts = await unitOfWork.Artifacts.ListByIterationAsync(
                 new IterationId(snapshot.CreatedIterationId!),
                 CancellationToken.None);
+            var events = await unitOfWork.RuntimeEvents.ListByTaskAsync(new TaskId("task-001"), 10, CancellationToken.None);
 
             Assert.NotNull(snapshot.RunnerExecutionId);
             Assert.Equal("succeeded", snapshot.RunnerStatus);
@@ -384,6 +385,9 @@ public sealed class LocalAgentRuntimeTests
             Assert.Contains(artifacts, artifact => artifact.Type == ArtifactType.StderrLog);
             Assert.Contains(artifacts, artifact => artifact.Type == ArtifactType.Result);
             Assert.Equal(artifacts.Single(artifact => artifact.Type == ArtifactType.Result).Id, iteration.ResultArtifactId);
+            Assert.Contains(events, runtimeEvent => runtimeEvent.EventType == "runner.started");
+            Assert.Contains(events, runtimeEvent => runtimeEvent.EventType == "runner.message");
+            Assert.Contains(events, runtimeEvent => runtimeEvent.EventType == "runner.completed");
         }
         finally
         {

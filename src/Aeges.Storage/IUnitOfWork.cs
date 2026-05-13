@@ -56,6 +56,11 @@ public interface IUnitOfWork
     IRunnerExecutionRepository RunnerExecutions { get; }
 
     /// <summary>
+    /// Gets the runtime event repository.
+    /// </summary>
+    IRuntimeEventRepository RuntimeEvents { get; }
+
+    /// <summary>
     /// Gets the talk session repository.
     /// </summary>
     ITalkSessionRepository TalkSessions { get; }

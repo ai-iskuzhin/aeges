@@ -34,9 +34,18 @@ public sealed class MockAegesRunner : IAegesRunner
 
     /// <inheritdoc />
     public async Task<RunnerResult> RunAsync(RunnerRequest request, CancellationToken cancellationToken)
+        => await RunAsync(request, null, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<RunnerResult> RunAsync(
+        RunnerRequest request,
+        IRunnerProgressSink? progressSink,
+        CancellationToken cancellationToken)
     {
         LastRequest = request;
         InvocationCount++;
+
+        await ReportProgressAsync(progressSink, "runner.started", "Mock runner started.", cancellationToken);
 
         if (cancellationToken.IsCancellationRequested)
         {
@@ -70,6 +79,7 @@ public sealed class MockAegesRunner : IAegesRunner
             await File.WriteAllTextAsync(stdoutPath, "Mock runner completed successfully.\n", cancellationToken);
             await File.WriteAllTextAsync(stderrPath, string.Empty, cancellationToken);
             await File.WriteAllTextAsync(resultPath, "Mock runner result: success.\n", cancellationToken);
+            await ReportProgressAsync(progressSink, "runner.message", "Mock runner completed successfully.", cancellationToken);
 
             return RunnerResult.Succeeded(
                 stdoutPath: stdoutPath,
@@ -83,13 +93,61 @@ public sealed class MockAegesRunner : IAegesRunner
                 ]);
         }
 
-        return options.Behavior switch
+        if (options.Behavior == MockRunnerBehavior.Fail)
         {
-            MockRunnerBehavior.Fail => RunnerResult.Failed(options.ErrorSummary ?? "Mock runner failed.", exitCode: 1),
-            MockRunnerBehavior.TimeOut => RunnerResult.TimedOut(options.ErrorSummary ?? "Mock runner timed out."),
-            MockRunnerBehavior.RequireApproval => RunnerResult.ApprovalRequired(options.ErrorSummary ?? "Mock runner requires approval."),
-            _ => throw new ArgumentOutOfRangeException(nameof(options), options.Behavior, "Unknown mock runner behavior."),
-        };
+            return RunnerResult.Failed(
+                await ReportAndReturnAsync(
+                    progressSink,
+                    "runner.failed",
+                    options.ErrorSummary ?? "Mock runner failed.",
+                    cancellationToken),
+                exitCode: 1);
+        }
+
+        if (options.Behavior == MockRunnerBehavior.TimeOut)
+        {
+            return RunnerResult.TimedOut(
+                await ReportAndReturnAsync(
+                    progressSink,
+                    "runner.timed_out",
+                    options.ErrorSummary ?? "Mock runner timed out.",
+                    cancellationToken));
+        }
+
+        if (options.Behavior == MockRunnerBehavior.RequireApproval)
+        {
+            return RunnerResult.ApprovalRequired(
+                await ReportAndReturnAsync(
+                    progressSink,
+                    "runner.approval_required",
+                    options.ErrorSummary ?? "Mock runner requires approval.",
+                    cancellationToken));
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(options), options.Behavior, "Unknown mock runner behavior.");
+    }
+
+    private static async Task<string> ReportAndReturnAsync(
+        IRunnerProgressSink? progressSink,
+        string eventType,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        await ReportProgressAsync(progressSink, eventType, message, cancellationToken);
+
+        return message;
+    }
+
+    private static async Task ReportProgressAsync(
+        IRunnerProgressSink? progressSink,
+        string eventType,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        if (progressSink is not null)
+        {
+            await progressSink.ReportAsync(new RunnerProgressEvent(eventType, message), cancellationToken);
+        }
     }
 
     private static MockRunnerOptions Validate(MockRunnerOptions options)

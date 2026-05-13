@@ -10,8 +10,9 @@ public sealed class MockAegesRunnerTests
     {
         var runner = new MockAegesRunner();
         var request = CreateRequest();
+        var progressSink = new RecordingProgressSink();
 
-        var result = await runner.RunAsync(request, CancellationToken.None);
+        var result = await runner.RunAsync(request, progressSink, CancellationToken.None);
 
         Assert.Equal(new RunnerId("mock"), runner.Id);
         Assert.Same(request, runner.LastRequest);
@@ -19,6 +20,8 @@ public sealed class MockAegesRunnerTests
         Assert.Equal(RunnerStatus.Succeeded, result.Status);
         Assert.Equal("/tmp/aeges/artifacts/task-001/result.md", result.ResultArtifactPath);
         Assert.Contains("/tmp/aeges/artifacts/task-001/stdout.log", result.ProducedArtifactPaths);
+        Assert.Contains(progressSink.Events, progressEvent => progressEvent.EventType == "runner.started");
+        Assert.Contains(progressSink.Events, progressEvent => progressEvent.EventType == "runner.message");
     }
 
     [Theory]
@@ -86,4 +89,16 @@ public sealed class MockAegesRunnerTests
             "/tmp/aeges/artifacts/task-001/prompt.md",
             "/tmp/aeges/artifacts/task-001",
             TimeSpan.FromMinutes(30));
+
+    private sealed class RecordingProgressSink : IRunnerProgressSink
+    {
+        public List<RunnerProgressEvent> Events { get; } = [];
+
+        public Task ReportAsync(RunnerProgressEvent progressEvent, CancellationToken cancellationToken)
+        {
+            Events.Add(progressEvent);
+
+            return Task.CompletedTask;
+        }
+    }
 }

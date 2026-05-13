@@ -17,6 +17,7 @@ using Aeges.Application.Machines;
 using Aeges.Application.Projects;
 using Aeges.Application.RunnerExecutions;
 using Aeges.Application.Runtime;
+using Aeges.Application.RuntimeEvents;
 using Aeges.Application.Talk;
 using Aeges.Application.TelegramTaskBindings;
 using Aeges.Application.TelegramUsers;
@@ -204,6 +205,11 @@ internal static class AegesCli
         if (args is ["task", "status", .. var taskStatusArgs])
         {
             return await RunTaskStatusAsync(taskStatusArgs, output, error, cancellationToken);
+        }
+
+        if (args is ["task", "events", .. var taskEventsArgs])
+        {
+            return await RunTaskEventsAsync(taskEventsArgs, output, error, cancellationToken);
         }
 
         if (args is ["task", "cancel", .. var taskCancelArgs])
@@ -1837,6 +1843,28 @@ internal static class AegesCli
         return 0;
     }
 
+    private static async Task<int> RunTaskEventsAsync(
+        string[] args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var options = TaskEventsOptions.Parse(args);
+
+        if (options.Error is not null)
+        {
+            await error.WriteLineAsync(options.Error);
+            return 2;
+        }
+
+        await using var context = await CreateReadyDbContextAsync(options, cancellationToken);
+        var service = new RuntimeEventService(new SqliteUnitOfWork(context), new SystemClock());
+        var events = await service.ListByTaskAsync(new TaskId(options.TaskId!), options.Limit, cancellationToken);
+        await WriteRuntimeEventsAsync(events, options.Json, output);
+
+        return 0;
+    }
+
     private static async Task<int> RunTaskCancelAsync(
         string[] args,
         TextWriter output,
@@ -2921,6 +2949,32 @@ internal static class AegesCli
         }
     }
 
+    private static async Task WriteRuntimeEventsAsync(
+        IReadOnlyList<RuntimeEvent> events,
+        bool json,
+        TextWriter output)
+    {
+        if (json)
+        {
+            await output.WriteLineAsync(JsonSerializer.Serialize(
+                events.Select(RuntimeEventOutput.From).ToArray(),
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                }));
+
+            return;
+        }
+
+        await output.WriteLineAsync($"Events: {events.Count}");
+
+        foreach (var runtimeEvent in events)
+        {
+            await output.WriteLineAsync(
+                $"  - {runtimeEvent.CreatedAt:O} | {runtimeEvent.EventType} | {runtimeEvent.Message}");
+        }
+    }
+
     private static async Task WriteProjectAsync(
         RuntimeProject project,
         bool json,
@@ -3690,6 +3744,7 @@ internal static class AegesCli
         await error.WriteLineAsync("  aeges machine list [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task create --project-id <id> --machine-id <id> --title <title> --goal <goal> [--task-id <id>] [--priority <int>] [--max-iterations <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task status <task-id> [--config <path>] [--connection-string <value>] [--json]");
+        await error.WriteLineAsync("  aeges task events <task-id> [--limit <int>] [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task cancel <task-id> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges task continue <task-id> --feedback <text> [--config <path>] [--connection-string <value>] [--json]");
         await error.WriteLineAsync("  aeges agent run [--once] [--machine-id <id>] [--machine-name <name>] [--platform <text>] [--runner-id <id>] [--no-claim] [--create-worktree] [--execute-runner] [--poll-interval-seconds <int>] [--queue-preview-limit <int>] [--max-parallel-tasks <int>] [--config <path>] [--connection-string <value>] [--json]");
@@ -4898,6 +4953,95 @@ internal static class AegesCli
         private static TaskStatusOptions ErrorResult(string error) => new() { Error = error };
     }
 
+    private sealed class TaskEventsOptions : CliOptions
+    {
+        public string? TaskId { get; private init; }
+
+        public int Limit { get; private init; } = 50;
+
+        public new static TaskEventsOptions Parse(string[] args)
+        {
+            string? configPath = null;
+            string? connectionString = null;
+            string? taskId = null;
+            var json = false;
+            var limit = 50;
+
+            for (var index = 0; index < args.Length; index++)
+            {
+                switch (args[index])
+                {
+                    case "--json":
+                        json = true;
+                        break;
+                    case "--config":
+                        if (!TryReadValue(args, ref index, out configPath))
+                        {
+                            return ErrorResult("--config requires a value.");
+                        }
+
+                        break;
+                    case "--connection-string":
+                        if (!TryReadValue(args, ref index, out connectionString))
+                        {
+                            return ErrorResult("--connection-string requires a value.");
+                        }
+
+                        break;
+                    case "--limit":
+                        if (!TryReadValue(args, ref index, out var limitValue))
+                        {
+                            return ErrorResult("--limit requires a value.");
+                        }
+
+                        if (!int.TryParse(limitValue, NumberStyles.None, CultureInfo.InvariantCulture, out limit)
+                            || limit <= 0)
+                        {
+                            return ErrorResult("--limit must be a positive integer.");
+                        }
+
+                        break;
+                    case "--task-id":
+                        if (!TryReadValue(args, ref index, out taskId))
+                        {
+                            return ErrorResult("--task-id requires a value.");
+                        }
+
+                        break;
+                    default:
+                        if (args[index].StartsWith("--", StringComparison.Ordinal))
+                        {
+                            return ErrorResult($"Unknown option '{args[index]}'.");
+                        }
+
+                        if (taskId is not null)
+                        {
+                            return ErrorResult("Only one task identifier can be supplied.");
+                        }
+
+                        taskId = args[index];
+                        break;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(taskId))
+            {
+                return ErrorResult("Task identifier is required.");
+            }
+
+            return new TaskEventsOptions
+            {
+                ConfigPath = configPath,
+                ConnectionString = connectionString,
+                Json = json,
+                TaskId = taskId,
+                Limit = limit,
+            };
+        }
+
+        private static TaskEventsOptions ErrorResult(string error) => new() { Error = error };
+    }
+
     private sealed class TaskContinueOptions : CliOptions
     {
         public string? TaskId { get; private init; }
@@ -5686,6 +5830,28 @@ internal static class AegesCli
                 task.CompletedAt,
                 task.CancelledAt,
                 task.FailureReason);
+    }
+
+    private sealed record RuntimeEventOutput(
+        string Id,
+        string? TaskId,
+        string? IterationId,
+        string? MachineId,
+        string EventType,
+        string Message,
+        string? PayloadJson,
+        DateTimeOffset CreatedAt)
+    {
+        public static RuntimeEventOutput From(RuntimeEvent runtimeEvent) =>
+            new(
+                runtimeEvent.Id.Value,
+                runtimeEvent.TaskId?.Value,
+                runtimeEvent.IterationId?.Value,
+                runtimeEvent.MachineId?.Value,
+                runtimeEvent.EventType,
+                runtimeEvent.Message,
+                runtimeEvent.PayloadJson,
+                runtimeEvent.CreatedAt);
     }
 
     private sealed record TalkExchangeOutput(

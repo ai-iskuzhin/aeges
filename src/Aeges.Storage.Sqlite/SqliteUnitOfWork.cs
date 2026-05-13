@@ -27,6 +27,7 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
         Machines = new SqliteMachineRepository(context);
         Locks = new SqliteLockRepository(context);
         RunnerExecutions = new SqliteRunnerExecutionRepository(context);
+        RuntimeEvents = new SqliteRuntimeEventRepository(context);
         TalkSessions = new SqliteTalkSessionRepository(context);
         TalkMessages = new SqliteTalkMessageRepository(context);
         TransportCallbackActions = new SqliteTransportCallbackActionRepository(context);
@@ -63,6 +64,9 @@ public sealed class SqliteUnitOfWork : IUnitOfWork
 
     /// <inheritdoc />
     public IRunnerExecutionRepository RunnerExecutions { get; }
+
+    /// <inheritdoc />
+    public IRuntimeEventRepository RuntimeEvents { get; }
 
     /// <inheritdoc />
     public ITalkSessionRepository TalkSessions { get; }

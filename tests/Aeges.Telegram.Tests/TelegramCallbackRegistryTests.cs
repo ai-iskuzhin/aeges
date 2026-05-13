@@ -97,6 +97,8 @@ public sealed class TelegramCallbackRegistryTests
 
         public IRunnerExecutionRepository RunnerExecutions => throw new NotSupportedException();
 
+        public IRuntimeEventRepository RuntimeEvents => throw new NotSupportedException();
+
         public ITalkSessionRepository TalkSessions => throw new NotSupportedException();
 
         public ITalkMessageRepository TalkMessages => throw new NotSupportedException();
