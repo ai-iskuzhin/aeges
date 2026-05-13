@@ -1279,6 +1279,7 @@ public sealed class TelegramInteractionHandler
         var runnerResponse = snapshot.LatestRunnerResponse is null
             ? "(none yet)"
             : snapshot.LatestRunnerResponse;
+        var showRunnerProgress = !task.Status.IsTerminal();
         var progressLines = snapshot.RuntimeEvents.Count == 0
             ? "(none yet)"
             : string.Join(
@@ -1308,9 +1309,7 @@ public sealed class TelegramInteractionHandler
 
             Runner response:
             {TelegramMarkdown.Quote(runnerResponse)}
-
-            Runner progress:
-            {TelegramMarkdown.Quote(progressLines)}
+            {FormatRunnerProgressSection(showRunnerProgress, progressLines)}
 
             Artifacts:
             {TelegramMarkdown.Quote(artifactLines)}
@@ -1318,6 +1317,15 @@ public sealed class TelegramInteractionHandler
             TaskDetailButtons(task, includeTerminalNavigation),
             new TelegramResponseMetadata(TelegramResponseKind.TaskDetails, task.Id));
     }
+
+    private static string FormatRunnerProgressSection(bool showRunnerProgress, string progressLines) =>
+        showRunnerProgress
+            ? $"""
+
+            Runner progress:
+            {TelegramMarkdown.Quote(progressLines)}
+            """
+            : string.Empty;
 
     private async Task<TelegramResponse> ViewTaskAsync(
         TelegramUserAuthorization authorization,

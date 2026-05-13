@@ -720,7 +720,23 @@ public sealed class TelegramInteractionHandlerTests
         task.StartPlanning(Now);
         task.StartRunning(Now);
         task.StartReview(Now);
-        var facade = new FakeTelegramApplicationFacade { Task = task, QueuedTasks = [task] };
+        var facade = new FakeTelegramApplicationFacade
+        {
+            Task = task,
+            QueuedTasks = [task],
+            RuntimeEvents =
+            [
+                RuntimeEvent.Create(
+                    new RuntimeEventId("runtime-event-001"),
+                    task.Id,
+                    null,
+                    task.MachineId,
+                    "runner.message",
+                    "Codex changed the first file.",
+                    null,
+                    Now),
+            ],
+        };
         var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
 
         var response = await handler.HandleAsync(
@@ -732,6 +748,8 @@ public sealed class TelegramInteractionHandlerTests
             CancellationToken.None);
 
         Assert.Contains("> Status: completed", response.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Runner progress:", response.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Codex changed the first file.", response.Text, StringComparison.Ordinal);
         Assert.Equal(RuntimeTaskStatus.Completed, task.Status);
         Assert.True(facade.CompleteTaskCalled);
         Assert.Empty(response.Buttons.Rows);
