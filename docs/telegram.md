@@ -260,6 +260,13 @@ details message is currently being watched, new progress events edit that
 message in place. Progress-only changes do not send a separate notification
 message when the latest bot message is not task details.
 
+For private chats and private task threads, runner `runner.message` events also
+stream through Telegram Bot API message drafts while the task is running. Drafts
+are ephemeral previews, so Aeges still sends or edits the durable task details
+message when the runtime state changes. While watched tasks exist, the Telegram
+transport shortens long-polling waits so draft updates are delivered quickly
+without storing Telegram-specific streaming state as the source of truth.
+
 The bot token is read from the environment variable named by
 `telegram.botTokenEnvironmentVariable`, or from the local file configured by
 `telegram.botTokenFilePath`. The token value itself must not be stored in

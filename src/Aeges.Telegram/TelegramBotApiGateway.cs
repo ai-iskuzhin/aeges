@@ -73,6 +73,23 @@ public sealed class TelegramBotApiGateway : ITelegramBotGateway
     }
 
     /// <inheritdoc />
+    public async Task SendMessageDraftAsync(
+        long chatId,
+        int? messageThreadId,
+        int draftId,
+        string text,
+        CancellationToken cancellationToken)
+    {
+        await botClient.SendMessageDraft(
+            chatId,
+            draftId,
+            TelegramMarkdown.EscapeResponseText(text),
+            messageThreadId,
+            ParseMode.MarkdownV2,
+            cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<TelegramForumTopic> CreateForumTopicAsync(
         long chatId,
         string name,

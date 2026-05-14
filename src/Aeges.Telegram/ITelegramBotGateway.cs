@@ -41,6 +41,22 @@ public interface ITelegramBotGateway
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Streams an ephemeral partial message draft for a private chat while a task is running.
+    /// </summary>
+    /// <param name="chatId">The target private chat identifier.</param>
+    /// <param name="messageThreadId">The target private thread identifier, when available.</param>
+    /// <param name="draftId">A stable non-zero draft identifier used to animate updates to the same draft.</param>
+    /// <param name="text">The draft text to show temporarily.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    Task SendMessageDraftAsync(
+        long chatId,
+        int? messageThreadId,
+        int draftId,
+        string text,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Creates a forum topic in a Telegram supergroup.
     /// </summary>
     /// <param name="chatId">The target Telegram supergroup identifier.</param>

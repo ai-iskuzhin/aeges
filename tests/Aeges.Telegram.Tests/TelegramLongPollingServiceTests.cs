@@ -442,6 +442,8 @@ public sealed class TelegramLongPollingServiceTests
             "Wire progress",
             "Notify the chat when runner progress changes.",
             DateTimeOffset.UtcNow);
+        task.StartPlanning(DateTimeOffset.UtcNow);
+        task.StartRunning(DateTimeOffset.UtcNow);
         var runtimeEvents = new List<RuntimeEvent>();
         var facade = new FakeTelegramApplicationFacade
         {
@@ -479,6 +481,10 @@ public sealed class TelegramLongPollingServiceTests
 
         Assert.Equal(2, gateway.EditedResponses.Count);
         Assert.Equal(9001, gateway.EditedResponses[1].MessageId);
+        Assert.Single(gateway.Drafts);
+        Assert.Equal(1001, gateway.Drafts[0].ChatId);
+        Assert.Contains("Wire progress", gateway.Drafts[0].Text, StringComparison.Ordinal);
+        Assert.Contains("Codex finished the first file.", gateway.Drafts[0].Text, StringComparison.Ordinal);
         Assert.Contains("Runner progress:", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
         Assert.Contains("Codex finished the first file.", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
     }
@@ -937,6 +943,8 @@ public sealed class TelegramLongPollingServiceTests
 
         public List<(long ChatId, int MessageId, TelegramResponse Response)> EditedResponses { get; } = [];
 
+        public List<(long ChatId, int? MessageThreadId, int DraftId, string Text)> Drafts { get; } = [];
+
         public List<(long ChatId, string Name)> CreatedTopics { get; } = [];
 
         public List<(long ChatId, int MessageThreadId, string Name)> UpdatedTopics { get; } = [];
@@ -987,6 +995,18 @@ public sealed class TelegramLongPollingServiceTests
             }
 
             return Task.FromResult<int?>(SentResponses.Count);
+        }
+
+        public Task SendMessageDraftAsync(
+            long chatId,
+            int? messageThreadId,
+            int draftId,
+            string text,
+            CancellationToken cancellationToken)
+        {
+            Drafts.Add((chatId, messageThreadId, draftId, text));
+
+            return Task.CompletedTask;
         }
 
         public Task<TelegramForumTopic> CreateForumTopicAsync(

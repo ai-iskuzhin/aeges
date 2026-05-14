@@ -1,7 +1,10 @@
 namespace Aeges.Telegram;
 
 using Aeges.Core;
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
 using ApiRequestException = global::Telegram.Bot.Exceptions.ApiRequestException;
 using RequestException = global::Telegram.Bot.Exceptions.RequestException;
 
@@ -10,6 +13,8 @@ using RequestException = global::Telegram.Bot.Exceptions.RequestException;
 /// </summary>
 public sealed class TelegramLongPollingService
 {
+    private const int ActiveWatchPollingTimeoutSeconds = 2;
+    private const int MaximumDraftTextLength = 4_096;
     private readonly ITelegramBotGateway gateway;
     private readonly TelegramInteractionHandler handler;
     private readonly ConcurrentDictionary<TaskWatchKey, TaskWatch> taskWatches = new();
@@ -51,7 +56,11 @@ public sealed class TelegramLongPollingService
         {
             try
             {
-                var result = await PollOnceAsync(nextOffset, options, cancellationToken);
+                await LoadDurableTaskWatchesAsync(cancellationToken);
+                var result = await PollOnceAsync(
+                    nextOffset,
+                    taskWatches.IsEmpty ? options : CreateActiveWatchPollingOptions(options),
+                    cancellationToken);
                 nextOffset = result.NextOffset;
                 if (result.ProcessedUpdates > 0)
                 {
@@ -482,6 +491,7 @@ public sealed class TelegramLongPollingService
             }
 
             await TryUpdateTaskTopicTitleAsync(pair.Key.ChatId, pair.Key.MessageThreadId, task, cancellationToken);
+            await TrySendRunnerProgressDraftAsync(pair.Key, task, runtimeEvents, cancellationToken);
 
             if (pair.Value.LastBotMessageIsTaskDetails && pair.Value.DetailMessageId is not null)
             {
@@ -584,6 +594,45 @@ public sealed class TelegramLongPollingService
                 new TelegramLongPollingLogEntry(
                     TelegramLongPollingLogLevel.Warning,
                     "Telegram forum topic title update failed.",
+                    ExceptionType: exception.GetType().Name,
+                    ErrorMessage: exception.Message),
+                cancellationToken);
+        }
+    }
+
+    private async Task TrySendRunnerProgressDraftAsync(
+        TaskWatchKey key,
+        RuntimeTask task,
+        IReadOnlyList<RuntimeEvent> runtimeEvents,
+        CancellationToken cancellationToken)
+    {
+        if (key.ChatId < 1 || task.Status != RuntimeTaskStatus.Running)
+        {
+            return;
+        }
+
+        var latestRunnerMessage = GetLatestRunnerMessage(runtimeEvents);
+
+        if (latestRunnerMessage is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await gateway.SendMessageDraftAsync(
+                key.ChatId,
+                key.MessageThreadId,
+                CreateDraftId(task.Id),
+                CreateRunnerProgressDraftText(task, latestRunnerMessage),
+                cancellationToken);
+        }
+        catch (Exception exception) when (exception is RequestException or ApiRequestException)
+        {
+            await LogAsync(
+                new TelegramLongPollingLogEntry(
+                    TelegramLongPollingLogLevel.Warning,
+                    "Telegram message draft update failed.",
                     ExceptionType: exception.GetType().Name,
                     ErrorMessage: exception.Message),
                 cancellationToken);
@@ -758,6 +807,37 @@ public sealed class TelegramLongPollingService
             .FirstOrDefault();
 
         return $"{CreateTaskStateFingerprint(task)}:{latestEvent?.Id.Value ?? "none"}";
+    }
+
+    private static TelegramLongPollingOptions CreateActiveWatchPollingOptions(TelegramLongPollingOptions options) =>
+        options.TimeoutSeconds <= ActiveWatchPollingTimeoutSeconds
+            ? options
+            : options with { TimeoutSeconds = ActiveWatchPollingTimeoutSeconds };
+
+    private static RuntimeEvent? GetLatestRunnerMessage(IReadOnlyList<RuntimeEvent> runtimeEvents) =>
+        runtimeEvents
+            .Where(runtimeEvent => runtimeEvent.EventType == "runner.message")
+            .OrderByDescending(runtimeEvent => runtimeEvent.CreatedAt)
+            .ThenByDescending(runtimeEvent => runtimeEvent.Id.Value)
+            .FirstOrDefault();
+
+    private static string CreateRunnerProgressDraftText(RuntimeTask task, RuntimeEvent runtimeEvent)
+    {
+        var text = $"""
+        {task.Title}
+
+        {runtimeEvent.Message}
+        """;
+
+        return text.Length <= MaximumDraftTextLength ? text : string.Concat(text.AsSpan(0, MaximumDraftTextLength - 3), "...");
+    }
+
+    private static int CreateDraftId(TaskId taskId)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(taskId.Value));
+        var draftId = BinaryPrimitives.ReadInt32LittleEndian(bytes) & int.MaxValue;
+
+        return draftId == 0 ? 1 : draftId;
     }
 
     private static string CreateTaskTopicTitle(RuntimeTask task)
