@@ -15,6 +15,7 @@ public sealed class TelegramInteractionHandler
     private const int DefaultApprovalLimit = 10;
     private const int MenuCountLimit = 100;
     private const int ButtonGridColumns = 2;
+    private const int WideProjectButtonTextLength = 15;
     private readonly ITelegramApplicationFacade application;
     private readonly ITelegramCallbackRegistry? callbackRegistry;
     private readonly string? runtimeVersion;
@@ -440,7 +441,7 @@ public sealed class TelegramInteractionHandler
         var conversation = GetConversationKey(update);
         drafts.TryRemove(conversation, out _);
         continuationDrafts.TryRemove(conversation, out _);
-        var rows = Grid(projects.Select(project => Button(project.Name, TelegramCallbackData.SelectTaskProject(project.Id))))
+        var rows = ProjectGrid(projects.Select(project => Button(project.Name, TelegramCallbackData.SelectTaskProject(project.Id))))
             .Append(Row(Button("Cancel", TelegramCallbackData.CancelCreateTask)))
             .ToArray();
 
@@ -733,7 +734,7 @@ public sealed class TelegramInteractionHandler
                 BackToProjectsButtons());
         }
 
-        var rows = Grid(groupedProjects.Select(project => Button(ProjectButtonText(project), TelegramCallbackData.ViewProject(project.Id))))
+        var rows = ProjectGrid(groupedProjects.Select(project => Button(ProjectButtonText(project), TelegramCallbackData.ViewProject(project.Id))))
             .Append(Row(Button("Back", TelegramCallbackData.ListProjects)))
             .ToArray();
         var title = groupId is null ? "Ungrouped projects" : $"{group!.Name} projects";
@@ -1856,6 +1857,45 @@ public sealed class TelegramInteractionHandler
 
     private static IReadOnlyList<TelegramButton>[] Grid(IEnumerable<TelegramButton> buttons) =>
         buttons.Chunk(ButtonGridColumns).Select(static chunk => Row(chunk)).ToArray();
+
+    private static IReadOnlyList<TelegramButton>[] ProjectGrid(IEnumerable<TelegramButton> buttons)
+    {
+        var rows = new List<IReadOnlyList<TelegramButton>>();
+        var compactRow = new List<TelegramButton>(ButtonGridColumns);
+
+        foreach (var button in buttons)
+        {
+            if (button.Text.Length > WideProjectButtonTextLength)
+            {
+                FlushCompactRow();
+                rows.Add(Row(button));
+
+                continue;
+            }
+
+            compactRow.Add(button);
+
+            if (compactRow.Count == ButtonGridColumns)
+            {
+                FlushCompactRow();
+            }
+        }
+
+        FlushCompactRow();
+
+        return [.. rows];
+
+        void FlushCompactRow()
+        {
+            if (compactRow.Count == 0)
+            {
+                return;
+            }
+
+            rows.Add(Row([.. compactRow]));
+            compactRow.Clear();
+        }
+    }
 
     private static TelegramButtonMarkup Buttons(params IReadOnlyList<TelegramButton>[] rows) =>
         new(rows);

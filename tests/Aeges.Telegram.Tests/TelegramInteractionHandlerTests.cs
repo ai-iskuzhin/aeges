@@ -302,6 +302,54 @@ public sealed class TelegramInteractionHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_places_long_project_buttons_on_their_own_rows()
+    {
+        var facade = new FakeTelegramApplicationFacade
+        {
+            Projects =
+            [
+                RuntimeProject.Create(new ProjectId("project-a"), "Aeges", "/workspace/aeges", Now),
+                RuntimeProject.Create(new ProjectId("project-long"), "moonlumevpn-web-admin", "/workspace/moonlume/admin", Now),
+                RuntimeProject.Create(new ProjectId("project-b"), "Test", "/workspace/test", Now),
+            ],
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ViewUngroupedProjects),
+            CancellationToken.None);
+
+        Assert.Equal("Ungrouped projects", response.Text);
+        Assert.Equal(["Aeges"], response.Buttons.Rows[0].Select(button => button.Text).ToArray());
+        Assert.Equal(["moonlumevpn-web-admin"], response.Buttons.Rows[1].Select(button => button.Text).ToArray());
+        Assert.Equal(["Test"], response.Buttons.Rows[2].Select(button => button.Text).ToArray());
+    }
+
+    [Fact]
+    public async Task HandleAsync_places_long_task_creation_project_buttons_on_their_own_rows()
+    {
+        var facade = new FakeTelegramApplicationFacade
+        {
+            Projects =
+            [
+                RuntimeProject.Create(new ProjectId("project-a"), "Aeges", "/workspace/aeges", Now),
+                RuntimeProject.Create(new ProjectId("project-long"), "sportgearhub-docs-site", "/workspace/docs-site", Now),
+                RuntimeProject.Create(new ProjectId("project-b"), "Test", "/workspace/test", Now),
+            ],
+        };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.CreateTask),
+            CancellationToken.None);
+
+        Assert.Equal("Choose a project for the task.", response.Text);
+        Assert.Equal(["Aeges"], response.Buttons.Rows[0].Select(button => button.Text).ToArray());
+        Assert.Equal(["sportgearhub-docs-site"], response.Buttons.Rows[1].Select(button => button.Text).ToArray());
+        Assert.Equal(["Test"], response.Buttons.Rows[2].Select(button => button.Text).ToArray());
+    }
+
+    [Fact]
     public async Task HandleAsync_shows_project_details_with_task_status_buttons()
     {
         var task = RuntimeTask.Create(
