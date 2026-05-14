@@ -8,6 +8,29 @@ All notable changes to Aeges are documented in this file.
 
 - Nothing yet.
 
+## [0.1.0-alpha.8] - 2026-05-14
+
+### Added
+
+- Added Telegram task topic bindings, private task thread routing, and project
+  visibility controls for multi-user Telegram operation.
+- Added durable runner progress events and streamed Telegram progress drafts
+  while Codex work is running.
+- Added bounded runtime log rotation for foreground and background process logs.
+
+### Changed
+
+- Detached Unix background agent and Telegram processes so CLI startup returns
+  cleanly while child processes keep running.
+- Improved Telegram project navigation with full-width project buttons and more
+  compact task controls.
+
+### Fixed
+
+- Recovered orphaned active tasks on agent startup after process restarts.
+- Hardened Telegram polling around stale callback acknowledgements, chat
+  migrations, and transient Bot API transport failures.
+
 ## [0.1.0-alpha.7] - 2026-05-12
 
 ### Added
