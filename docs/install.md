@@ -94,7 +94,7 @@ For local development, use the checked-in installer from a local checkout:
 ```bash
 dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
 AEGES_PACKAGE_SOURCE="$PWD/.artifacts/packages" \
-AEGES_VERSION=0.1.0-alpha.8 \
+AEGES_VERSION=0.1.0-alpha.9 \
 sh scripts/install.sh
 ```
 
@@ -108,7 +108,7 @@ After the first install, users can update through the CLI itself:
 
 ```bash
 aeges update
-aeges update --version 0.1.0-alpha.8
+aeges update --version 0.1.0-alpha.9
 ```
 
 Add `-v` or `--verbose` to any Aeges command to print execution traces to
@@ -125,7 +125,7 @@ Windows for administrator consent when the user-profile `.dotnet` directory has
 broken permissions. Local development builds can be installed with:
 
 ```bash
-aeges update --version 0.1.0-alpha.8 --package-source "$PWD/.artifacts/packages"
+aeges update --version 0.1.0-alpha.9 --package-source "$PWD/.artifacts/packages"
 ```
 
 If Windows still reports `Access to the path ...\.dotnet... is denied`, stop
@@ -140,13 +140,13 @@ aeges update
 For a GitHub release download, specify a version:
 
 ```bash
-curl -fsSL https://get.aeges.top/install.sh | AEGES_VERSION=0.1.0-alpha.8 sh
+curl -fsSL https://get.aeges.top/install.sh | AEGES_VERSION=0.1.0-alpha.9 sh
 ```
 
 Supported installer environment variables:
 
 ```text
-AEGES_VERSION=0.1.0-alpha.8
+AEGES_VERSION=0.1.0-alpha.9
 AEGES_PACKAGE_SOURCE=/path/to/packages
 AEGES_DOWNLOAD_BASE_URL=https://github.com/ai-iskuzhin/aeges/releases/latest/download
 AEGES_GITHUB_REPOSITORY=ai-iskuzhin/aeges
@@ -170,7 +170,7 @@ irm https://get.aeges.top/install.ps1 | iex
 For a versioned GitHub release:
 
 ```powershell
-$env:AEGES_VERSION = "0.1.0-alpha.8"
+$env:AEGES_VERSION = "0.1.0-alpha.9"
 irm https://get.aeges.top/install.ps1 | iex
 ```
 
@@ -178,7 +178,7 @@ For a local checkout:
 
 ```powershell
 dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
-.\scripts\install.ps1 -PackageSource .\.artifacts\packages -Version 0.1.0-alpha.8
+.\scripts\install.ps1 -PackageSource .\.artifacts\packages -Version 0.1.0-alpha.9
 ```
 
 `install.ps1` supports the same configuration surface as `install.sh`:
@@ -200,7 +200,7 @@ The CLI is packaged as a .NET tool. From a local checkout:
 dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
 dotnet tool install --global Aeges.Cli \
   --add-source "$PWD/.artifacts/packages" \
-  --version 0.1.0-alpha.8
+  --version 0.1.0-alpha.9
 ```
 
 If `aeges` is still not found, add the .NET tool directory to `PATH`:
@@ -214,7 +214,7 @@ For repeated local installs during development:
 ```bash
 dotnet pack src/Aeges.Cli/Aeges.Cli.csproj -c Release
 AEGES_PACKAGE_SOURCE="$PWD/.artifacts/packages" \
-AEGES_VERSION=0.1.0-alpha.8 \
+AEGES_VERSION=0.1.0-alpha.9 \
 sh scripts/install.sh
 ```
 
@@ -228,7 +228,7 @@ Required NuGet setup:
 1. Create or use a NuGet.org account.
 2. Create an API key scoped to push packages.
 3. Add the key to GitHub repository secrets as `NUGET_TOKEN`.
-4. Push a version tag such as `v0.1.0-alpha.8`.
+4. Push a version tag such as `v0.1.0-alpha.9`.
 
 The release workflow packs `src/Aeges.Cli`, uploads the package to GitHub
 Releases, and pushes the same `.nupkg` to NuGet when `NUGET_TOKEN` is present.
@@ -291,17 +291,17 @@ Aeges.Cli.<version>.nupkg
 SHA256SUMS
 ```
 
-For tag `v0.1.0-alpha.8`, the default remote package URL is:
+For tag `v0.1.0-alpha.9`, the default remote package URL is:
 
 ```text
-https://github.com/ai-iskuzhin/aeges/releases/download/v0.1.0-alpha.8/Aeges.Cli.0.1.0-alpha.8.nupkg
+https://github.com/ai-iskuzhin/aeges/releases/download/v0.1.0-alpha.9/Aeges.Cli.0.1.0-alpha.9.nupkg
 ```
 
 The release workflow builds, tests, packs the CLI tool, stages `install.sh` and
 `install.ps1`, generates SHA-256 checksums, extracts the matching
 `CHANGELOG.md` section, and creates a GitHub release with `gh release create`.
 Tags named `v*` publish a release. Tags containing a hyphen, such as
-`v0.1.0-alpha.8`, are marked as prereleases.
+`v0.1.0-alpha.9`, are marked as prereleases.
 
 ## macOS And Linux: Homebrew
 

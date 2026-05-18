@@ -558,9 +558,10 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Contains("> Title: Wire Telegram buttons", response.Text, StringComparison.Ordinal);
         Assert.Contains("> Status: queued", response.Text, StringComparison.Ordinal);
         Assert.Contains("> Expose Telegram actions through inline buttons.", response.Text, StringComparison.Ordinal);
-        Assert.Equal("Cancel", response.Buttons.Rows[0][0].Text);
-        Assert.Equal("ae:t:x:task-001", response.Buttons.Rows[0][0].CallbackData);
-        Assert.Equal("Back", response.Buttons.Rows[0][1].Text);
+        Assert.Equal(["Result", "Progress", "Artifacts"], response.Buttons.Rows[0].Select(button => button.Text).ToArray());
+        Assert.Equal("Cancel", response.Buttons.Rows[1][0].Text);
+        Assert.Equal("ae:t:x:task-001", response.Buttons.Rows[1][0].CallbackData);
+        Assert.Equal("Back", response.Buttons.Rows[1][1].Text);
     }
 
     [Fact]
@@ -611,7 +612,8 @@ public sealed class TelegramInteractionHandlerTests
                 "/runtime/artifacts",
                 [execution],
                 [],
-                "Mock runner result: success."),
+                "Mock runner result: success.",
+                "Merge the existing branch and publish a release."),
         };
         var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
 
@@ -620,13 +622,28 @@ public sealed class TelegramInteractionHandlerTests
             CancellationToken.None);
 
         Assert.Contains("> Status: reviewing", response.Text, StringComparison.Ordinal);
-        Assert.Contains("Runner response:\n> Mock runner result: success.", response.Text, StringComparison.Ordinal);
-        Assert.Contains("Artifacts:\n> - result: /runtime/artifacts/project-aeges/task-001/iteration-001/result.md", response.Text, StringComparison.Ordinal);
-        Assert.Equal("Continue", response.Buttons.Rows[0][0].Text);
-        Assert.Equal("ae:t:more:task-001", response.Buttons.Rows[0][0].CallbackData);
-        Assert.Equal(TelegramButtonStyle.Primary, response.Buttons.Rows[0][0].Style);
-        Assert.Equal("Complete", response.Buttons.Rows[0][1].Text);
-        Assert.Equal("ae:t:done:task-001", response.Buttons.Rows[0][1].CallbackData);
+        Assert.Contains("Latest follow-up:", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Merge the existing branch and publish a release.", response.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Runner response:", response.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Artifacts:", response.Text, StringComparison.Ordinal);
+        Assert.Equal(["Result", "Progress", "Artifacts"], response.Buttons.Rows[0].Select(button => button.Text).ToArray());
+        Assert.Equal("Continue", response.Buttons.Rows[1][0].Text);
+        Assert.Equal("ae:t:more:task-001", response.Buttons.Rows[1][0].CallbackData);
+        Assert.Equal(TelegramButtonStyle.Primary, response.Buttons.Rows[1][0].Style);
+        Assert.Equal("Complete", response.Buttons.Rows[1][1].Text);
+        Assert.Equal("ae:t:done:task-001", response.Buttons.Rows[1][1].CallbackData);
+
+        var resultResponse = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ViewTaskResult(task.Id)),
+            CancellationToken.None);
+        var artifactsResponse = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ViewTaskArtifacts(task.Id)),
+            CancellationToken.None);
+
+        Assert.Contains("Task result: task-001", resultResponse.Text, StringComparison.Ordinal);
+        Assert.Contains("> Mock runner result: success.", resultResponse.Text, StringComparison.Ordinal);
+        Assert.Contains("Task artifacts: task-001", artifactsResponse.Text, StringComparison.Ordinal);
+        Assert.Contains("> - result: /runtime/artifacts/project-aeges/task-001/iteration-001/result.md", artifactsResponse.Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -656,10 +673,12 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Equal("Send the follow-up instructions for the next iteration.", prompt.Text);
         Assert.True(facade.ContinueTaskCalled);
         Assert.Equal("Please retry with sandbox disabled.", facade.ContinuedFeedback);
-        Assert.Contains("Task continued: task-001", response.Text, StringComparison.Ordinal);
-        Assert.Contains("Status: queued", response.Text, StringComparison.Ordinal);
-        Assert.Contains("> Please retry with sandbox disabled.", response.Text, StringComparison.Ordinal);
-        Assert.Contains("Agent:\n> Agent started.", response.Text, StringComparison.Ordinal);
+        Assert.Contains("Task details:\n> Task: task-001", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Status: queued", response.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Task continued:", response.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Follow-up:", response.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Agent:", response.Text, StringComparison.Ordinal);
+        Assert.Equal(["Result", "Progress", "Artifacts"], response.Buttons.Rows[0].Select(button => button.Text).ToArray());
         Assert.Equal(TelegramResponseKind.TaskDetails, response.Metadata?.Kind);
         Assert.Equal(task.Id, response.Metadata?.TaskId);
         Assert.Equal(1, facade.StartAgentCallCount);
@@ -723,7 +742,42 @@ public sealed class TelegramInteractionHandlerTests
         Assert.Contains("Reply to the bot follow-up prompt", notReply.Text, StringComparison.Ordinal);
         Assert.True(facade.ContinueTaskCalled);
         Assert.Equal("Please retry with sandbox disabled.", facade.ContinuedFeedback);
-        Assert.Contains("Task continued: task-001", response.Text, StringComparison.Ordinal);
+        Assert.Contains("Task details:\n> Task: task-001", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Status: queued", response.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Task continued:", response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task HandleAsync_continues_cancelled_task_with_follow_up_feedback()
+    {
+        var task = RuntimeTask.Create(
+            new TaskId("task-001"),
+            new ProjectId("project-aeges"),
+            new MachineId("machine-local"),
+            "Fix smoke test",
+            "Wrong original goal.",
+            Now);
+        task.Cancel(Now.AddMinutes(1));
+        var facade = new FakeTelegramApplicationFacade { Task = task };
+        var handler = new TelegramInteractionHandler(facade, new AegesTelegramConfiguration());
+
+        var prompt = await handler.HandleAsync(
+            new TelegramUpdate(1001, CallbackData: TelegramCallbackData.ContinueTask(task.Id)),
+            CancellationToken.None);
+        var response = await handler.HandleAsync(
+            new TelegramUpdate(1001, Text: "Use this corrected goal instead."),
+            CancellationToken.None);
+
+        Assert.Equal("Send the follow-up instructions for the next iteration.", prompt.Text);
+        Assert.True(facade.ContinueTaskCalled);
+        Assert.Equal("Use this corrected goal instead.", facade.ContinuedFeedback);
+        Assert.Contains("Task details:\n> Task: task-001", response.Text, StringComparison.Ordinal);
+        Assert.Contains("> Status: queued", response.Text, StringComparison.Ordinal);
+        Assert.Equal(RuntimeTaskStatus.Queued, task.Status);
+        Assert.Null(task.CancelledAt);
+        Assert.Equal(TelegramResponseKind.TaskDetails, response.Metadata?.Kind);
+        Assert.Equal(task.Id, response.Metadata?.TaskId);
+        Assert.Equal(1, facade.StartAgentCallCount);
     }
 
     [Fact]
@@ -800,7 +854,7 @@ public sealed class TelegramInteractionHandlerTests
         Assert.DoesNotContain("Codex changed the first file.", response.Text, StringComparison.Ordinal);
         Assert.Equal(RuntimeTaskStatus.Completed, task.Status);
         Assert.True(facade.CompleteTaskCalled);
-        Assert.Empty(response.Buttons.Rows);
+        Assert.Equal(["Result", "Progress", "Artifacts"], response.Buttons.Rows[0].Select(button => button.Text).ToArray());
         Assert.Equal(TelegramResponseKind.TaskDetails, response.Metadata?.Kind);
         Assert.Equal(task.Id, response.Metadata?.TaskId);
     }
@@ -824,9 +878,12 @@ public sealed class TelegramInteractionHandlerTests
             CancellationToken.None);
 
         Assert.Contains("> Status: cancelled", response.Text, StringComparison.Ordinal);
-        Assert.Single(response.Buttons.Rows);
-        Assert.Equal("Menu", response.Buttons.Rows[0][0].Text);
-        Assert.Equal(TelegramCallbackData.MainMenu, response.Buttons.Rows[0][0].CallbackData);
+        Assert.Equal(2, response.Buttons.Rows.Count);
+        Assert.Equal(["Result", "Progress", "Artifacts"], response.Buttons.Rows[0].Select(button => button.Text).ToArray());
+        Assert.Equal("Continue", response.Buttons.Rows[1][0].Text);
+        Assert.Equal(TelegramCallbackData.ContinueTask(task.Id), response.Buttons.Rows[1][0].CallbackData);
+        Assert.Equal("Menu", response.Buttons.Rows[1][1].Text);
+        Assert.Equal(TelegramCallbackData.MainMenu, response.Buttons.Rows[1][1].CallbackData);
     }
 
     [Fact]

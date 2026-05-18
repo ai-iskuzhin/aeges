@@ -18,5 +18,5 @@ public sealed record CreateTaskRequest(
     string Title,
     string Goal,
     int Priority = 0,
-    int MaxIterations = 3,
+    int MaxIterations = RuntimeTask.DefaultMaxIterations,
     TaskId? TaskId = null);

@@ -1,3 +1,4 @@
+using Aeges.Core;
 using Aeges.Storage.Sqlite.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -21,7 +22,7 @@ internal sealed class TaskRecordConfiguration : IEntityTypeConfiguration<TaskRec
             .HasConversion(new RuntimeTaskStatusStorageConverter())
             .IsRequired();
         builder.Property(task => task.Priority).HasColumnName("priority").HasDefaultValue(0);
-        builder.Property(task => task.MaxIterations).HasColumnName("max_iterations").HasDefaultValue(3);
+        builder.Property(task => task.MaxIterations).HasColumnName("max_iterations").HasDefaultValue(RuntimeTask.DefaultMaxIterations);
         builder.Property(task => task.CurrentIteration).HasColumnName("current_iteration").HasDefaultValue(0);
         builder.Property(task => task.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(task => task.UpdatedAt).HasColumnName("updated_at").IsRequired();

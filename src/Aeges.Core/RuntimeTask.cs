@@ -5,6 +5,11 @@ namespace Aeges.Core;
 /// </summary>
 public sealed class RuntimeTask
 {
+    /// <summary>
+    /// The default number of runner iterations allowed for a task.
+    /// </summary>
+    public const int DefaultMaxIterations = 10;
+
     private RuntimeTask(
         TaskId id,
         ProjectId projectId,
@@ -122,7 +127,7 @@ public sealed class RuntimeTask
         string goal,
         DateTimeOffset createdAt,
         int priority = 0,
-        int maxIterations = 3) =>
+        int maxIterations = DefaultMaxIterations) =>
         new(id, projectId, machineId, title, goal, priority, maxIterations, createdAt);
 
     /// <summary>
@@ -223,6 +228,7 @@ public sealed class RuntimeTask
         }
 
         TransitionTo(RuntimeTaskStatus.Queued, now);
+        CancelledAt = null;
     }
 
     /// <summary>
@@ -309,7 +315,8 @@ public sealed class RuntimeTask
             RuntimeTaskStatus.WaitingApproval => nextStatus is RuntimeTaskStatus.Running
                 or RuntimeTaskStatus.Failed
                 or RuntimeTaskStatus.Cancelled,
-            RuntimeTaskStatus.Completed or RuntimeTaskStatus.Failed or RuntimeTaskStatus.Cancelled => false,
+            RuntimeTaskStatus.Cancelled => nextStatus is RuntimeTaskStatus.Queued,
+            RuntimeTaskStatus.Completed or RuntimeTaskStatus.Failed => false,
             _ => false,
         };
 

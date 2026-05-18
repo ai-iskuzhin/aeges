@@ -12,6 +12,7 @@ namespace Aeges.Telegram;
 /// <param name="RunnerExecutions">The runner executions recorded for the task.</param>
 /// <param name="RuntimeEvents">Recent runtime events recorded for the task.</param>
 /// <param name="LatestRunnerResponse">A short human-readable runner response preview, when available.</param>
+/// <param name="LatestFollowUp">The latest review follow-up instruction, when available.</param>
 public sealed record TelegramTaskReviewSnapshot(
     RuntimeTask Task,
     IReadOnlyList<TaskIteration> Iterations,
@@ -19,4 +20,5 @@ public sealed record TelegramTaskReviewSnapshot(
     string ArtifactRootPath,
     IReadOnlyList<RuntimeRunnerExecution> RunnerExecutions,
     IReadOnlyList<RuntimeEvent> RuntimeEvents,
-    string? LatestRunnerResponse);
+    string? LatestRunnerResponse,
+    string? LatestFollowUp = null);

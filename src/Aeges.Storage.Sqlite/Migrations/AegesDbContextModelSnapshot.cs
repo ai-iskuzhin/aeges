@@ -659,7 +659,7 @@ namespace Aeges.Storage.Sqlite.Migrations
                     b.Property<int>("MaxIterations")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
-                        .HasDefaultValue(3)
+                        .HasDefaultValue(10)
                         .HasColumnName("max_iterations");
 
                     b.Property<int>("Priority")

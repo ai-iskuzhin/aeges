@@ -78,7 +78,7 @@ public sealed class GovernancePolicy
     /// <returns>The default governance policy.</returns>
     public static GovernancePolicy CreateDefault() =>
         new(
-            maxIterations: 3,
+            maxIterations: RuntimeTask.DefaultMaxIterations,
             timeout: TimeSpan.FromMinutes(30),
             approvalRequiredPathPatterns:
             [

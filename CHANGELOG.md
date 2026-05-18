@@ -8,6 +8,24 @@ All notable changes to Aeges are documented in this file.
 
 - Nothing yet.
 
+## [0.1.0-alpha.9] - 2026-05-18
+
+### Changed
+
+- Raised the default task iteration limit to 10 for new tasks and governance
+  defaults.
+- Simplified Telegram task details by moving result, progress, and artifact
+  content into task subviews.
+- Made continued task prompts prioritize the latest follow-up instruction while
+  keeping the original goal and older follow-ups as context.
+
+### Fixed
+
+- Allowed cancelled tasks to be continued with a follow-up instruction.
+- Showed the latest follow-up instruction in Telegram task details.
+- Opened task details directly after submitting final task or follow-up
+  instructions.
+
 ## [0.1.0-alpha.8] - 2026-05-14
 
 ### Added

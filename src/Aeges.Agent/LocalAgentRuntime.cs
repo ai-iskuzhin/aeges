@@ -721,27 +721,42 @@ public sealed class LocalAgentRuntime
     private static string BuildPrompt(
         RuntimeTask task,
         TaskIteration iteration,
-        string reviewFeedback) =>
-        $"""
+        ReviewFeedbackContext reviewFeedback)
+    {
+        var currentInstructions = string.IsNullOrWhiteSpace(reviewFeedback.LatestFeedback)
+            ? "No follow-up instructions have been supplied for this iteration."
+            : reviewFeedback.LatestFeedback;
+        var previousContext = string.IsNullOrWhiteSpace(reviewFeedback.PreviousFeedback)
+            ? "(none)"
+            : reviewFeedback.PreviousFeedback;
+
+        return $"""
         # Aeges Task Prompt
 
         Task ID: {task.Id}
         Iteration ID: {iteration.Id}
         Title: {task.Title}
 
-        Goal:
+        Current follow-up instructions:
+        {currentInstructions}
+
+        Original goal context:
         {task.Goal}
 
-        Review feedback:
-        {reviewFeedback}
+        Previous follow-up context:
+        {previousContext}
 
         Runtime instructions:
+        - Treat current follow-up instructions as the primary objective for this iteration.
+        - Use the original goal and previous follow-up context only as background.
+        - Do not repeat already completed work unless the current follow-up explicitly asks for it.
         - Follow the project rules and governance constraints.
         - Keep changes scoped to the task goal.
         - Produce durable outputs for review.
         """;
+    }
 
-    private static async Task<string> ReadReviewFeedbackAsync(
+    private static async Task<ReviewFeedbackContext> ReadReviewFeedbackAsync(
         SqliteUnitOfWork unitOfWork,
         RuntimeDirectoryLayout layout,
         TaskId taskId,
@@ -755,30 +770,39 @@ public sealed class LocalAgentRuntime
 
         if (reviewArtifacts.Length == 0)
         {
-            return "(none)";
+            return ReviewFeedbackContext.Empty;
         }
 
-        var sections = new List<string>();
+        var latestFeedback = await ReadReviewArtifactTextAsync(layout, reviewArtifacts[^1], cancellationToken);
+        var previousSections = new List<string>();
 
-        foreach (var artifact in reviewArtifacts)
+        foreach (var artifact in reviewArtifacts.Take(reviewArtifacts.Length - 1))
         {
-            var fullPath = ResolveArtifactPath(layout, artifact.RelativePath);
-
-            if (!File.Exists(fullPath))
-            {
-                sections.Add($"- Missing review artifact: {artifact.RelativePath}");
-                continue;
-            }
-
-            var content = await ReadBoundedTextAsync(fullPath, cancellationToken);
-            sections.Add(
+            var feedback = await ReadReviewArtifactTextAsync(layout, artifact, cancellationToken);
+            previousSections.Add(
                 $"""
                 ## Review artifact {artifact.Id}
-                {content}
+                {feedback}
                 """);
         }
 
-        return string.Join("\n\n", sections);
+        return new ReviewFeedbackContext(latestFeedback, string.Join("\n\n", previousSections));
+    }
+
+    private static async Task<string> ReadReviewArtifactTextAsync(
+        RuntimeDirectoryLayout layout,
+        RuntimeArtifact artifact,
+        CancellationToken cancellationToken)
+    {
+        var fullPath = ResolveArtifactPath(layout, artifact.RelativePath);
+
+        if (!File.Exists(fullPath))
+        {
+            return $"Missing review artifact: {artifact.RelativePath}";
+        }
+
+        var content = await ReadBoundedTextAsync(fullPath, cancellationToken);
+        return ExtractFeedbackText(content);
     }
 
     private static string ResolveArtifactPath(RuntimeDirectoryLayout layout, string relativePath)
@@ -807,6 +831,19 @@ public sealed class LocalAgentRuntime
         return stream.Length > MaxReviewFeedbackBytes
             ? content + "\n[truncated]"
             : content;
+    }
+
+    private static string ExtractFeedbackText(string content)
+    {
+        const string marker = "Feedback:";
+        var markerIndex = content.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+
+        if (markerIndex < 0)
+        {
+            return content.Trim();
+        }
+
+        return content[(markerIndex + marker.Length)..].Trim();
     }
 
     private static string ToArtifactRelativePath(RuntimeDirectoryLayout layout, string artifactPath)
@@ -840,6 +877,11 @@ public sealed class LocalAgentRuntime
         string ArtifactOutputDirectory,
         RunnerRequest RunnerRequest,
         RuntimeProject Project);
+
+    private sealed record ReviewFeedbackContext(string LatestFeedback, string PreviousFeedback)
+    {
+        public static ReviewFeedbackContext Empty { get; } = new(string.Empty, string.Empty);
+    }
 
     private sealed record RunnerRunSummary(
         string RunnerExecutionId,

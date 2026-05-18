@@ -1,3 +1,4 @@
+using Aeges.Application;
 using Aeges.Application.Configuration;
 using Aeges.Application.TelegramUsers;
 using Aeges.Core;
@@ -16,6 +17,13 @@ public sealed class TelegramInteractionHandler
     private const int MenuCountLimit = 100;
     private const int ButtonGridColumns = 2;
     private const int WideProjectButtonTextLength = 15;
+    private const int TaskGoalPreviewLength = 900;
+    private const int TaskFollowUpPreviewLength = 900;
+    private const int TaskResultPreviewLength = 2600;
+    private const int TaskProgressLimit = 20;
+    private const int TaskProgressMessageLength = 220;
+    private const int TaskArtifactsLimit = 25;
+    private const int TaskArtifactPathLength = 260;
     private readonly ITelegramApplicationFacade application;
     private readonly ITelegramCallbackRegistry? callbackRegistry;
     private readonly string? runtimeVersion;
@@ -128,6 +136,12 @@ public sealed class TelegramInteractionHandler
                 await SelectTaskMachineAsync(update, machineId, cancellationToken),
             _ when TelegramCallbackData.TryParseViewTask(callbackData, out var taskId) =>
                 await ViewTaskAsync(authorization, taskId, update.MessageThreadId, cancellationToken),
+            _ when TelegramCallbackData.TryParseViewTaskResult(callbackData, out var taskId) =>
+                await ViewTaskResultAsync(authorization, taskId, cancellationToken),
+            _ when TelegramCallbackData.TryParseViewTaskProgress(callbackData, out var taskId) =>
+                await ViewTaskProgressAsync(authorization, taskId, cancellationToken),
+            _ when TelegramCallbackData.TryParseViewTaskArtifacts(callbackData, out var taskId) =>
+                await ViewTaskArtifactsAsync(authorization, taskId, cancellationToken),
             _ when TelegramCallbackData.TryParseCompleteTask(callbackData, out var taskId) =>
                 await CompleteTaskAsync(authorization, taskId, update.MessageThreadId, cancellationToken),
             _ when TelegramCallbackData.TryParseContinueTask(callbackData, out var taskId) =>
@@ -564,9 +578,9 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse("You do not have access to this task.", TaskMenuButtons());
         }
 
-        if (task.Value.Status != RuntimeTaskStatus.Reviewing)
+        if (!CanContinueTask(task.Value.Status))
         {
-            return new TelegramResponse("Only reviewing tasks can be continued.", BackButtons());
+            return new TelegramResponse("Only reviewing or cancelled tasks can be continued.", BackButtons());
         }
 
         if (task.Value.CurrentIteration >= task.Value.MaxIterations)
@@ -632,24 +646,9 @@ public sealed class TelegramInteractionHandler
             return new TelegramResponse($"{result.Error!.Code}: {result.Error.Message}", BackButtons());
         }
 
-        var agentNotice = await StartAgentNoticeAsync(cancellationToken);
+        await StartAgentNoticeAsync(cancellationToken);
 
-        return new TelegramResponse(
-            $"""
-            Task continued: {result.Value!.Id}
-            Status: {result.Value.Status.ToStorageValue()}
-
-            Follow-up:
-            {TelegramMarkdown.Quote(feedback)}
-
-            Agent:
-            {TelegramMarkdown.Quote(agentNotice)}
-            """,
-            Buttons(
-                Row(
-                    Button("View task", TelegramCallbackData.ViewTask(result.Value.Id)),
-                    Button("Back", TelegramCallbackData.MainMenu))),
-            new TelegramResponseMetadata(TelegramResponseKind.TaskDetails, result.Value.Id));
+        return await RenderTaskDetailsAsync(result.Value!.Id, cancellationToken, includeTerminalNavigation: update.MessageThreadId is null);
     }
 
     private TelegramResponse CancelTaskContinuation(TelegramUpdate update)
@@ -1269,36 +1268,29 @@ public sealed class TelegramInteractionHandler
                 .Where(execution => execution.IterationId == latestIteration.Id)
                 .OrderByDescending(execution => execution.StartedAt)
                 .FirstOrDefault();
-        var artifactLines = snapshot.Artifacts.Count == 0
-            ? "(none)"
-            : string.Join(
-                '\n',
-                snapshot.Artifacts
-                    .OrderBy(artifact => artifact.CreatedAt)
-                    .Select(artifact =>
-                        $"- {artifact.Type.ToStorageValue()}: {FormatArtifactPath(snapshot.ArtifactRootPath, artifact.RelativePath)}"));
-        var runnerResponse = snapshot.LatestRunnerResponse is null
-            ? "(none yet)"
-            : snapshot.LatestRunnerResponse;
-        var showRunnerProgress = !task.Status.IsTerminal();
-        var progressLines = snapshot.RuntimeEvents.Count == 0
-            ? "(none yet)"
-            : string.Join(
-                '\n',
-                snapshot.RuntimeEvents
-                    .OrderBy(runtimeEvent => runtimeEvent.CreatedAt)
-                    .Select(runtimeEvent =>
-                        $"- {runtimeEvent.CreatedAt:HH:mm:ss} {runtimeEvent.EventType}: {runtimeEvent.Message}"));
         var taskMetadata = string.Join(
             '\n',
             [
                 $"Task: {task.Id}",
                 $"Title: {task.Title}",
+                $"Project: {task.ProjectId}",
+                $"Machine: {task.MachineId}",
                 $"Status: {task.Status.ToStorageValue()}",
                 $"Iterations: {task.CurrentIteration}/{task.MaxIterations}",
                 $"Latest iteration: {FormatIteration(latestIteration)}",
                 $"Runner: {FormatRunnerExecution(latestExecution)}",
             ]);
+        var goalPreview = Truncate(task.Goal, TaskGoalPreviewLength);
+        var followUpPreview = string.IsNullOrWhiteSpace(snapshot.LatestFollowUp)
+            ? null
+            : Truncate(snapshot.LatestFollowUp, TaskFollowUpPreviewLength);
+        var followUpBlock = followUpPreview is null
+            ? string.Empty
+            : $"""
+
+            Latest follow-up:
+            {TelegramMarkdown.Quote(followUpPreview)}
+            """;
 
         return new TelegramResponse(
             $"""
@@ -1306,27 +1298,12 @@ public sealed class TelegramInteractionHandler
             {TelegramMarkdown.Quote(taskMetadata)}
 
             Goal:
-            {TelegramMarkdown.Quote(task.Goal)}
-
-            Runner response:
-            {TelegramMarkdown.Quote(runnerResponse)}
-            {FormatRunnerProgressSection(showRunnerProgress, progressLines)}
-
-            Artifacts:
-            {TelegramMarkdown.Quote(artifactLines)}
+            {TelegramMarkdown.Quote(goalPreview)}
+            {followUpBlock}
             """,
             TaskDetailButtons(task, includeTerminalNavigation),
             new TelegramResponseMetadata(TelegramResponseKind.TaskDetails, task.Id));
     }
-
-    private static string FormatRunnerProgressSection(bool showRunnerProgress, string progressLines) =>
-        showRunnerProgress
-            ? $"""
-
-            Runner progress:
-            {TelegramMarkdown.Quote(progressLines)}
-            """
-            : string.Empty;
 
     private async Task<TelegramResponse> ViewTaskAsync(
         TelegramUserAuthorization authorization,
@@ -1350,6 +1327,105 @@ public sealed class TelegramInteractionHandler
             taskId,
             cancellationToken,
             includeTerminalNavigation: messageThreadId is null);
+    }
+
+    private async Task<TelegramResponse> ViewTaskResultAsync(
+        TelegramUserAuthorization authorization,
+        TaskId taskId,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = await GetAccessibleTaskReviewAsync(authorization, taskId, cancellationToken);
+
+        if (!snapshot.IsSuccess)
+        {
+            return new TelegramResponse($"{snapshot.Error!.Code}: {snapshot.Error.Message}", TaskMenuButtons());
+        }
+
+        var response = snapshot.Value!.LatestRunnerResponse;
+        var text = string.IsNullOrWhiteSpace(response)
+            ? "(none yet)"
+            : Truncate(response, TaskResultPreviewLength);
+
+        return new TelegramResponse(
+            $"Task result: {taskId}\n{TelegramMarkdown.Quote(text)}",
+            TaskSubviewButtons(taskId),
+            new TelegramResponseMetadata(TelegramResponseKind.TaskDetails, taskId));
+    }
+
+    private async Task<TelegramResponse> ViewTaskProgressAsync(
+        TelegramUserAuthorization authorization,
+        TaskId taskId,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = await GetAccessibleTaskReviewAsync(authorization, taskId, cancellationToken);
+
+        if (!snapshot.IsSuccess)
+        {
+            return new TelegramResponse($"{snapshot.Error!.Code}: {snapshot.Error.Message}", TaskMenuButtons());
+        }
+
+        var events = snapshot.Value!.RuntimeEvents
+            .OrderByDescending(runtimeEvent => runtimeEvent.CreatedAt)
+            .Take(TaskProgressLimit)
+            .OrderBy(runtimeEvent => runtimeEvent.CreatedAt)
+            .Select(runtimeEvent =>
+                $"- {runtimeEvent.CreatedAt:HH:mm:ss} {runtimeEvent.EventType}: {Truncate(runtimeEvent.Message, TaskProgressMessageLength)}")
+            .ToArray();
+        var text = events.Length == 0 ? "(none yet)" : string.Join('\n', events);
+
+        return new TelegramResponse(
+            $"Task progress: {taskId}\n{TelegramMarkdown.Quote(text)}",
+            TaskSubviewButtons(taskId),
+            new TelegramResponseMetadata(TelegramResponseKind.TaskDetails, taskId));
+    }
+
+    private async Task<TelegramResponse> ViewTaskArtifactsAsync(
+        TelegramUserAuthorization authorization,
+        TaskId taskId,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = await GetAccessibleTaskReviewAsync(authorization, taskId, cancellationToken);
+
+        if (!snapshot.IsSuccess)
+        {
+            return new TelegramResponse($"{snapshot.Error!.Code}: {snapshot.Error.Message}", TaskMenuButtons());
+        }
+
+        var artifacts = snapshot.Value!.Artifacts
+            .OrderByDescending(artifact => artifact.CreatedAt)
+            .Take(TaskArtifactsLimit)
+            .OrderBy(artifact => artifact.CreatedAt)
+            .Select(artifact =>
+                $"- {artifact.Type.ToStorageValue()}: {Truncate(FormatArtifactPath(snapshot.Value.ArtifactRootPath, artifact.RelativePath), TaskArtifactPathLength)}")
+            .ToArray();
+        var text = artifacts.Length == 0 ? "(none)" : string.Join('\n', artifacts);
+
+        return new TelegramResponse(
+            $"Task artifacts: {taskId}\n{TelegramMarkdown.Quote(text)}",
+            TaskSubviewButtons(taskId),
+            new TelegramResponseMetadata(TelegramResponseKind.TaskDetails, taskId));
+    }
+
+    private async Task<ApplicationResult<TelegramTaskReviewSnapshot>> GetAccessibleTaskReviewAsync(
+        TelegramUserAuthorization authorization,
+        TaskId taskId,
+        CancellationToken cancellationToken)
+    {
+        var task = await application.GetTaskAsync(taskId, cancellationToken);
+
+        if (!task.IsSuccess)
+        {
+            return ApplicationResult<TelegramTaskReviewSnapshot>.Failure(task.Error!.Code, task.Error.Message);
+        }
+
+        if (!await CanAccessProjectAsync(authorization, task.Value!.ProjectId, cancellationToken))
+        {
+            return ApplicationResult<TelegramTaskReviewSnapshot>.Failure(
+                "task_access_denied",
+                "You do not have access to this task.");
+        }
+
+        return await application.GetTaskReviewAsync(taskId, cancellationToken);
     }
 
     public async Task<RuntimeTask?> GetTaskOrDefaultAsync(
@@ -1612,16 +1688,15 @@ public sealed class TelegramInteractionHandler
         RuntimeTask task,
         bool includeTerminalNavigation)
     {
-        if (task.Status.IsTerminal())
-        {
-            return includeTerminalNavigation
-                ? Buttons(Row(Button("Menu", TelegramCallbackData.MainMenu)))
-                : TelegramButtonMarkup.Empty;
-        }
+        var submenuRow = Row(
+            Button("Result", TelegramCallbackData.ViewTaskResult(task.Id)),
+            Button("Progress", TelegramCallbackData.ViewTaskProgress(task.Id)),
+            Button("Artifacts", TelegramCallbackData.ViewTaskArtifacts(task.Id)));
 
         if (task.Status == RuntimeTaskStatus.Reviewing)
         {
             return Buttons(
+                submenuRow,
                 Row(
                     Button("Continue", TelegramCallbackData.ContinueTask(task.Id), TelegramButtonStyle.Primary),
                     Button("Complete", TelegramCallbackData.CompleteTask(task.Id))),
@@ -1630,11 +1705,40 @@ public sealed class TelegramInteractionHandler
                     Button("Back", TelegramCallbackData.MainMenu)));
         }
 
+        if (task.Status == RuntimeTaskStatus.Cancelled)
+        {
+            return includeTerminalNavigation
+                ? Buttons(
+                    submenuRow,
+                    Row(
+                        Button("Continue", TelegramCallbackData.ContinueTask(task.Id), TelegramButtonStyle.Primary),
+                        Button("Menu", TelegramCallbackData.MainMenu)))
+                : Buttons(
+                    submenuRow,
+                    Row(Button("Continue", TelegramCallbackData.ContinueTask(task.Id), TelegramButtonStyle.Primary)));
+        }
+
+        if (task.Status.IsTerminal())
+        {
+            return includeTerminalNavigation
+                ? Buttons(
+                    submenuRow,
+                    Row(Button("Menu", TelegramCallbackData.MainMenu)))
+                : Buttons(submenuRow);
+        }
+
         return Buttons(
+            submenuRow,
             Row(
                 Button("Cancel", TelegramCallbackData.CancelTask(task.Id)),
                 Button("Back", TelegramCallbackData.MainMenu)));
     }
+
+    private static bool CanContinueTask(RuntimeTaskStatus status) =>
+        status is RuntimeTaskStatus.Reviewing or RuntimeTaskStatus.Cancelled;
+
+    private static TelegramButtonMarkup TaskSubviewButtons(TaskId taskId) =>
+        Buttons(Row(Button("Back", TelegramCallbackData.ViewTask(taskId))));
 
     private static string FormatIteration(TaskIteration? iteration) =>
         iteration is null
@@ -1657,6 +1761,18 @@ public sealed class TelegramInteractionHandler
                     : $"exit {execution.ExitCode}";
 
         return $"{execution.RunnerId} {status}";
+    }
+
+    private static string Truncate(string value, int maxLength)
+    {
+        var trimmed = value.Trim();
+
+        if (trimmed.Length <= maxLength)
+        {
+            return trimmed;
+        }
+
+        return trimmed[..Math.Max(0, maxLength - 14)].TrimEnd() + "\n[truncated]";
     }
 
     private static string FormatArtifactPath(

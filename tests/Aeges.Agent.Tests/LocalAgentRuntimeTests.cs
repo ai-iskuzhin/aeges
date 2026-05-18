@@ -136,7 +136,7 @@ public sealed class LocalAgentRuntimeTests
                 snapshot.ArtifactOutputDirectory);
             Assert.Equal(Path.Combine(snapshot.ArtifactOutputDirectory!, "prompt.md"), snapshot.PromptPath);
             Assert.True(File.Exists(snapshot.PromptPath));
-            Assert.Contains("Goal:", await File.ReadAllTextAsync(snapshot.PromptPath));
+            Assert.Contains("Original goal context:", await File.ReadAllTextAsync(snapshot.PromptPath));
 
             var promptArtifact = Assert.Single(artifacts);
             Assert.Equal(new ArtifactId(snapshot.PromptArtifactId), promptArtifact.Id);
@@ -144,6 +144,62 @@ public sealed class LocalAgentRuntimeTests
             Assert.Equal($"project-001/task-001/{snapshot.CreatedIterationId}/prompt.md", promptArtifact.RelativePath);
             Assert.True(promptArtifact.SizeBytes > 0);
             Assert.NotNull(promptArtifact.Sha256);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+            DeleteIfExists($"{databasePath}-shm");
+            DeleteIfExists($"{databasePath}-wal");
+            DeleteDirectoryIfExists(runtimeRoot);
+        }
+    }
+
+    [Fact]
+    public async Task RunOnce_makes_latest_review_feedback_the_primary_prompt_instruction()
+    {
+        var clock = new FixedClock(new DateTimeOffset(2026, 05, 08, 08, 00, 00, TimeSpan.Zero));
+        var runtime = new LocalAgentRuntime(clock);
+        var databasePath = Path.Combine(Path.GetTempPath(), $"aeges-agent-{Guid.NewGuid():N}.db");
+        var connectionString = $"Data Source={databasePath}";
+        var runtimeRoot = Path.Combine(Path.GetTempPath(), $"aeges-runtime-{Guid.NewGuid():N}");
+
+        try
+        {
+            await SeedProjectMachineAndTaskAsync(connectionString, clock.Now, new MachineId("machine-001"));
+            await SeedReviewArtifactAsync(
+                connectionString,
+                runtimeRoot,
+                new ArtifactId("artifact-review-old"),
+                clock.Now.AddMinutes(1),
+                "Feedback:\nRepeat the original issue investigation.");
+            await SeedReviewArtifactAsync(
+                connectionString,
+                runtimeRoot,
+                new ArtifactId("artifact-review-new"),
+                clock.Now.AddMinutes(2),
+                "Feedback:\nMerge the existing branch and publish a new release.");
+
+            var snapshot = await runtime.RunOnceAsync(
+                new AgentRunOptions(
+                    connectionString,
+                    "machine-001",
+                    "local-test",
+                    "test-platform",
+                    RunnerId: "mock",
+                    RuntimeRootPath: runtimeRoot),
+                CancellationToken.None);
+
+            var prompt = await File.ReadAllTextAsync(snapshot.PromptPath!);
+
+            Assert.Contains("Current follow-up instructions:", prompt, StringComparison.Ordinal);
+            Assert.Contains("Merge the existing branch and publish a new release.", prompt, StringComparison.Ordinal);
+            Assert.Contains("Original goal context:", prompt, StringComparison.Ordinal);
+            Assert.Contains("Previous follow-up context:", prompt, StringComparison.Ordinal);
+            Assert.Contains("Repeat the original issue investigation.", prompt, StringComparison.Ordinal);
+            Assert.DoesNotContain("Feedback:\nMerge the existing branch", prompt, StringComparison.Ordinal);
+            Assert.True(
+                prompt.IndexOf("Merge the existing branch", StringComparison.Ordinal)
+                < prompt.IndexOf("Original goal context:", StringComparison.Ordinal));
         }
         finally
         {
@@ -570,6 +626,33 @@ public sealed class LocalAgentRuntimeTests
             now,
             taskMachineId,
             [new SeedTask("project-001", "Aeges", projectPath, "task-001")]);
+    }
+
+    private static async Task SeedReviewArtifactAsync(
+        string connectionString,
+        string runtimeRoot,
+        ArtifactId artifactId,
+        DateTimeOffset createdAt,
+        string content)
+    {
+        var relativePath = $"project-001/task-001/review/{artifactId.Value}.md";
+        var fullPath = Path.Combine(runtimeRoot, "artifacts", relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        await File.WriteAllTextAsync(fullPath, content);
+
+        await using var context = new AegesDbContext(AegesDbContextOptions.Create(connectionString));
+        var unitOfWork = new SqliteUnitOfWork(context);
+        await unitOfWork.Artifacts.AddAsync(
+            new RuntimeArtifact(
+                artifactId,
+                new TaskId("task-001"),
+                iterationId: null,
+                ArtifactType.Review,
+                relativePath,
+                createdAt,
+                content.Length),
+            CancellationToken.None);
+        await unitOfWork.SaveChangesAsync(CancellationToken.None);
     }
 
     private static async Task SeedProjectsMachineAndTasksAsync(

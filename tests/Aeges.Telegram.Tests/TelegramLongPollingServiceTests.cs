@@ -428,8 +428,10 @@ public sealed class TelegramLongPollingServiceTests
 
         Assert.Equal(2, gateway.EditedResponses.Count);
         Assert.Contains("Status: cancelled", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
-        Assert.Single(gateway.EditedResponses[1].Response.Buttons.Rows);
-        Assert.Equal("Menu", gateway.EditedResponses[1].Response.Buttons.Rows[0][0].Text);
+        Assert.Equal(2, gateway.EditedResponses[1].Response.Buttons.Rows.Count);
+        Assert.Equal(["Result", "Progress", "Artifacts"], gateway.EditedResponses[1].Response.Buttons.Rows[0].Select(button => button.Text).ToArray());
+        Assert.Equal("Continue", gateway.EditedResponses[1].Response.Buttons.Rows[1][0].Text);
+        Assert.Equal("Menu", gateway.EditedResponses[1].Response.Buttons.Rows[1][1].Text);
     }
 
     [Fact]
@@ -485,8 +487,9 @@ public sealed class TelegramLongPollingServiceTests
         Assert.Equal(1001, gateway.Drafts[0].ChatId);
         Assert.Contains("Wire progress", gateway.Drafts[0].Text, StringComparison.Ordinal);
         Assert.Contains("Codex finished the first file.", gateway.Drafts[0].Text, StringComparison.Ordinal);
-        Assert.Contains("Runner progress:", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
-        Assert.Contains("Codex finished the first file.", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Runner progress:", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Codex finished the first file.", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
+        Assert.Equal(["Result", "Progress", "Artifacts"], gateway.EditedResponses[1].Response.Buttons.Rows[0].Select(button => button.Text).ToArray());
     }
 
     [Fact]
@@ -634,7 +637,7 @@ public sealed class TelegramLongPollingServiceTests
         Assert.Empty(gateway.SentResponses);
         Assert.Equal(2, gateway.EditedResponses.Count);
         Assert.Contains("> Status: completed", gateway.EditedResponses[1].Response.Text, StringComparison.Ordinal);
-        Assert.Empty(gateway.EditedResponses[1].Response.Buttons.Rows);
+        Assert.Equal(["Result", "Progress", "Artifacts"], gateway.EditedResponses[1].Response.Buttons.Rows[0].Select(button => button.Text).ToArray());
     }
 
     [Fact]

@@ -182,6 +182,27 @@ public static class TelegramCallbackData
     public static string ViewTask(TaskId taskId) => $"aeges:task:{taskId.Value}";
 
     /// <summary>
+    /// Creates a task result details callback payload.
+    /// </summary>
+    /// <param name="taskId">The task identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string ViewTaskResult(TaskId taskId) => $"ae:t:r:{taskId.Value}";
+
+    /// <summary>
+    /// Creates a task progress details callback payload.
+    /// </summary>
+    /// <param name="taskId">The task identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string ViewTaskProgress(TaskId taskId) => $"ae:t:p:{taskId.Value}";
+
+    /// <summary>
+    /// Creates a task artifact details callback payload.
+    /// </summary>
+    /// <param name="taskId">The task identifier.</param>
+    /// <returns>The callback payload.</returns>
+    public static string ViewTaskArtifacts(TaskId taskId) => $"ae:t:a:{taskId.Value}";
+
+    /// <summary>
     /// Creates a task cancellation callback payload.
     /// </summary>
     /// <param name="taskId">The task identifier.</param>
@@ -283,6 +304,33 @@ public static class TelegramCallbackData
         taskId = default;
         return false;
     }
+
+    /// <summary>
+    /// Attempts to parse a task result details callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="taskId">The parsed task identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseViewTaskResult(string payload, out TaskId taskId) =>
+        TryParseTaskSubview(payload, "ae:t:r:", out taskId);
+
+    /// <summary>
+    /// Attempts to parse a task progress details callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="taskId">The parsed task identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseViewTaskProgress(string payload, out TaskId taskId) =>
+        TryParseTaskSubview(payload, "ae:t:p:", out taskId);
+
+    /// <summary>
+    /// Attempts to parse a task artifact details callback payload.
+    /// </summary>
+    /// <param name="payload">The callback payload.</param>
+    /// <param name="taskId">The parsed task identifier.</param>
+    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
+    public static bool TryParseViewTaskArtifacts(string payload, out TaskId taskId) =>
+        TryParseTaskSubview(payload, "ae:t:a:", out taskId);
 
     /// <summary>
     /// Attempts to parse a task cancellation callback payload.
@@ -857,6 +905,26 @@ public static class TelegramCallbackData
     /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
     public static bool TryParseRejectApproval(string payload, out ApprovalId approvalId) =>
         TryParseApproval(payload, "ae:a:n:", out approvalId);
+
+    private static bool TryParseTaskSubview(string payload, string prefix, out TaskId taskId)
+    {
+        if (payload.StartsWith(prefix, StringComparison.Ordinal) && payload.Length > prefix.Length)
+        {
+            try
+            {
+                taskId = new TaskId(payload[prefix.Length..]);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                taskId = default;
+                return false;
+            }
+        }
+
+        taskId = default;
+        return false;
+    }
 
     private static bool TryParseTelegramUser(string payload, string prefix, out TelegramUserId userId)
     {

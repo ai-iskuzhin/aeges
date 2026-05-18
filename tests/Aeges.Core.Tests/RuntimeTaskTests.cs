@@ -13,7 +13,7 @@ public sealed class RuntimeTaskTests
 
         Assert.Equal(RuntimeTaskStatus.Queued, task.Status);
         Assert.Equal(0, task.CurrentIteration);
-        Assert.Equal(3, task.MaxIterations);
+        Assert.Equal(RuntimeTask.DefaultMaxIterations, task.MaxIterations);
         Assert.Equal(CreatedAt, task.CreatedAt);
         Assert.Equal(CreatedAt, task.UpdatedAt);
         Assert.Null(task.StartedAt);
@@ -156,6 +156,23 @@ public sealed class RuntimeTaskTests
     }
 
     [Fact]
+    public void Cancelled_task_can_be_requeued_for_revision()
+    {
+        var task = CreateTask(maxIterations: 2);
+
+        task.StartPlanning(CreatedAt.AddMinutes(1));
+        task.AdvanceIteration(CreatedAt.AddMinutes(2));
+        task.StartRunning(CreatedAt.AddMinutes(3));
+        task.Cancel(CreatedAt.AddMinutes(4));
+        task.RequeueForRevision(CreatedAt.AddMinutes(5));
+
+        Assert.Equal(RuntimeTaskStatus.Queued, task.Status);
+        Assert.Equal(1, task.CurrentIteration);
+        Assert.Null(task.CancelledAt);
+        Assert.Equal(CreatedAt.AddMinutes(5), task.UpdatedAt);
+    }
+
+    [Fact]
     public void RequeueForRevision_enforces_iteration_limit()
     {
         var task = CreateTask(maxIterations: 1);
@@ -184,7 +201,7 @@ public sealed class RuntimeTaskTests
         Assert.Equal(status, RuntimeTaskStatusExtensions.FromStorageValue(storageValue));
     }
 
-    private static RuntimeTask CreateTask(int maxIterations = 3) =>
+    private static RuntimeTask CreateTask(int maxIterations = RuntimeTask.DefaultMaxIterations) =>
         RuntimeTask.Create(
             new TaskId("task-001"),
             new ProjectId("project-001"),

@@ -4307,7 +4307,7 @@ internal static class AegesCli
 
         public int Priority { get; private init; }
 
-        public int MaxIterations { get; private init; } = 3;
+        public int MaxIterations { get; private init; } = RuntimeTask.DefaultMaxIterations;
 
         public new static TaskCreateOptions Parse(string[] args)
         {
@@ -4319,7 +4319,7 @@ internal static class AegesCli
             string? title = null;
             string? goal = null;
             var priority = 0;
-            var maxIterations = 3;
+            var maxIterations = RuntimeTask.DefaultMaxIterations;
             var json = false;
 
             for (var index = 0; index < args.Length; index++)

@@ -406,6 +406,7 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         var executions = await runnerExecutionService.ListByTaskAsync(taskId, cancellationToken);
         var runtimeEvents = await runtimeEventService.ListByTaskAsync(taskId, 10, cancellationToken);
         var latestResponse = TryReadLatestRunnerResponse(artifacts, iterations);
+        var latestFollowUp = TryReadLatestFollowUp(artifacts);
 
         return ApplicationResult<TelegramTaskReviewSnapshot>.Success(
             new TelegramTaskReviewSnapshot(
@@ -415,7 +416,8 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
                 runtimeLayout.ArtifactsPath,
                 executions,
                 runtimeEvents,
-                latestResponse));
+                latestResponse,
+                latestFollowUp));
     }
 
     /// <inheritdoc />
@@ -488,11 +490,11 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
             return ApplicationResult<RuntimeTask>.Failure(task.Error!.Code, task.Error.Message);
         }
 
-        if (task.Value!.Status != RuntimeTaskStatus.Reviewing)
+        if (!CanContinueTask(task.Value!.Status))
         {
             return ApplicationResult<RuntimeTask>.Failure(
-                "task_not_reviewing",
-                $"Task '{taskId}' is not waiting for review feedback.");
+                "task_not_continuable",
+                $"Task '{taskId}' is not waiting for review feedback and is not cancelled.");
         }
 
         if (task.Value.CurrentIteration >= task.Value.MaxIterations)
@@ -630,6 +632,31 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         {feedback.Trim()}
         """;
 
+    private static bool CanContinueTask(RuntimeTaskStatus status) =>
+        status is RuntimeTaskStatus.Reviewing or RuntimeTaskStatus.Cancelled;
+
+    private string? TryReadLatestFollowUp(IReadOnlyList<RuntimeArtifact> artifacts)
+    {
+        var artifact = artifacts
+            .Where(artifact => artifact.Type == ArtifactType.Review)
+            .OrderByDescending(artifact => artifact.CreatedAt)
+            .FirstOrDefault();
+
+        if (artifact is null)
+        {
+            return null;
+        }
+
+        var preview = TryReadArtifactPreview(artifact);
+
+        if (string.IsNullOrWhiteSpace(preview))
+        {
+            return null;
+        }
+
+        return ExtractFeedbackText(preview);
+    }
+
     private static string CreateReviewArtifactPath(RuntimeTask task, ArtifactId artifactId) =>
         string.Join(
             '/',
@@ -758,6 +785,19 @@ public sealed class TelegramApplicationFacade : ITelegramApplicationFacade
         }
 
         return TrimPreview(latestMessage);
+    }
+
+    private static string ExtractFeedbackText(string content)
+    {
+        const string marker = "Feedback:";
+        var markerIndex = content.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+
+        if (markerIndex < 0)
+        {
+            return content.Trim();
+        }
+
+        return content[(markerIndex + marker.Length)..].Trim();
     }
 
     private static string? TryReadTextPreview(string path)
